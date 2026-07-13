@@ -1,8 +1,31 @@
 {
   "rewrites": [
+<<<<<<< HEAD
     { "source": "/", "destination": "/src/index.html" },
     { "source": "/app.js", "destination": "/src/app.js" },
     { "source": "/style.css", "destination": "/src/style.css" },
     { "source": "/storage-supabase.js", "destination": "/src/storage-supabase.js" }
+=======
+    {
+      "source": "/",
+      "destination": "/src/index.html"
+    },
+    {
+      "source": "/style.css",
+      "destination": "/src/style.css"
+    },
+    {
+      "source": "/app.js",
+      "destination": "/src/app.js"
+    },
+    {
+      "source": "/storage.js",
+      "destination": "/src/storage.js"
+    },
+    {
+      "source": "/storage-supabase.js",
+      "destination": "/src/storage-supabase.js"
+    }
+>>>>>>> ac76ab99610f96d923d117dd30a05a0502e46613
   ]
 }
