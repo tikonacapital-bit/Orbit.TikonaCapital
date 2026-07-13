@@ -1,0 +1,4181 @@
+
+// Choose storage backend: './storage.js' for chrome.storage, './storage-supabase.js' for Supabase
+import { loadState, loadCachedState, saveStateDebounced, startPolling, fetchLatestState } from './storage-supabase.js';
+
+const boardEl = document.getElementById('board');
+const listNavEl = document.getElementById('listNav');
+const statsEl = document.getElementById('stats');
+const dashboardTitleEl = document.getElementById('dashboardTitle');
+const tplList = document.getElementById('tpl-list');
+const tplSection = document.getElementById('tpl-section');
+const tplTask = document.getElementById('tpl-task');
+const toastEl = document.getElementById('toast');
+
+let state = { lists: [], projects: [], employees: [], activity: [], bin: [] };
+let toastTimer = null;
+let activeListId = 'all';
+let activeWorkspace = 'tasks';
+let activeQuickPriority = 'any';
+let activeQuickStatus = 'any';
+let searchQuery = '';
+let activeRegularEmployee = 'all';
+let activeProjectEmployee = 'all';
+let regularStartDate = firstDayOfMonth(new Date());
+let attendanceMonth = firstDayOfMonth(new Date());
+let viewMode = loadViewMode();
+const VIEW_MODES = new Set(['board', 'table', 'stack']);
+
+function loadViewMode() {
+  try {
+    return localStorage.getItem('tikona_view_mode_v1') || 'board';
+  } catch (err) {
+    return 'board';
+  }
+}
+
+function saveViewMode(mode) {
+  try {
+    localStorage.setItem('tikona_view_mode_v1', mode);
+  } catch (err) {
+    // View selection can still work for the current session if localStorage is unavailable.
+  }
+}
+
+
+function uid(prefix) {
+  return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
+}
+
+function persist() {
+  saveStateDebounced(state);
+}
+
+function showToast(message, undoFn) {
+  clearTimeout(toastTimer);
+  toastEl.innerHTML = '';
+  const span = document.createElement('span');
+  span.textContent = message;
+  toastEl.appendChild(span);
+  if (undoFn) {
+    const btn = document.createElement('button');
+    btn.textContent = 'Undo';
+    btn.onclick = () => {
+      undoFn();
+      toastEl.classList.remove('show');
+    };
+    toastEl.appendChild(btn);
+  }
+  toastEl.classList.add('show');
+  toastTimer = setTimeout(() => toastEl.classList.remove('show'), 6000);
+}
+
+function showFatal(message, err) {
+  console.error(message, err);
+  toastEl.innerHTML = '';
+  const span = document.createElement('span');
+  const detail = err && (err.message || String(err));
+  span.textContent = detail ? `${message} (${detail})` : message;
+  toastEl.appendChild(span);
+  toastEl.classList.add('show');
+}
+
+// Last-resort safety net: catch any error that slips past the try/catch
+// blocks inside render()/event handlers (e.g. one thrown directly inside a
+// DOM event listener callback, which try/catch inside render() cannot see)
+// and surface it on screen instead of leaving the tab silently broken.
+window.addEventListener('error', (event) => {
+  showFatal('An unexpected error occurred.', event.error || event.message);
+});
+window.addEventListener('unhandledrejection', (event) => {
+  showFatal('An unexpected error occurred.', event.reason);
+});
+
+const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
+const WEEKDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const PRIORITY_ORDER = ['none', 'low', 'medium', 'high'];
+const PROGRESS_STEPS = [0, 25, 50, 75, 100];
+const LIST_COLORS = ['#6fd5c8', '#f0b95a', '#8b8cf6', '#ff7d7d', '#5ac8fa', '#34d399', '#f472b6', '#facc15'];
+const VIEW_META = {
+  board: { label: 'Horizontal', icon: '<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><rect x="1" y="3" width="5" height="14" rx="1.5"/><rect x="7.5" y="3" width="5" height="14" rx="1.5"/><rect x="14" y="3" width="5" height="14" rx="1.5"/></svg>' },
+  table: { label: 'Table', icon: '<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><rect x="1" y="2" width="18" height="16" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><line x1="1" y1="8" x2="19" y2="8" stroke="currentColor" stroke-width="1.6"/><line x1="1" y1="13" x2="19" y2="13" stroke="currentColor" stroke-width="1.6"/></svg>' },
+  stack: { label: 'Stack', icon: '<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><rect x="2" y="2" width="16" height="4.5" rx="1.3"/><rect x="2" y="8" width="16" height="4.5" rx="1.3"/><rect x="2" y="14" width="16" height="4.5" rx="1.3"/></svg>' },
+};
+
+function listAccentColor(id) {
+  let hash = 0;
+  for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
+  return LIST_COLORS[hash % LIST_COLORS.length];
+}
+const DEFAULT_REGULAR_TASKS = [
+  { id: 'reg_daily_news', cadence: 'daily', owner: 'Ayush/Intern', title: 'Daily News', time: '09:00', group: 'Daily' },
+  { id: 'reg_macro_news', cadence: 'daily', owner: 'Ayush/Intern', title: 'Macro News', time: '09:00', group: 'Daily' },
+  { id: 'reg_ai_news_tool', cadence: 'daily', owner: 'Kishan/Pratik', title: 'AI News / Tool', time: '09:00', group: 'Daily' },
+  { id: 'reg_portfolio_news', cadence: 'daily', owner: 'Ayush/Intern', title: 'Portfolio News', time: '09:00', group: 'Daily' },
+  { id: 'reg_qtr_results', cadence: 'daily', owner: 'Ayush/Intern', title: 'Qtr Results Calendar', time: '09:00', group: 'Daily' },
+  { id: 'reg_ipo_listing', cadence: 'daily', owner: 'Ayush/Intern', title: 'IPO Companies Listing / Open', time: '09:00', group: 'Daily' },
+  { id: 'reg_daily_assignment', cadence: 'daily', owner: 'Ayush', title: 'Daily Task List Sent by all in Team', time: '09:00', group: 'Daily' },
+  { id: 'reg_fund_performance', cadence: 'daily', owner: 'Ayush/Intern', title: 'Fund Performance', time: '16:00', group: 'Daily' },
+  { id: 'reg_sellside_report', cadence: 'daily', owner: 'Ayush/Intern', title: 'Sell Side Research Report', time: '18:30', group: 'Daily' },
+  { id: 'reg_completion_update', cadence: 'daily', owner: 'Ayush', title: 'Task Completion update', time: '18:45', group: 'Daily' },
+  { id: 'reg_client_returns', cadence: 'weekly', owner: 'Ayush/Intern', title: 'Client Portfolio Returns - Whatsapp', weekday: 1, group: 'Weekly' },
+  { id: 'reg_stocks_review', cadence: 'weekly', owner: 'Ayush/Sumit', title: 'Portfolio Stocks Review', weekday: 1, group: 'Weekly' },
+  { id: 'reg_spreadsheet_review', cadence: 'weekly', owner: 'Ayush/Sumit', title: 'Research spreadsheet review', weekday: 1, group: 'Weekly' },
+  { id: 'reg_fund_review_blog', cadence: 'weekly', owner: 'Ayush/Sumit', title: 'Mutual Fund Review + Blog', weekday: 2, group: 'Weekly' },
+  { id: 'reg_monthly_sip', cadence: 'monthly', owner: 'Ayush', title: 'Monthly SIP and portfolio tracker check', dayOfMonth: 1, group: 'Monthly' },
+  { id: 'reg_monthly_returns', cadence: 'monthly', owner: 'Ayush/Sumit', title: 'Monthly returns dashboard update', dayOfMonth: 5, group: 'Monthly' },
+  { id: 'reg_monthly_research', cadence: 'monthly', owner: 'Kishan/Pratik', title: 'Monthly research archive clean-up', dayOfMonth: 10, group: 'Monthly' },
+];
+
+const FILTER_PRIORITIES = ['any', 'none', 'low', 'medium', 'high'];
+const FILTER_STATUSES = ['any', 'open', 'done', 'overdue'];
+
+function fmtShort(ts) {
+  const d = new Date(ts);
+  return `${MONTHS[d.getMonth()]} ${d.getDate()}`;
+}
+
+function formatCompletedDate(ts) {
+  if (!ts) return '';
+  const now = new Date();
+  const completed = new Date(ts);
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const startOfCompletedDay = new Date(completed.getFullYear(), completed.getMonth(), completed.getDate());
+  const dayDiff = Math.round((startOfToday - startOfCompletedDay) / 86400000);
+  if (dayDiff <= 0) return 'Completed today';
+  if (dayDiff === 1) return 'Completed yesterday';
+  if (dayDiff < 7) return `Completed ${dayDiff} days ago`;
+  if (dayDiff < 14) return 'Completed last week';
+  if (dayDiff < 30) return `Completed ${Math.floor(dayDiff / 7)} weeks ago`;
+  return `Completed on ${fmtShort(ts)}`;
+}
+
+function fmtDateTime(ts) {
+  const d = new Date(ts);
+  const hours = d.getHours();
+  const h12 = ((hours + 11) % 12) + 1;
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  const mins = String(d.getMinutes()).padStart(2, '0');
+  return `${fmtShort(ts)}, ${h12}:${mins} ${ampm}`;
+}
+
+function shortenDevice(ua) {
+  if (!ua) return 'Unknown device';
+  let browser = 'Unknown browser';
+  if (/Edg\//.test(ua)) browser = 'Edge';
+  else if (/Chrome\//.test(ua)) browser = 'Chrome';
+  else if (/Firefox\//.test(ua)) browser = 'Firefox';
+  else if (/Safari\//.test(ua)) browser = 'Safari';
+
+  let os = 'Unknown OS';
+  if (/Windows/.test(ua)) os = 'Windows';
+  else if (/Mac OS/.test(ua)) os = 'macOS';
+  else if (/Android/.test(ua)) os = 'Android';
+  else if (/iPhone|iPad/.test(ua)) os = 'iOS';
+  else if (/Linux/.test(ua)) os = 'Linux';
+
+  return `${browser} on ${os}`;
+}
+
+function todayStr() {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+}
+
+function dateKey(date) {
+  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+}
+
+function firstDayOfMonth(date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1);
+}
+
+function addDays(date, amount) {
+  const next = new Date(date);
+  next.setDate(next.getDate() + amount);
+  return next;
+}
+
+function addMonths(date, amount) {
+  const next = new Date(date);
+  const targetMonth = next.getMonth() + amount;
+  next.setMonth(targetMonth);
+  return next;
+}
+
+function daysInMonth(date) {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
+}
+
+function dueLabel(due) {
+  if (!due) return { text: '', cls: '' };
+  const today = todayStr();
+  const [y,m,dd] = due.split('-').map(Number);
+  const label = `Due ${MONTHS[m-1]} ${dd}`;
+  if (due < today) return { text: `Overdue ${MONTHS[m-1]} ${dd}`, cls: 'overdue' };
+  if (due === today) return { text: 'Due today', cls: 'due-today' };
+  return { text: label, cls: '' };
+}
+
+// ---------- data helpers ----------
+
+function findList(listId) {
+  return state.lists.find((l) => l.id === listId);
+}
+
+function sameEmployee(a, b) {
+  return (a || '').trim().toLowerCase() === (b || '').trim().toLowerCase();
+}
+
+function normalizeState(value) {
+  const lists = Array.isArray(value?.lists) ? value.lists : [];
+  return {
+    lists: lists.map((list) => ({
+      id: list.id || uid('list'),
+      name: list.name || 'Untitled list',
+      sections: normalizeSections(list.sections),
+      tasks: normalizeTasks(list.tasks),
+      archived: Boolean(list.archived),
+      archivedAt: list.archivedAt || null,
+      mood: typeof list.mood === 'string' ? list.mood : 'neutral',
+      description: typeof list.description === 'string' ? list.description : '',
+    })),
+    projects: normalizeProjects(value?.projects),
+    regular: normalizeRegular(value?.regular),
+    employees: normalizeRegisteredEmployees(value?.employees),
+    activity: normalizeActivity(value?.activity),
+    bin: normalizeBin(value?.bin),
+    chartsOrder: value?.chartsOrder || {},
+  };
+}
+
+function normalizeBin(bin) {
+  if (!Array.isArray(bin)) return [];
+  return bin
+    .filter((entry) => entry && entry.employee && typeof entry.employee.email === 'string')
+    .map((entry) => ({
+      id: entry.id || uid('bin'),
+      exitedAt: Number.isFinite(entry.exitedAt) ? entry.exitedAt : Date.now(),
+      employee: entry.employee,
+      list: entry.list || null,
+      projectMemberships: Array.isArray(entry.projectMemberships) ? entry.projectMemberships : [],
+      regularTasks: Array.isArray(entry.regularTasks) ? entry.regularTasks : [],
+      activity: Array.isArray(entry.activity) ? entry.activity : [],
+    }));
+}
+
+const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+const ACTIVITY_RETENTION = 200;
+
+function normalizeRegisteredEmployees(list) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .filter((e) => e && typeof e.email === 'string' && EMAIL_RE.test(e.email.trim()))
+    .map((e) => ({
+      name: typeof e.name === 'string' ? e.name.trim() : '',
+      email: e.email.trim().toLowerCase(),
+      joiningDate: typeof e.joiningDate === 'string' ? e.joiningDate : '',
+      endDate: typeof e.endDate === 'string' ? e.endDate : '',
+      registeredAt: Number.isFinite(e.registeredAt) ? e.registeredAt : Date.now(),
+    }));
+}
+
+function normalizeActivity(list) {
+  if (!Array.isArray(list)) return [];
+  return list
+    .filter((a) => a && typeof a.email === 'string')
+    .map((a) => ({
+      id: a.id || uid('act'),
+      type: ['register', 'checkin', 'checkout'].includes(a.type) ? a.type : 'checkin',
+      name: typeof a.name === 'string' ? a.name : '',
+      email: a.email,
+      timestamp: Number.isFinite(a.timestamp) ? a.timestamp : Date.now(),
+      ip: typeof a.ip === 'string' ? a.ip : '',
+      device: typeof a.device === 'string' ? a.device : '',
+    }))
+    .slice(-ACTIVITY_RETENTION);
+}
+
+function normalizeProjects(projects) {
+  if (!Array.isArray(projects)) return [];
+  return projects.map((project) => {
+    const owners = Array.isArray(project.owners) && project.owners.length
+      ? project.owners.filter((o) => typeof o === 'string' && o.trim())
+      : (project.owner && project.owner !== 'Unassigned' ? [project.owner] : []);
+    return {
+      id: project.id || uid('proj'),
+      name: project.name || 'Untitled project',
+      owner: owners[0] || 'Unassigned',
+      owners,
+      description: typeof project.description === 'string' ? project.description : '',
+      startDate: project.startDate || null,
+      dueDate: project.dueDate || null,
+      priority: PRIORITY_ORDER.includes(project.priority) ? project.priority : 'none',
+      status: typeof project.status === 'string' ? project.status : '',
+      sections: normalizeSections(project.sections),
+      tasks: normalizeTasks(project.tasks),
+      archived: Boolean(project.archived),
+      archivedAt: project.archivedAt || null,
+      mood: typeof project.mood === 'string' ? project.mood : 'neutral',
+      done: Boolean(project.done),
+      completedAt: Number.isFinite(project.completedAt) ? project.completedAt : null,
+      progress: PROGRESS_STEPS.includes(project.progress) ? project.progress : 0,
+    };
+  });
+}
+
+const COMPLETION_RETENTION_DAYS = 120;
+
+// chrome.storage.sync caps each stored item at 8KB. state.regular.completions
+// grows without bound as boxes get checked over months, so drop entries
+// older than the retention window to keep saves from silently failing once
+// the item crosses the quota.
+function pruneOldCompletions(completions) {
+  const cutoff = dateKey(addDays(new Date(), -COMPLETION_RETENTION_DAYS));
+  const pruned = {};
+  Object.keys(completions).forEach((key) => {
+    const datePart = key.split(':').pop();
+    if (datePart >= cutoff) pruned[key] = completions[key];
+  });
+  return pruned;
+}
+
+function normalizeRegular(regular) {
+  const sourceTasks = Array.isArray(regular?.tasks) && regular.tasks.length ? regular.tasks : DEFAULT_REGULAR_TASKS;
+  const tasks = sourceTasks.map((task) => ({
+    id: task.id || uid('reg'),
+    cadence: CADENCE_OPTIONS.includes(task.cadence) ? task.cadence : 'daily',
+    owner: task.owner || 'Unassigned',
+    title: task.title || 'Untitled regular task',
+    time: task.time || '',
+    group: task.group === 'Research - Daily' ? 'Daily' : (task.group || cadenceLabel(task.cadence || 'daily')),
+    weekday: Number.isInteger(task.weekday) ? task.weekday : 1,
+    dayOfMonth: Number.isInteger(task.dayOfMonth) ? task.dayOfMonth : 1,
+    month: Number.isInteger(task.month) ? task.month : 0,
+  }));
+  const employees = [...new Set(tasks.map((task) => task.owner))].sort();
+  const rawCompletions = regular?.completions && typeof regular.completions === 'object' ? regular.completions : {};
+  const completions = pruneOldCompletions(rawCompletions);
+  const columns = Array.isArray(regular?.columns) && regular.columns.length
+    ? regular.columns.map((key, index) => {
+      if (typeof key === 'string' && key.split('-').length === 3) return key;
+      if (typeof key === 'number') return dateKey(addDays(firstDayOfMonth(new Date()), key));
+      if (typeof key === 'string' && /^\?\d+$/.test(key)) return dateKey(addDays(firstDayOfMonth(new Date()), Number(key)));
+      return dateKey(addDays(firstDayOfMonth(new Date()), index));
+    })
+    : Array.from({ length: daysInMonth(regularStartDate) }, (_, index) => dateKey(addDays(regularStartDate, index)));
+  return { tasks, employees, completions, columns };
+}
+
+function normalizeSections(sections) {
+  if (!Array.isArray(sections)) return [];
+  return sections.map((section) => ({
+    id: section.id || uid('sec'),
+    name: section.name || 'Untitled section',
+    collapsed: Boolean(section.collapsed),
+  }));
+}
+
+function normalizeTasks(tasks) {
+  if (!Array.isArray(tasks)) return [];
+  return tasks.map((task) => ({
+    id: task.id || uid('task'),
+    text: task.text || 'Untitled task',
+    priority: PRIORITY_ORDER.includes(task.priority) ? task.priority : 'none',
+    due: typeof task.due === 'string' ? task.due : null,
+    startDate: typeof task.startDate === 'string' ? task.startDate : null,
+    createdAt: Number.isFinite(task.createdAt) ? task.createdAt : Date.now(),
+    completedAt: Number.isFinite(task.completedAt) ? task.completedAt : null,
+    done: Boolean(task.done),
+    status: typeof task.status === 'string' ? task.status : '',
+    sectionId: typeof task.sectionId === 'string' ? task.sectionId : null,
+    dueChangeCount: Number.isFinite(task.dueChangeCount) ? task.dueChangeCount : 0,
+    assignedTo: typeof task.assignedTo === 'string' ? task.assignedTo : '',
+    mood: typeof task.mood === 'string' ? task.mood : 'neutral',
+    description: typeof task.description === 'string' ? task.description : '',
+    progress: PROGRESS_STEPS.includes(task.progress) ? task.progress : 0,
+  }));
+}
+
+function getActiveLists() {
+  return state.lists.filter((l) => !l.archived);
+}
+
+function getArchivedLists() {
+  return state.lists.filter((l) => l.archived);
+}
+
+function getVisibleLists() {
+  const active = getActiveLists();
+  if (activeListId === 'all') return active;
+  const selected = findList(activeListId);
+  return selected && !selected.archived ? [selected] : active;
+}
+
+function getVisibleProjects() {
+  const projects = (state.projects || []).filter((p) => !p.archived);
+  if (activeProjectEmployee === 'all') return projects;
+  return projects.filter((project) => (project.owners || []).some((o) => sameEmployee(o, activeProjectEmployee)));
+}
+
+function getArchivedProjects() {
+  return (state.projects || []).filter((p) => p.archived);
+}
+
+function getProjectEmployees() {
+  const names = new Set();
+  (state.projects || []).forEach((project) => (project.owners || []).forEach((o) => names.add(o)));
+  return [...names].sort();
+}
+
+function listTaskStats(list) {
+  const open = list.tasks.filter((t) => !t.done).length;
+  const done = list.tasks.filter((t) => t.done).length;
+  const overdue = list.tasks.filter((t) => !t.done && t.due && t.due < todayStr()).length;
+  return { open, done, overdue, total: list.tasks.length };
+}
+
+function getActiveFilter() {
+  if (activeQuickPriority === 'any' && activeQuickStatus === 'any') return null;
+  return { priority: activeQuickPriority, status: activeQuickStatus };
+}
+
+function taskMatchesFilter(task, filter) {
+  if (!filter) return true;
+  if (filter.priority !== 'any' && (task.priority || 'none') !== filter.priority) return false;
+  if (filter.status === 'open' && task.done) return false;
+  if (filter.status === 'done' && !task.done) return false;
+  if (filter.status === 'overdue' && !(!task.done && task.due && task.due < todayStr())) return false;
+  return true;
+}
+
+function taskMatchesSearch(task) {
+  if (!searchQuery) return true;
+  const q = searchQuery.trim().toLowerCase();
+  if (!q) return true;
+  return (task.text || '').toLowerCase().includes(q)
+    || (task.description || '').toLowerCase().includes(q)
+    || (task.status || '').toLowerCase().includes(q)
+    || (task.assignedTo || '').toLowerCase().includes(q);
+}
+
+function filterTasks(tasks) {
+  const filter = getActiveFilter();
+  return tasks.filter((task) => taskMatchesFilter(task, filter) && taskMatchesSearch(task));
+}
+
+function getAllTaskRowsUnfiltered(includeDone = true) {
+  return getVisibleLists().flatMap((list) => {
+    const sections = new Map((list.sections || []).map((section) => [section.id, section.name]));
+    return list.tasks
+      .filter((task) => includeDone || !task.done)
+      .map((task) => ({
+        list,
+        task,
+        sectionName: task.sectionId ? sections.get(task.sectionId) || 'Section' : 'Unsectioned',
+      }));
+  });
+}
+
+function getAllTaskRows(includeDone = true) {
+  const filter = getActiveFilter();
+  return getAllTaskRowsUnfiltered(includeDone).filter(({ task }) => taskMatchesFilter(task, filter) && taskMatchesSearch(task));
+}
+
+const CADENCE_OPTIONS = ['daily', 'weekly', 'monthly', 'quarterly', 'half-yearly', 'yearly'];
+
+function cadenceLabel(cadence) {
+  if (cadence === 'daily') return 'Daily';
+  if (cadence === 'weekly') return 'Weekly';
+  if (cadence === 'monthly') return 'Monthly';
+  if (cadence === 'quarterly') return 'Quarterly';
+  if (cadence === 'half-yearly') return 'Half-yearly';
+  if (cadence === 'yearly') return 'Yearly';
+  return 'Monthly';
+}
+
+function getRegularTasks() {
+  const tasks = state.regular?.tasks || [];
+  if (activeRegularEmployee === 'all') return tasks;
+  return tasks.filter((task) => sameEmployee(task.owner, activeRegularEmployee));
+}
+
+function getRegularDates() {
+  const columnKeys = state.regular?.columns || [];
+  if (columnKeys.length) return columnKeys.map((key) => {
+    const [year, month, day] = key.split('-').map(Number);
+    return new Date(year, month - 1, day);
+  });
+  return Array.from({ length: daysInMonth(regularStartDate) }, (_, index) => addDays(regularStartDate, index));
+}
+
+function addRegularTask() {
+  const owner = activeRegularEmployee !== 'all' ? activeRegularEmployee : 'Unassigned';
+  const task = {
+    id: uid('reg'),
+    cadence: 'daily',
+    owner,
+    title: 'New regular task',
+    time: '09:00',
+    group: 'Daily',
+    weekday: 1,
+    dayOfMonth: 1,
+  };
+  state.regular.tasks.push(task);
+  refreshRegularEmployees();
+  persist();
+  render();
+}
+
+// Add a task with supplied details (used by prompt flow)
+function addRegularTaskWith(details = {}) {
+  const owner = details.owner || (activeRegularEmployee !== 'all' ? activeRegularEmployee : 'Unassigned');
+  const cadence = details.cadence || 'daily';
+  const task = {
+    id: uid('reg'),
+    cadence,
+    owner,
+    title: details.title || 'New regular task',
+    time: details.time || '',
+    group: details.group || cadenceLabel(cadence),
+    weekday: Number.isInteger(details.weekday) ? details.weekday : 1,
+    dayOfMonth: Number.isInteger(details.dayOfMonth) ? details.dayOfMonth : 1,
+    month: Number.isInteger(details.month) ? details.month : 0,
+  };
+  // insert into tasks array; if details.insertAfterId provided, place after that task
+  if (details.insertAfterId) {
+    const idx = state.regular.tasks.findIndex((t) => t.id === details.insertAfterId);
+    if (idx === -1) state.regular.tasks.push(task);
+    else state.regular.tasks.splice(idx + 1, 0, task);
+  } else if (details.insertAtIndex != null && Number.isInteger(details.insertAtIndex)) {
+    state.regular.tasks.splice(Math.max(0, details.insertAtIndex), 0, task);
+  } else {
+    state.regular.tasks.push(task);
+  }
+  refreshRegularEmployees();
+  persist();
+  render();
+}
+
+// Shared shell for the small regular-tasks popups (add/remove row/column).
+function openRegularPopup(title, bodyHtml, { confirmLabel = 'Save', danger = false } = {}) {
+  document.querySelectorAll('.regular-popup-overlay').forEach((m) => m.remove());
+
+  const overlay = document.createElement('div');
+  overlay.className = 'regular-popup-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:1000;';
+
+  const popup = document.createElement('div');
+  popup.style.cssText = 'background:white;border-radius:12px;padding:18px;width:90%;max-width:420px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);';
+  popup.innerHTML = `
+    <h2 style="margin:0 0 12px 0;font-size:17px;font-weight:600;">${title}</h2>
+    ${bodyHtml}
+    <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px;">
+      <button type="button" id="regPopupCancel" style="padding:8px 20px;border:1px solid #ddd;border-radius:6px;background:white;cursor:pointer;font-size:13.5px;font-weight:500;">Cancel</button>
+      <button type="button" id="regPopupConfirm" style="padding:8px 20px;border:none;border-radius:6px;background:${danger ? '#e04858' : '#3b7bf7'};color:white;cursor:pointer;font-size:13.5px;font-weight:500;">${confirmLabel}</button>
+    </div>
+  `;
+  overlay.appendChild(popup);
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  popup.querySelector('#regPopupCancel').addEventListener('click', () => overlay.remove());
+
+  return { overlay, popup, confirmBtn: popup.querySelector('#regPopupConfirm') };
+}
+
+const FIELD_STYLE = 'width:100%;padding:8px 10px;border:1px solid #ddd;border-radius:6px;font-size:13px;box-sizing:border-box;';
+const FIELD_LABEL_STYLE = 'display:block;margin-bottom:4px;font-weight:500;font-size:13px;';
+
+// ---------- employee registration & check-in/out ----------
+
+function getRegisteredEmployees() {
+  return state.employees || [];
+}
+
+function isEmailRegistered(email) {
+  return getRegisteredEmployees().some((e) => e.email === email.trim().toLowerCase());
+}
+
+async function fetchClientIp() {
+  try {
+    const res = await fetch('https://api.ipify.org?format=json');
+    const data = await res.json();
+    return data.ip || 'Unknown';
+  } catch (err) {
+    return 'Unknown';
+  }
+}
+
+function logActivity(type, email, ip, device, name = '') {
+  state.activity = state.activity || [];
+  state.activity.push({ id: uid('act'), type, name, email, timestamp: Date.now(), ip, device });
+  if (state.activity.length > ACTIVITY_RETENTION) state.activity = state.activity.slice(-ACTIVITY_RETENTION);
+  persist();
+  render();
+}
+
+function openRegisterPopup() {
+  const today = todayStr();
+  const { overlay, popup, confirmBtn } = openRegularPopup('Register Employee', `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+      <div>
+        <label style="${FIELD_LABEL_STYLE}">Full name *</label>
+        <input type="text" id="registerName" placeholder="Jane Doe" style="${FIELD_STYLE}">
+      </div>
+      <div>
+        <label style="${FIELD_LABEL_STYLE}">Email address *</label>
+        <input type="email" id="registerEmail" placeholder="you@company.com" style="${FIELD_STYLE}">
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div>
+        <label style="${FIELD_LABEL_STYLE}">Joining date *</label>
+        <input type="date" id="registerJoiningDate" value="${today}" style="${FIELD_STYLE}">
+      </div>
+      <div>
+        <label style="${FIELD_LABEL_STYLE}">End date (optional)</label>
+        <input type="date" id="registerEndDate" style="${FIELD_STYLE}">
+      </div>
+    </div>
+  `, { confirmLabel: 'Register' });
+
+  popup.querySelector('#registerName').focus();
+
+  confirmBtn.addEventListener('click', () => {
+    const name = popup.querySelector('#registerName').value.trim();
+    const email = popup.querySelector('#registerEmail').value.trim().toLowerCase();
+    const joiningDate = popup.querySelector('#registerJoiningDate').value;
+    const endDate = popup.querySelector('#registerEndDate').value;
+    if (!name) { alert("Please enter the employee's name."); return; }
+    if (!EMAIL_RE.test(email)) { alert('Please enter a valid email address.'); return; }
+    if (!joiningDate) { alert('Please select a joining date.'); return; }
+    if (isEmailRegistered(email)) { alert('This email is already registered.'); return; }
+
+    state.employees = state.employees || [];
+    state.employees.push({ name, email, joiningDate, endDate: endDate || '', registeredAt: Date.now() });
+
+    const hasList = state.lists.some((l) => !l.archived && sameEmployee(l.name, name));
+    if (!hasList) addList(name);
+
+    overlay.remove();
+    logActivity('register', email, '', navigator.userAgent, name);
+    showToast(`Registered ${name}`);
+  });
+}
+
+function getTodayActivity(email, type) {
+  const key = dateKey(new Date());
+  return (state.activity || []).find((a) => a.email === email && a.type === type && dateKey(new Date(a.timestamp)) === key);
+}
+
+function fmtTimeOnly(ts) {
+  const d = new Date(ts);
+  const hours = d.getHours();
+  const h12 = ((hours + 11) % 12) + 1;
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  const mins = String(d.getMinutes()).padStart(2, '0');
+  return `${h12}:${mins} ${ampm}`;
+}
+
+function openAttendancePopup() {
+  document.querySelectorAll('.regular-popup-overlay').forEach((m) => m.remove());
+  const employees = getRegisteredEmployees();
+  if (!employees.length) { alert('No registered employees yet. Please register first.'); return; }
+
+  const overlay = document.createElement('div');
+  overlay.className = 'regular-popup-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:1000;';
+
+  const popup = document.createElement('div');
+  popup.style.cssText = 'background:white;border-radius:12px;padding:18px;width:90%;max-width:420px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);';
+
+  const heading = document.createElement('h2');
+  heading.style.cssText = 'margin:0 0 12px 0;font-size:17px;font-weight:600;';
+  heading.textContent = 'Attendance';
+  popup.appendChild(heading);
+
+  const list = document.createElement('div');
+  list.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
+  popup.appendChild(list);
+
+  function renderRows() {
+    list.innerHTML = '';
+    employees.forEach((emp) => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid #eee;border-radius:8px;';
+
+      const nameEl = document.createElement('span');
+      nameEl.style.cssText = 'font-weight:600;font-size:13px;';
+      nameEl.textContent = emp.name || emp.email;
+      row.appendChild(nameEl);
+
+      const actionsWrap = document.createElement('div');
+      actionsWrap.style.cssText = 'display:flex;align-items:center;gap:8px;';
+
+      const checkin = getTodayActivity(emp.email, 'checkin');
+      const checkout = getTodayActivity(emp.email, 'checkout');
+
+      if (!checkin) {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = 'Check In';
+        btn.style.cssText = 'padding:6px 12px;border:none;border-radius:6px;background:#3b7bf7;color:#fff;font-size:12px;font-weight:600;cursor:pointer;';
+        btn.addEventListener('click', async () => {
+          btn.disabled = true;
+          btn.textContent = '…';
+          const ip = await fetchClientIp();
+          logActivity('checkin', emp.email, ip, navigator.userAgent, emp.name);
+          renderRows();
+        });
+        actionsWrap.appendChild(btn);
+      } else {
+        const inTime = document.createElement('span');
+        inTime.style.cssText = 'font-size:11.5px;color:#3b7bf7;font-weight:600;';
+        inTime.textContent = `In ${fmtTimeOnly(checkin.timestamp)}`;
+        actionsWrap.appendChild(inTime);
+
+        if (!checkout) {
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.textContent = 'Check Out';
+          btn.style.cssText = 'padding:6px 12px;border:none;border-radius:6px;background:#e04858;color:#fff;font-size:12px;font-weight:600;cursor:pointer;';
+          btn.addEventListener('click', async () => {
+            btn.disabled = true;
+            btn.textContent = '…';
+            const ip = await fetchClientIp();
+            logActivity('checkout', emp.email, ip, navigator.userAgent, emp.name);
+            renderRows();
+          });
+          actionsWrap.appendChild(btn);
+        } else {
+          const outTime = document.createElement('span');
+          outTime.style.cssText = 'font-size:11.5px;color:#16a34a;font-weight:600;';
+          outTime.textContent = `Out ${fmtTimeOnly(checkout.timestamp)}`;
+          actionsWrap.appendChild(outTime);
+        }
+      }
+
+      row.appendChild(actionsWrap);
+      list.appendChild(row);
+    });
+  }
+  renderRows();
+
+  const closeRow = document.createElement('div');
+  closeRow.style.cssText = 'display:flex;justify-content:flex-end;margin-top:14px;';
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.textContent = 'Close';
+  closeBtn.style.cssText = 'padding:8px 20px;border:1px solid #ddd;border-radius:6px;background:white;cursor:pointer;font-size:13.5px;font-weight:500;';
+  closeBtn.addEventListener('click', () => overlay.remove());
+  closeRow.appendChild(closeBtn);
+  popup.appendChild(closeRow);
+
+  overlay.appendChild(popup);
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+}
+
+function exitEmployee(email) {
+  const empIndex = state.employees.findIndex((e) => e.email === email);
+  if (empIndex === -1) return;
+  const employee = state.employees[empIndex];
+
+  const list = state.lists.find((l) => sameEmployee(l.name, employee.name));
+
+  const projectMemberships = [];
+  state.projects.forEach((project) => {
+    if (project.owners && project.owners.some((o) => sameEmployee(o, employee.name))) {
+      projectMemberships.push({ projectId: project.id, projectName: project.name });
+      project.owners = project.owners.filter((o) => !sameEmployee(o, employee.name));
+      if (sameEmployee(project.owner, employee.name)) {
+        project.owner = project.owners[0] || 'Unassigned';
+      }
+    }
+  });
+
+  const regularTasks = (state.regular.tasks || []).filter((t) => sameEmployee(t.owner, employee.name));
+  state.regular.tasks = (state.regular.tasks || []).filter((t) => !sameEmployee(t.owner, employee.name));
+
+  const activityEntries = (state.activity || []).filter((a) => a.email === employee.email);
+  state.activity = (state.activity || []).filter((a) => a.email !== employee.email);
+
+  if (list) {
+    state.lists = state.lists.filter((l) => l.id !== list.id);
+  }
+
+  state.employees.splice(empIndex, 1);
+
+  state.bin = state.bin || [];
+  state.bin.push({
+    id: uid('bin'),
+    exitedAt: Date.now(),
+    employee,
+    list: list || null,
+    projectMemberships,
+    regularTasks,
+    activity: activityEntries,
+  });
+
+  persist();
+  render();
+}
+
+function restoreEmployee(binId) {
+  const idx = (state.bin || []).findIndex((b) => b.id === binId);
+  if (idx === -1) return;
+  const entry = state.bin[idx];
+
+  if (!isEmailRegistered(entry.employee.email)) {
+    state.employees.push(entry.employee);
+  }
+
+  if (entry.list && !state.lists.some((l) => l.id === entry.list.id)) {
+    state.lists.push(entry.list);
+  }
+
+  entry.projectMemberships.forEach(({ projectId, projectName }) => {
+    const project = state.projects.find((p) => p.id === projectId) || state.projects.find((p) => p.name === projectName);
+    if (project) {
+      project.owners = project.owners || [];
+      if (!project.owners.some((o) => sameEmployee(o, entry.employee.name))) {
+        project.owners.push(entry.employee.name);
+      }
+      if (!project.owner || project.owner === 'Unassigned') project.owner = entry.employee.name;
+    }
+  });
+
+  state.regular.tasks = state.regular.tasks || [];
+  entry.regularTasks.forEach((task) => {
+    if (!state.regular.tasks.some((t) => t.id === task.id)) state.regular.tasks.push(task);
+  });
+
+  state.activity = state.activity || [];
+  entry.activity.forEach((a) => {
+    if (!state.activity.some((existing) => existing.id === a.id)) state.activity.push(a);
+  });
+
+  state.bin.splice(idx, 1);
+
+  persist();
+  render();
+}
+
+function openExitPopup() {
+  document.querySelectorAll('.regular-popup-overlay').forEach((m) => m.remove());
+
+  const overlay = document.createElement('div');
+  overlay.className = 'regular-popup-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:1000;';
+
+  const popup = document.createElement('div');
+  popup.style.cssText = 'background:white;border-radius:12px;padding:18px;width:90%;max-width:440px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);';
+
+  const heading = document.createElement('h2');
+  heading.style.cssText = 'margin:0 0 4px 0;font-size:17px;font-weight:600;';
+  heading.textContent = 'Employee Exit';
+  popup.appendChild(heading);
+
+  const subtext = document.createElement('p');
+  subtext.style.cssText = 'margin:0 0 12px 0;font-size:12px;color:#8a94a6;';
+  subtext.textContent = 'Removes the employee and their data from view. Everything is kept safely and can be restored below if they rejoin.';
+  popup.appendChild(subtext);
+
+  const employees = getRegisteredEmployees();
+
+  const activeLabel = document.createElement('label');
+  activeLabel.style.cssText = FIELD_LABEL_STYLE;
+  activeLabel.textContent = 'Select employee to exit';
+  popup.appendChild(activeLabel);
+
+  const select = document.createElement('select');
+  select.id = 'exitEmployeeSelect';
+  select.style.cssText = FIELD_STYLE;
+  if (!employees.length) {
+    select.innerHTML = '<option value="">No registered employees</option>';
+    select.disabled = true;
+  } else {
+    select.innerHTML = employees.map((e) => `<option value="${escapeHtml(e.email)}">${escapeHtml(e.name || e.email)}</option>`).join('');
+  }
+  popup.appendChild(select);
+
+  const exitBtnRow = document.createElement('div');
+  exitBtnRow.style.cssText = 'display:flex;justify-content:flex-end;margin-top:10px;margin-bottom:16px;';
+  const exitConfirmBtn = document.createElement('button');
+  exitConfirmBtn.type = 'button';
+  exitConfirmBtn.textContent = 'Exit Employee';
+  exitConfirmBtn.style.cssText = 'padding:8px 20px;border:none;border-radius:6px;background:#e04858;color:#fff;cursor:pointer;font-size:13.5px;font-weight:600;';
+  exitConfirmBtn.disabled = !employees.length;
+  exitConfirmBtn.addEventListener('click', () => {
+    const email = select.value;
+    const emp = employees.find((e) => e.email === email);
+    if (!emp) return;
+    if (!confirm(`Remove ${emp.name || emp.email} and all their data from the app? This can be undone from the "Exited employees" list.`)) return;
+    exitEmployee(email);
+    overlay.remove();
+    showToast(`${emp.name || emp.email} has exited. Data kept in the bin.`);
+  });
+  exitBtnRow.appendChild(exitConfirmBtn);
+  popup.appendChild(exitBtnRow);
+
+  const bin = state.bin || [];
+  if (bin.length) {
+    const binHeading = document.createElement('div');
+    binHeading.style.cssText = 'font-weight:600;font-size:13px;margin-bottom:8px;border-top:1px solid #eee;padding-top:12px;';
+    binHeading.textContent = `Exited employees (${bin.length})`;
+    popup.appendChild(binHeading);
+
+    const binList = document.createElement('div');
+    binList.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
+    bin.slice().sort((a, b) => b.exitedAt - a.exitedAt).forEach((entry) => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid #eee;border-radius:8px;';
+
+      const info = document.createElement('div');
+      const nameEl = document.createElement('div');
+      nameEl.style.cssText = 'font-weight:600;font-size:13px;';
+      nameEl.textContent = entry.employee.name || entry.employee.email;
+      const dateEl = document.createElement('div');
+      dateEl.style.cssText = 'font-size:11px;color:#8a94a6;margin-top:2px;';
+      dateEl.textContent = `Exited ${fmtShort(entry.exitedAt)}`;
+      info.appendChild(nameEl);
+      info.appendChild(dateEl);
+      row.appendChild(info);
+
+      const restoreBtn = document.createElement('button');
+      restoreBtn.type = 'button';
+      restoreBtn.textContent = 'Restore';
+      restoreBtn.style.cssText = 'padding:6px 12px;border:none;border-radius:6px;background:#3b7bf7;color:#fff;font-size:12px;font-weight:600;cursor:pointer;';
+      restoreBtn.addEventListener('click', () => {
+        restoreEmployee(entry.id);
+        overlay.remove();
+        showToast(`${entry.employee.name || entry.employee.email} restored.`);
+      });
+      row.appendChild(restoreBtn);
+
+      binList.appendChild(row);
+    });
+    popup.appendChild(binList);
+  }
+
+  const closeRow = document.createElement('div');
+  closeRow.style.cssText = 'display:flex;justify-content:flex-end;margin-top:14px;';
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.textContent = 'Close';
+  closeBtn.style.cssText = 'padding:8px 20px;border:1px solid #ddd;border-radius:6px;background:white;cursor:pointer;font-size:13.5px;font-weight:500;';
+  closeBtn.addEventListener('click', () => overlay.remove());
+  closeRow.appendChild(closeBtn);
+  popup.appendChild(closeRow);
+
+  overlay.appendChild(popup);
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+}
+
+function openAddRegularRowPopup() {
+  const employees = getAllEmployees();
+  const employeeOptions = employees.map((e) => `<option value="${escapeHtml(e)}">${escapeHtml(e)}</option>`).join('');
+  const cadenceOptions = CADENCE_OPTIONS.map((c) => `<option value="${c}">${cadenceLabel(c)}</option>`).join('');
+
+  const { overlay, popup, confirmBtn } = openRegularPopup('Add Regular Task', `
+    <div style="margin-bottom:10px;">
+      <label style="${FIELD_LABEL_STYLE}">Task Title *</label>
+      <input type="text" id="regRowTitle" placeholder="Enter task title" style="${FIELD_STYLE}">
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div>
+        <label style="${FIELD_LABEL_STYLE}">Employee</label>
+        <select id="regRowOwner" style="${FIELD_STYLE}"><option value="Unassigned">Unassigned</option>${employeeOptions}</select>
+      </div>
+      <div>
+        <label style="${FIELD_LABEL_STYLE}">Cadence</label>
+        <select id="regRowCadence" style="${FIELD_STYLE}">${cadenceOptions}</select>
+      </div>
+    </div>
+  `, { confirmLabel: 'Add' });
+
+  if (activeRegularEmployee !== 'all') {
+    const sel = popup.querySelector('#regRowOwner');
+    if ([...sel.options].some((o) => o.value === activeRegularEmployee)) sel.value = activeRegularEmployee;
+  }
+
+  confirmBtn.addEventListener('click', () => {
+    const title = popup.querySelector('#regRowTitle').value.trim();
+    if (!title) { alert('Please enter a task title'); return; }
+    const owner = popup.querySelector('#regRowOwner').value;
+    const cadence = popup.querySelector('#regRowCadence').value;
+    const group = cadenceLabel(cadence);
+    let insertAfterId = null;
+    for (let i = state.regular.tasks.length - 1; i >= 0; i--) {
+      const t = state.regular.tasks[i];
+      if (t.group === group || t.cadence === cadence) { insertAfterId = t.id; break; }
+    }
+    addRegularTaskWith({ cadence, owner, title, time: '', group, weekday: 1, dayOfMonth: 1, month: 0, insertAfterId });
+    overlay.remove();
+  });
+}
+
+function openRemoveRegularRowPopup() {
+  const visible = getRegularTasks();
+  if (!visible.length) { alert('No regular tasks to remove.'); return; }
+  const options = visible.map((t) => `<option value="${t.id}">${escapeHtml(t.owner)} — ${escapeHtml(t.title)} (${cadenceLabel(t.cadence)})</option>`).join('');
+
+  const { overlay, popup, confirmBtn } = openRegularPopup('Remove Regular Task', `
+    <div>
+      <label style="${FIELD_LABEL_STYLE}">Which task?</label>
+      <select id="regRemoveSelect" style="${FIELD_STYLE}">${options}</select>
+    </div>
+  `, { confirmLabel: 'Remove', danger: true });
+
+  confirmBtn.addEventListener('click', () => {
+    const id = popup.querySelector('#regRemoveSelect').value;
+    deleteRegularTask(id);
+    overlay.remove();
+  });
+}
+
+function openAddRegularColumnPopup() {
+  ensureRegularColumns();
+  const cols = state.regular.columns || [];
+  const afterOptions = ['<option value="">At the end</option>'].concat(cols.map((c) => `<option value="${c}">After ${c}</option>`)).join('');
+
+  const { overlay, popup, confirmBtn } = openRegularPopup('Add Column', `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+      <div>
+        <label style="${FIELD_LABEL_STYLE}">Insert after</label>
+        <select id="regColAfter" style="${FIELD_STYLE}">${afterOptions}</select>
+      </div>
+      <div>
+        <label style="${FIELD_LABEL_STYLE}">Date for new column</label>
+        <input type="date" id="regColDate" style="${FIELD_STYLE}">
+      </div>
+    </div>
+  `, { confirmLabel: 'Add' });
+
+  confirmBtn.addEventListener('click', () => {
+    const afterDate = popup.querySelector('#regColAfter').value;
+    const dateStr = popup.querySelector('#regColDate').value;
+    const newDate = dateStr
+      ? new Date(`${dateStr}T00:00:00`)
+      : addDays(getRegularDates().slice(-1)[0] || regularStartDate, 1);
+    const key = dateKey(newDate);
+    const cols2 = [...state.regular.columns];
+    if (afterDate) {
+      const idx = cols2.findIndex((c) => c === afterDate);
+      if (idx >= 0) cols2.splice(idx + 1, 0, key);
+      else cols2.push(key);
+    } else {
+      cols2.push(key);
+    }
+    state.regular.columns = cols2;
+    persist();
+    overlay.remove();
+    render();
+  });
+}
+
+function openRemoveRegularColumnPopup() {
+  ensureRegularColumns();
+  const cols = state.regular.columns || [];
+  if (!cols.length) { alert('No columns to remove.'); return; }
+  const options = cols.map((c) => `<option value="${c}">${c}</option>`).join('');
+
+  const { overlay, popup, confirmBtn } = openRegularPopup('Remove Column', `
+    <div>
+      <label style="${FIELD_LABEL_STYLE}">Which date?</label>
+      <select id="regColRemoveSelect" style="${FIELD_STYLE}">${options}</select>
+    </div>
+  `, { confirmLabel: 'Remove', danger: true });
+
+  confirmBtn.addEventListener('click', () => {
+    const val = popup.querySelector('#regColRemoveSelect').value;
+    const cols2 = [...state.regular.columns];
+    const idx = cols2.indexOf(val);
+    if (idx !== -1) {
+      cols2.splice(idx, 1);
+      state.regular.columns = cols2;
+      persist();
+      render();
+    }
+    overlay.remove();
+  });
+}
+
+function ensureRegularColumns() {
+  if (!state.regular) state.regular = { columns: [] };
+  if (!Array.isArray(state.regular.columns) || !state.regular.columns.length) {
+    state.regular.columns = Array.from({ length: daysInMonth(regularStartDate) }, (_, index) => dateKey(addDays(regularStartDate, index)));
+  }
+}
+
+function resizeRegularColumns(delta) {
+  ensureRegularColumns();
+  const columns = [...state.regular.columns];
+  if (delta > 0) {
+    const lastDate = getRegularDates().slice(-1)[0];
+    columns.push(dateKey(addDays(lastDate, 1)));
+  } else if (columns.length > 5) {
+    columns.pop();
+  }
+  state.regular.columns = columns;
+  persist();
+  render();
+}
+
+function shiftRegularColumns(delta) {
+  ensureRegularColumns();
+  state.regular.columns = state.regular.columns.map((key) => {
+    const [year, month, day] = key.split('-').map(Number);
+    return dateKey(addDays(new Date(year, month - 1, day), delta));
+  });
+  persist();
+  render();
+}
+
+function moveRegularColumn(fromIndex, toIndex) {
+  ensureRegularColumns();
+  const columns = [...state.regular.columns];
+  if (fromIndex === toIndex || fromIndex < 0 || toIndex < 0 || fromIndex >= columns.length || toIndex >= columns.length) return;
+  const [moved] = columns.splice(fromIndex, 1);
+  columns.splice(toIndex, 0, moved);
+  state.regular.columns = columns;
+  persist();
+  render();
+}
+
+function deleteRegularTask(taskId) {
+  const idx = state.regular.tasks.findIndex((task) => task.id === taskId);
+  if (idx === -1) return;
+  state.regular.tasks.splice(idx, 1);
+  refreshRegularEmployees();
+  persist();
+  render();
+}
+
+function moveRegularRow(fromId, toId) {
+  const tasks = [...(state.regular.tasks || [])];
+  const fromIdx = tasks.findIndex((task) => task.id === fromId);
+  const toIdx = tasks.findIndex((task) => task.id === toId);
+  if (fromIdx === -1 || toIdx === -1 || fromIdx === toIdx) return;
+  const [moved] = tasks.splice(fromIdx, 1);
+  tasks.splice(toIdx, 0, moved);
+  state.regular.tasks = tasks;
+  persist();
+  render();
+}
+
+function isWeekend(date) {
+  const day = date.getDay();
+  return day === 0 || day === 6;
+}
+
+function isRegularTaskExpected(task, date) {
+  const refMonth = Number.isInteger(task.month) ? task.month : 0;
+  const monthsSinceRef = ((date.getMonth() - refMonth) % 12 + 12) % 12;
+  if (task.cadence === 'daily') return date.getDay() !== 0;
+  if (task.cadence === 'weekly') return date.getDay() === task.weekday;
+  if (task.cadence === 'monthly') return date.getDate() === task.dayOfMonth;
+  if (task.cadence === 'quarterly') return monthsSinceRef % 3 === 0 && date.getDate() === task.dayOfMonth;
+  if (task.cadence === 'half-yearly') return monthsSinceRef % 6 === 0 && date.getDate() === task.dayOfMonth;
+  if (task.cadence === 'yearly') return date.getMonth() === refMonth && date.getDate() === task.dayOfMonth;
+  return false;
+}
+
+function isPastDate(date) {
+  return dateKey(date) < todayStr();
+}
+
+function completionKey(taskId, date) {
+  return `${taskId}:${dateKey(date)}`;
+}
+
+function isRegularDone(task, date) {
+  return Boolean(state.regular?.completions?.[completionKey(task.id, date)]);
+}
+
+function regularTaskProgress(task, dates = getRegularDates()) {
+  const expected = dates.filter((date) => isRegularTaskExpected(task, date));
+  if (!expected.length) return { done: 0, total: 0, pct: 0 };
+  const done = expected.filter((date) => isRegularDone(task, date)).length;
+  return { done, total: expected.length, pct: Math.round((done / expected.length) * 100) };
+}
+
+function regularOverallProgress() {
+  const dates = getRegularDates();
+  const tasks = state.regular?.tasks || [];
+  const totals = tasks.reduce((acc, task) => {
+    const progress = regularTaskProgress(task, dates);
+    acc.done += progress.done;
+    acc.total += progress.total;
+    return acc;
+  }, { done: 0, total: 0 });
+  return totals.total ? Math.round((totals.done / totals.total) * 100) : 0;
+}
+
+function toggleRegularCompletion(task, date) {
+  state.regular.completions = state.regular.completions || {};
+  const key = completionKey(task.id, date);
+  if (state.regular.completions[key]) delete state.regular.completions[key];
+  else state.regular.completions[key] = true;
+  persist();
+  render();
+}
+
+function refreshRegularEmployees() {
+  state.regular.employees = [...new Set(state.regular.tasks.map((task) => task.owner))].sort();
+  if (activeRegularEmployee !== 'all' && !state.regular.employees.some((e) => sameEmployee(e, activeRegularEmployee))) {
+    activeRegularEmployee = 'all';
+  }
+}
+
+function renameRegularEmployee(oldName, newName) {
+  const clean = newName.trim();
+  if (!clean || clean === oldName) return;
+  state.regular.tasks.forEach((task) => {
+    if (task.owner === oldName) task.owner = clean;
+  });
+  activeRegularEmployee = clean;
+  refreshRegularEmployees();
+  persist();
+  render();
+}
+
+function updateRegularTask(task, field, value) {
+  const clean = String(value).trim();
+  if (field === 'weekday') {
+    const idx = WEEKDAYS.findIndex((day) => day.toLowerCase() === clean.slice(0, 3).toLowerCase());
+    if (idx >= 0) task.weekday = idx;
+  } else if (field === 'dayOfMonth') {
+    task.dayOfMonth = Math.max(1, Math.min(31, Number.parseInt(clean, 10) || task.dayOfMonth || 1));
+  } else if (field === 'cadence') {
+    const normalized = clean.toLowerCase();
+    if (normalized.startsWith('d')) task.cadence = 'daily';
+    else if (normalized.startsWith('w')) task.cadence = 'weekly';
+    else if (normalized.startsWith('m')) task.cadence = 'monthly';
+    else return;
+  } else if (field === 'time' || field === 'group') {
+    task[field] = clean;
+  } else {
+    if (!clean) return;
+    task[field] = clean;
+  }
+  refreshRegularEmployees();
+  persist();
+  render();
+}
+
+function editableText(value, onCommit, className = 'editable-cell', placeholder = '') {
+  const span = document.createElement('span');
+  span.className = className;
+  span.textContent = value;
+  if (!value && placeholder) span.dataset.placeholder = placeholder;
+  span.contentEditable = true;
+  span.spellcheck = false;
+  span.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); span.blur(); }
+    if (e.key === 'Escape') { e.preventDefault(); span.textContent = value; span.blur(); }
+  });
+  span.addEventListener('blur', () => onCommit(span.textContent));
+  return span;
+}
+
+// ---------- rendering ----------
+
+const SCROLL_PANEL_SELECTOR = '.regular-grid-panel, .table-panel, .stack-panel';
+let lastRenderKey = null;
+
+function render() {
+  const renderKey = `${activeWorkspace}:${viewMode}:${activeListId}:${activeRegularEmployee}:${activeProjectEmployee}:${activeQuickPriority}:${activeQuickStatus}:${searchQuery}`;
+  const preserveScroll = renderKey === lastRenderKey;
+  const scrollTarget = preserveScroll ? boardEl.querySelector(SCROLL_PANEL_SELECTOR) : null;
+  const savedScroll = scrollTarget ? { top: scrollTarget.scrollTop, left: scrollTarget.scrollLeft } : null;
+
+  try {
+    // Build all new content off-screen first. Only swap it into the live
+    // board once everything below has succeeded, so a mid-render error can
+    // never leave the board wiped and blank (previously boardEl was cleared
+    // up front, and since render() is called from many click handlers with
+    // no surrounding try/catch, any thrown error left the page stuck blank
+    // until a manual refresh).
+    renderSidebar();
+    renderViewTabs();
+    renderPinnedState();
+
+    if (activeWorkspace === 'charts') {
+      renderChartsDashboardHeader();
+      const chartsBoard = renderChartsWorkspace();
+      boardEl.innerHTML = '';
+      boardEl.className = 'board charts-board';
+      boardEl.appendChild(chartsBoard);
+      lastRenderKey = renderKey;
+      return;
+    }
+
+    renderDashboardHeader();
+
+    const boardTop = document.createElement('div');
+    boardTop.className = 'board-top';
+
+    if (viewMode === 'table') {
+      boardTop.appendChild(renderTableView());
+    } else if (viewMode === 'stack') {
+      boardTop.appendChild(renderStackView());
+    } else {
+      getVisibleLists().forEach((list) => boardTop.appendChild(renderList(list)));
+    }
+
+    const projectSection = renderProjectSection();
+    const regularSection = renderRegularSection();
+    const attendanceSection = renderAttendanceSection();
+    const activitySection = renderActivitySection();
+
+    boardEl.innerHTML = '';
+    boardEl.className = `board view-${viewMode}`;
+    boardEl.appendChild(boardTop);
+    boardEl.appendChild(projectSection);
+    boardEl.appendChild(regularSection);
+    boardEl.appendChild(attendanceSection);
+    boardEl.appendChild(activitySection);
+
+    lastRenderKey = renderKey;
+    if (savedScroll) {
+      const next = boardEl.querySelector(SCROLL_PANEL_SELECTOR);
+      if (next) {
+        next.scrollTop = savedScroll.top;
+        next.scrollLeft = savedScroll.left;
+      }
+    }
+  } catch (err) {
+    console.error('Tikona Tasklist render failed, keeping previous view visible', err);
+    showFatal('Something went wrong updating the view. Your data was not lost — try again or refresh.', err);
+  }
+}
+
+function renderSidebar() {
+  listNavEl.innerHTML = '';
+  const activeLists = getActiveLists();
+  const totals = activeLists.reduce((acc, list) => {
+    const stats = listTaskStats(list);
+    acc.open += stats.open;
+    acc.done += stats.done;
+    acc.total += stats.total;
+    return acc;
+  }, { open: 0, done: 0, total: 0 });
+
+  listNavEl.appendChild(renderNavItem({
+    id: 'all',
+    name: 'All tasks',
+    count: totals.open,
+    active: activeWorkspace === 'tasks' && activeListId === 'all',
+    progress: totals.total ? Math.round((totals.done / totals.total) * 100) : 0,
+    color: 'var(--accent)',
+  }));
+
+  activeLists.forEach((list) => {
+    const stats = listTaskStats(list);
+    listNavEl.appendChild(renderNavItem({
+      id: list.id,
+      name: list.name,
+      count: stats.open,
+      active: activeWorkspace === 'tasks' && activeListId === list.id,
+      overdue: stats.overdue,
+      progress: stats.total ? Math.round((stats.done / stats.total) * 100) : 0,
+      color: listAccentColor(list.id),
+    }));
+  });
+}
+
+function renderPinnedState() {
+  const analyticsBtn = document.getElementById('analyticsBtn');
+  if (analyticsBtn) analyticsBtn.classList.toggle('active', activeWorkspace === 'charts');
+
+  const archivedBtn = document.getElementById('archivedListsBtn');
+  if (archivedBtn) {
+    const archivedCount = getArchivedLists().length + getArchivedProjects().length;
+    archivedBtn.textContent = archivedCount ? `Archived (${archivedCount})` : 'Archived';
+    archivedBtn.classList.toggle('has-archived', archivedCount > 0);
+  }
+}
+
+function renderNavItem({ id, name, count, active, overdue, progress = 0, color }) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = `nav-item${active ? ' active' : ''}`;
+  btn.dataset.listId = id;
+  if (color) btn.style.setProperty('--list-accent', color);
+  btn.style.setProperty('--progress', `${progress}%`);
+
+  const dot = document.createElement('span');
+  dot.className = overdue ? 'nav-dot overdue' : 'nav-dot';
+  btn.appendChild(dot);
+
+  const label = document.createElement('span');
+  label.className = 'nav-label';
+  label.textContent = name;
+  btn.appendChild(label);
+
+  const badge = document.createElement('span');
+  badge.className = 'nav-badge';
+  badge.textContent = count || '0';
+  btn.appendChild(badge);
+
+  btn.addEventListener('click', () => {
+    activeWorkspace = 'tasks';
+    activeListId = id;
+    activeQuickPriority = 'any';
+    activeQuickStatus = 'any';
+    if (id === 'all') {
+      activeRegularEmployee = 'all';
+      activeProjectEmployee = 'all';
+    } else {
+      const employees = state.regular?.employees || [];
+      const regularMatch = employees.find((e) => sameEmployee(e, name));
+      activeRegularEmployee = regularMatch || name;
+      const projectEmployees = getProjectEmployees();
+      const projectMatch = projectEmployees.find((e) => sameEmployee(e, name));
+      activeProjectEmployee = projectMatch || name;
+    }
+    render();
+  });
+
+  return btn;
+}
+
+function getQuickFilterLabel() {
+  if (activeQuickPriority !== 'any') {
+    return `${activeQuickPriority.charAt(0).toUpperCase()}${activeQuickPriority.slice(1)} priority`;
+  }
+  if (activeQuickStatus === 'overdue') return 'Overdue tasks';
+  if (activeQuickStatus === 'done') return 'Completed tasks';
+  if (activeQuickStatus === 'open') return 'Open tasks';
+  return null;
+}
+
+function toggleQuickStatus(status) {
+  activeQuickStatus = activeQuickStatus === status ? 'any' : status;
+  activeQuickPriority = 'any';
+  render();
+}
+
+function toggleQuickPriority(priority) {
+  activeQuickPriority = activeQuickPriority === priority ? 'any' : priority;
+  activeQuickStatus = 'any';
+  render();
+}
+
+function renderStatCard(key, label, value) {
+  const stat = document.createElement('button');
+  stat.type = 'button';
+  const isActive = activeQuickStatus === key;
+  stat.className = `stat-card ${key}${isActive ? ' active' : ''}`;
+  stat.innerHTML = `<span>${label}</span><strong>${value}</strong>`;
+  stat.addEventListener('click', () => toggleQuickStatus(key));
+  return stat;
+}
+
+function openPriorityFilterMenu(anchorEl, { high, medium, low }) {
+  document.querySelectorAll('.priority-filter-menu').forEach((m) => m.remove());
+
+  const menu = document.createElement('div');
+  menu.className = 'stat-card-dropdown priority-filter-menu open';
+
+  [
+    ['high', 'High priority', high],
+    ['medium', 'Medium priority', medium],
+    ['low', 'Low priority', low],
+  ].forEach(([priority, priorityLabel, count]) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = activeQuickPriority === priority ? 'active' : '';
+    btn.innerHTML = `<span>${priorityLabel}</span><strong>${count}</strong>`;
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      menu.remove();
+      toggleQuickPriority(priority);
+    });
+    menu.appendChild(btn);
+  });
+
+  document.body.appendChild(menu);
+  const rect = anchorEl.getBoundingClientRect();
+  menu.style.position = 'absolute';
+  menu.style.top = `${rect.bottom + window.scrollY + 6}px`;
+  menu.style.left = `${rect.left + window.scrollX}px`;
+  menu.style.zIndex = '1000';
+
+  const closeMenu = (e) => {
+    if (!menu.contains(e.target) && e.target !== anchorEl) {
+      menu.remove();
+      document.removeEventListener('click', closeMenu);
+      document.removeEventListener('scroll', closeOnScroll, true);
+    }
+  };
+  // Positioned once relative to the page at open time, so a scroll on any
+  // inner panel (not just the whole page) would leave it floating detached
+  // from its anchor — closing on scroll avoids that instead of re-tracking.
+  const closeOnScroll = () => {
+    menu.remove();
+    document.removeEventListener('click', closeMenu);
+    document.removeEventListener('scroll', closeOnScroll, true);
+  };
+  setTimeout(() => {
+    document.addEventListener('click', closeMenu);
+    document.addEventListener('scroll', closeOnScroll, true);
+  }, 0);
+}
+
+function renderPriorityStatCard({ high, medium, low }) {
+  const activeLabel = activeQuickPriority !== 'any' ? activeQuickPriority : 'high';
+  const activeValue = activeQuickPriority === 'medium' ? medium : activeQuickPriority === 'low' ? low : high;
+
+  const stat = document.createElement('button');
+  stat.type = 'button';
+  // Use the active label to control color/class so styles update correctly
+  stat.className = `stat-card ${activeLabel} priority-card${activeQuickPriority !== 'any' ? ' active' : ''}`;
+  stat.innerHTML = `<span>${activeLabel.charAt(0).toUpperCase()}${activeLabel.slice(1)}</span><strong>${activeValue}</strong>`;
+
+  const cycle = ['high', 'medium', 'low', 'any'];
+  stat.addEventListener('click', (e) => {
+    e.stopPropagation();
+    // find current index and move to next
+    const idx = cycle.indexOf(activeQuickPriority === 'any' ? 'any' : (activeQuickPriority || 'high'));
+    const next = cycle[(idx + 1) % cycle.length];
+    activeQuickPriority = next === 'any' ? 'any' : next;
+    // reset status filter when changing priority
+    activeQuickStatus = 'any';
+    render();
+  });
+
+  return stat;
+}
+
+function renderDashboardHeader() {
+  const visibleLists = getVisibleLists();
+  const quickLabel = getQuickFilterLabel();
+  dashboardTitleEl.textContent = quickLabel
+    ? quickLabel
+    : activeListId === 'all' ? 'All tasks' : (visibleLists[0] ? visibleLists[0].name : 'All tasks');
+  statsEl.innerHTML = '';
+
+  const rows = getAllTaskRowsUnfiltered(true);
+  const open = rows.filter(({ task }) => !task.done).length;
+  const done = rows.filter(({ task }) => task.done).length;
+  const overdue = rows.filter(({ task }) => !task.done && task.due && task.due < todayStr()).length;
+  const high = rows.filter(({ task }) => !task.done && task.priority === 'high').length;
+  const medium = rows.filter(({ task }) => !task.done && task.priority === 'medium').length;
+  const low = rows.filter(({ task }) => !task.done && task.priority === 'low').length;
+
+  statsEl.appendChild(renderStatCard('open', 'Open', open));
+  statsEl.appendChild(renderStatCard('overdue', 'Overdue', overdue));
+  statsEl.appendChild(renderPriorityStatCard({ high, medium, low }));
+  statsEl.appendChild(renderStatCard('done', 'Done', done));
+}
+
+function renderRegularDashboardHeader() {
+  dashboardTitleEl.textContent = 'Regular Tasks';
+  statsEl.innerHTML = '';
+  const dates = getRegularDates();
+  const tasks = getRegularTasks();
+  const expectedCells = tasks.flatMap((task) => dates.filter((date) => isRegularTaskExpected(task, date)).map((date) => ({ task, date })));
+  const done = expectedCells.filter(({ task, date }) => isRegularDone(task, date)).length;
+  const today = todayStr();
+  const todayPending = tasks.filter((task) => {
+    const date = new Date(today);
+    return isRegularTaskExpected(task, date) && !isRegularDone(task, date);
+  }).length;
+  [
+    ['Tasks', tasks.length],
+    ['Done', done],
+    ['Pending today', todayPending],
+    ['Progress', `${expectedCells.length ? Math.round((done / expectedCells.length) * 100) : 0}%`],
+  ].forEach(([label, value]) => {
+    const stat = document.createElement('div');
+    stat.className = `stat-card ${label === 'Pending today' ? 'overdue' : 'open'}`;
+    stat.innerHTML = `<span>${label}</span><strong>${value}</strong>`;
+    statsEl.appendChild(stat);
+  });
+}
+
+function renderRegularSection() {
+  const section = document.createElement('section');
+  section.className = 'regular-section';
+
+  const header = document.createElement('div');
+  header.className = 'section-header secondary';
+  const title = document.createElement('h2');
+  title.textContent = getActiveRegularSectionTitle();
+  header.appendChild(title);
+  section.appendChild(header);
+
+  section.appendChild(renderRegularEmployeeSelector());
+  section.appendChild(renderRegularToolbar());
+  section.appendChild(renderRegularGridView());
+  return section;
+}
+
+function getAttendanceDates() {
+  return Array.from({ length: daysInMonth(attendanceMonth) }, (_, i) => addDays(attendanceMonth, i));
+}
+
+function getAttendanceRecord(email, dateKeyStr) {
+  const dayActivity = (state.activity || []).filter((a) => a.email === email && dateKey(new Date(a.timestamp)) === dateKeyStr);
+  const checkin = dayActivity.find((a) => a.type === 'checkin');
+  const checkout = dayActivity.filter((a) => a.type === 'checkout').slice(-1)[0];
+  return { checkin, checkout };
+}
+
+function renderAttendanceSection() {
+  const section = document.createElement('section');
+  section.className = 'regular-section attendance-section';
+
+  const header = document.createElement('div');
+  header.className = 'section-header secondary';
+  const title = document.createElement('h2');
+  title.textContent = 'Attendance';
+  header.appendChild(title);
+  section.appendChild(header);
+
+  section.appendChild(renderAttendanceToolbar());
+  section.appendChild(renderAttendanceTable());
+  return section;
+}
+
+function renderAttendanceToolbar() {
+  const toolbar = document.createElement('div');
+  toolbar.className = 'regular-toolbar';
+
+  const month = document.createElement('strong');
+  month.textContent = `${MONTHS[attendanceMonth.getMonth()]} ${attendanceMonth.getFullYear()}`;
+  toolbar.appendChild(month);
+
+  const actions = document.createElement('div');
+  actions.className = 'regular-date-actions';
+
+  const prevBtn = document.createElement('button');
+  prevBtn.type = 'button';
+  prevBtn.className = 'btn';
+  prevBtn.textContent = 'Prev';
+  prevBtn.addEventListener('click', () => {
+    attendanceMonth = firstDayOfMonth(addMonths(attendanceMonth, -1));
+    render();
+  });
+  actions.appendChild(prevBtn);
+
+  const thisMonthBtn = document.createElement('button');
+  thisMonthBtn.type = 'button';
+  thisMonthBtn.className = 'btn';
+  thisMonthBtn.textContent = 'This month';
+  thisMonthBtn.addEventListener('click', () => {
+    attendanceMonth = firstDayOfMonth(new Date());
+    render();
+  });
+  actions.appendChild(thisMonthBtn);
+
+  const nextBtn = document.createElement('button');
+  nextBtn.type = 'button';
+  nextBtn.className = 'btn';
+  nextBtn.textContent = 'Next';
+  nextBtn.addEventListener('click', () => {
+    attendanceMonth = firstDayOfMonth(addMonths(attendanceMonth, 1));
+    render();
+  });
+  actions.appendChild(nextBtn);
+
+  toolbar.appendChild(actions);
+  return toolbar;
+}
+
+function renderAttendanceTable() {
+  const panel = document.createElement('div');
+  panel.className = 'regular-grid-panel';
+  const employees = getRegisteredEmployees();
+  const dates = getAttendanceDates();
+
+  if (!employees.length) {
+    panel.appendChild(renderEmptyState('No registered employees yet.'));
+    return panel;
+  }
+
+  const table = document.createElement('table');
+  table.className = 'regular-grid attendance-grid';
+  const thead = document.createElement('thead');
+  const headRow = document.createElement('tr');
+  ['Employee', 'Check In / Out'].forEach((label) => {
+    const th = document.createElement('th');
+    th.textContent = label;
+    headRow.appendChild(th);
+  });
+  dates.forEach((date) => {
+    const th = document.createElement('th');
+    th.className = isWeekend(date) ? 'weekend' : '';
+    th.innerHTML = `<span>${date.getDate()}</span><small>${WEEKDAYS[date.getDay()].slice(0, 1)}</small>`;
+    th.title = `${date.getDate()} ${MONTHS[date.getMonth()]} (${WEEKDAYS[date.getDay()]})`;
+    headRow.appendChild(th);
+  });
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  employees.forEach((emp) => {
+    const tr = document.createElement('tr');
+
+    const nameCell = document.createElement('td');
+    nameCell.textContent = emp.name || emp.email;
+    tr.appendChild(nameCell);
+
+    const labelCell = document.createElement('td');
+    labelCell.innerHTML = '<div class="attendance-inout-label">Check In<br>Check Out</div>';
+    tr.appendChild(labelCell);
+
+    dates.forEach((date) => {
+      const td = document.createElement('td');
+      td.className = isWeekend(date) ? 'weekend' : '';
+      const key = dateKey(date);
+      const { checkin, checkout } = getAttendanceRecord(emp.email, key);
+      const cellWrap = document.createElement('div');
+      cellWrap.className = 'attendance-cell';
+      const inLine = document.createElement('div');
+      inLine.className = 'attendance-time in';
+      inLine.textContent = checkin ? fmtTimeOnly(checkin.timestamp) : '—';
+      const outLine = document.createElement('div');
+      outLine.className = 'attendance-time out';
+      outLine.textContent = checkout ? fmtTimeOnly(checkout.timestamp) : '—';
+      cellWrap.appendChild(inLine);
+      cellWrap.appendChild(outLine);
+      td.appendChild(cellWrap);
+      tr.appendChild(td);
+    });
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  panel.appendChild(table);
+  return panel;
+}
+
+function renderActivitySection() {
+  const section = document.createElement('section');
+  section.className = 'regular-section activity-section';
+
+  const header = document.createElement('div');
+  header.className = 'section-header secondary';
+  const title = document.createElement('h2');
+  title.textContent = 'Notice board';
+  header.appendChild(title);
+  section.appendChild(header);
+
+  const activity = [...(state.activity || [])].sort((a, b) => b.timestamp - a.timestamp);
+
+  if (!activity.length) {
+    section.appendChild(renderEmptyState('No employee activity tracked yet.'));
+    return section;
+  }
+
+  const ACTIVITY_LABELS = { register: 'registered', checkin: 'checked in', checkout: 'checked out' };
+  const ACTIVITY_ICONS = { register: '📝', checkin: '➡️', checkout: '⬅️' };
+
+  const list = document.createElement('div');
+  list.className = 'activity-list';
+  activity.slice(0, 50).forEach((entry) => {
+    const row = document.createElement('div');
+    row.className = `activity-row activity-${entry.type}`;
+
+    const icon = document.createElement('span');
+    icon.className = 'activity-icon';
+    icon.textContent = ACTIVITY_ICONS[entry.type] || '•';
+    row.appendChild(icon);
+
+    const info = document.createElement('div');
+    info.className = 'activity-info';
+
+    const line1 = document.createElement('div');
+    line1.className = 'activity-main';
+    line1.textContent = `${entry.name || entry.email} ${ACTIVITY_LABELS[entry.type] || entry.type}`;
+    info.appendChild(line1);
+
+    const line2 = document.createElement('div');
+    line2.className = 'activity-sub';
+    const parts = [fmtDateTime(entry.timestamp)];
+    if (entry.name && entry.email) parts.push(entry.email);
+    if (entry.ip) parts.push(`IP: ${entry.ip}`);
+    if (entry.device) parts.push(shortenDevice(entry.device));
+    line2.textContent = parts.join(' · ');
+    info.appendChild(line2);
+
+    row.appendChild(info);
+    list.appendChild(row);
+  });
+  section.appendChild(list);
+  return section;
+}
+
+function renderProjectSection() {
+  const section = document.createElement('section');
+  section.className = 'project-section';
+
+  const header = document.createElement('div');
+  header.className = 'section-header';
+  const title = document.createElement('h2');
+  title.textContent = activeProjectEmployee !== 'all' ? `${activeProjectEmployee}'s Projects` : 'Project';
+  header.appendChild(title);
+
+  section.appendChild(header);
+  section.appendChild(renderProjectEmployeeSelector());
+  section.appendChild(renderProjectBoard());
+  return section;
+}
+
+function renderProjectEmployeeSelector() {
+  const wrap = document.createElement('div');
+  wrap.className = 'project-employee-selector';
+
+  const employees = ['all', ...getProjectEmployees()];
+  employees.forEach((employee) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    const isActive = employee === 'all' ? activeProjectEmployee === 'all' : sameEmployee(activeProjectEmployee, employee);
+    btn.className = `employee-pill${isActive ? ' active' : ''}`;
+    btn.textContent = employee === 'all' ? 'All employees' : employee;
+    btn.addEventListener('click', () => {
+      activeProjectEmployee = employee;
+      render();
+    });
+    wrap.appendChild(btn);
+  });
+
+  return wrap;
+}
+
+function renderProjectCard(project) {
+  const card = renderList(project, { container: 'projects' });
+  card.classList.add('project-list-card');
+  if (project.done) {
+    card.classList.add('done');
+    const completedWrap = card.querySelector('.completed-wrap');
+    if (completedWrap) completedWrap.remove();
+  }
+
+  const header = card.querySelector('.list-header');
+  if (header) {
+    const doneBtn = document.createElement('button');
+    doneBtn.type = 'button';
+    doneBtn.className = 'task-check project-done-check';
+    doneBtn.title = project.done ? 'Restore project (undo)' : 'Mark project done';
+    doneBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      project.done = !project.done;
+      project.completedAt = project.done ? Date.now() : null;
+      project.progress = project.done ? 100 : (project.progress === 100 ? 0 : project.progress);
+      persist();
+      render();
+    });
+
+    const checkCol = document.createElement('div');
+    checkCol.className = 'task-check-col project-check-col';
+    checkCol.appendChild(doneBtn);
+
+    const projectProgress = PROGRESS_STEPS.includes(project.progress) ? project.progress : 0;
+    const progressBar = document.createElement('div');
+    progressBar.className = 'task-progress-bar';
+    progressBar.title = 'Set progress';
+    PROGRESS_STEPS.forEach((val) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.className = 'task-progress-btn';
+      btn.textContent = val;
+      btn.title = `${val}%`;
+      if (val === projectProgress) btn.classList.add('current');
+      btn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        setProjectProgress(project, val);
+      });
+      progressBar.appendChild(btn);
+    });
+    checkCol.appendChild(progressBar);
+    header.insertBefore(checkCol, header.firstChild);
+
+    const projectOverdue = !project.done && project.dueDate && project.dueDate < todayStr();
+    if (projectOverdue) {
+      card.classList.add('overdue-bar');
+    } else if (!project.done) {
+      card.classList.add(`progress-${projectProgress}`);
+    }
+
+    const metaWrap = document.createElement('div');
+    metaWrap.className = 'project-meta';
+
+    const ownersLine = document.createElement('div');
+    ownersLine.className = 'project-owner';
+    const ownersList = project.owners && project.owners.length ? project.owners.join(', ') : (project.owner || 'Unassigned');
+    ownersLine.textContent = `Owner: ${ownersList}`;
+    metaWrap.appendChild(ownersLine);
+
+    if (project.done && project.completedAt) {
+      const completedLine = document.createElement('div');
+      completedLine.className = 'project-completed-date';
+      completedLine.textContent = formatCompletedDate(project.completedAt);
+      metaWrap.appendChild(completedLine);
+    }
+
+    if (project.description) {
+      const descLine = document.createElement('div');
+      descLine.className = 'project-description';
+      descLine.textContent = project.description;
+      metaWrap.appendChild(descLine);
+    }
+
+    const chipsRow = document.createElement('div');
+    chipsRow.className = 'project-chips';
+    if (project.priority && project.priority !== 'none') {
+      const chip = document.createElement('span');
+      chip.className = `project-chip priority-${project.priority}`;
+      chip.textContent = project.priority.charAt(0).toUpperCase() + project.priority.slice(1);
+      chipsRow.appendChild(chip);
+    }
+    if (project.status) {
+      const chip = document.createElement('span');
+      chip.className = 'project-chip project-status-chip';
+      chip.textContent = project.status;
+      chipsRow.appendChild(chip);
+    }
+    if (project.startDate) {
+      const chip = document.createElement('span');
+      chip.className = 'project-chip';
+      chip.textContent = `Start ${fmtShort(new Date(`${project.startDate}T00:00:00`).getTime())}`;
+      chipsRow.appendChild(chip);
+    }
+    if (project.dueDate) {
+      const chip = document.createElement('span');
+      chip.className = 'project-chip';
+      chip.textContent = `Due ${fmtShort(new Date(`${project.dueDate}T00:00:00`).getTime())}`;
+      chipsRow.appendChild(chip);
+    }
+    if (chipsRow.children.length) metaWrap.appendChild(chipsRow);
+
+    header.after(metaWrap);
+  }
+
+  return card;
+}
+
+function renderProjectBoard() {
+  const panel = document.createElement('div');
+  panel.className = 'project-board';
+  const allVisible = getVisibleProjects();
+
+  if (!allVisible.length) {
+    panel.appendChild(renderEmptyState('No projects yet. Add one to get started.'));
+    return panel;
+  }
+
+  const activeProjects = allVisible.filter((p) => !p.done);
+  const doneProjects = allVisible.filter((p) => p.done);
+
+  if (!activeProjects.length) {
+    panel.appendChild(renderEmptyState('No active projects. Add one to get started.'));
+  } else {
+    activeProjects.forEach((project) => panel.appendChild(renderProjectCard(project)));
+  }
+
+  if (doneProjects.length) {
+    const wrap = document.createElement('div');
+    wrap.className = 'project-completed-wrap';
+
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'completed-toggle';
+    toggle.innerHTML = `Completed projects (<span>${doneProjects.length}</span>)`;
+    wrap.appendChild(toggle);
+
+    const list = document.createElement('div');
+    list.className = 'project-board project-completed-list hidden';
+    doneProjects
+      .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0))
+      .forEach((project) => list.appendChild(renderProjectCard(project)));
+    wrap.appendChild(list);
+
+    toggle.addEventListener('click', () => list.classList.toggle('hidden'));
+
+    panel.appendChild(wrap);
+  }
+
+  return panel;
+}
+
+function openProjectPopup(existingProject = null) {
+  const existing = document.querySelector('.project-popup-overlay');
+  if (existing) existing.remove();
+  const isEdit = Boolean(existingProject);
+
+  const overlay = document.createElement('div');
+  overlay.className = 'project-popup-overlay';
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  `;
+
+  const popup = document.createElement('div');
+  popup.className = 'project-popup';
+  popup.style.cssText = `
+    background: white;
+    border-radius: 12px;
+    padding: 18px;
+    width: 90%;
+    max-width: 480px;
+    max-height: 92vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  `;
+
+  const employees = getAllEmployees();
+  const existingOwners = existingProject?.owners || [];
+  const employeeChecklist = employees.length
+    ? employees.map((emp) => `
+        <label style="display:flex; align-items:center; gap:6px; padding:3px 0; font-size:13px; cursor:pointer;">
+          <input type="checkbox" class="project-owner-check" value="${escapeHtml(emp)}" ${existingOwners.includes(emp) ? 'checked' : ''} style="width:14px; height:14px;" />
+          ${escapeHtml(emp)}
+        </label>
+      `).join('')
+    : '<div style="color:#888; font-size:12.5px;">No employees yet — add one below.</div>';
+
+  popup.innerHTML = `
+    <h2 style="margin: 0 0 12px 0; font-size: 17px; font-weight: 600;">${isEdit ? 'Edit Project' : 'Create Project'}</h2>
+
+    <div style="margin-bottom: 10px;">
+      <label style="${FIELD_LABEL_STYLE}">Project Name *</label>
+      <input type="text" id="projectName" placeholder="Enter project name" style="${FIELD_STYLE}">
+    </div>
+
+    <div style="margin-bottom: 10px;">
+      <label style="${FIELD_LABEL_STYLE}">Assigned To (select one or more)</label>
+      <div id="ownerChecklist" style="max-height: 84px; overflow-y: auto; border: 1px solid #ddd; border-radius: 6px; padding: 4px 10px;">${employeeChecklist}</div>
+    </div>
+
+    <div style="margin-bottom: 10px;">
+      <label style="${FIELD_LABEL_STYLE}">Description</label>
+      <textarea id="projectDescription" placeholder="Optional details about this project" style="${FIELD_STYLE} min-height: 36px; font-family: inherit;"></textarea>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+      <div>
+        <label style="${FIELD_LABEL_STYLE}">Start Date</label>
+        <input type="date" id="projectStartDate" style="${FIELD_STYLE}">
+      </div>
+      <div>
+        <label style="${FIELD_LABEL_STYLE}">Due Date</label>
+        <input type="date" id="projectDueDate" style="${FIELD_STYLE}">
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 10px; margin-bottom: 14px;">
+      <div>
+        <label style="${FIELD_LABEL_STYLE}">Priority</label>
+        <div style="display: flex; gap: 5px;">
+          <button type="button" class="project-priority-btn" data-priority="low" title="Low" style="flex: 1; padding: 7px; border: 2px solid #ddd; border-radius: 6px; background: white; cursor: pointer;">
+            <span style="display: inline-block; width: 10px; height: 10px; background: #5ac8fa; border-radius: 50%;"></span>
+          </button>
+          <button type="button" class="project-priority-btn" data-priority="medium" title="Medium" style="flex: 1; padding: 7px; border: 2px solid #ddd; border-radius: 6px; background: white; cursor: pointer;">
+            <span style="display: inline-block; width: 10px; height: 10px; background: #f5a623; border-radius: 50%;"></span>
+          </button>
+          <button type="button" class="project-priority-btn" data-priority="high" title="High" style="flex: 1; padding: 7px; border: 2px solid #ddd; border-radius: 6px; background: white; cursor: pointer;">
+            <span style="display: inline-block; width: 10px; height: 10px; background: #e04858; border-radius: 50%;"></span>
+          </button>
+        </div>
+      </div>
+      <div>
+        <label style="${FIELD_LABEL_STYLE}">Status</label>
+        <input type="text" id="projectStatus" placeholder="e.g. In review" style="${FIELD_STYLE}">
+      </div>
+    </div>
+
+    <div style="display: flex; gap: 10px; justify-content: flex-end;">
+      <button type="button" id="cancelProjectBtn" style="padding: 8px 20px; border: 1px solid #ddd; border-radius: 6px; background: white; cursor: pointer; font-size: 13.5px; font-weight: 500;">Cancel</button>
+      <button type="button" id="saveProjectBtn" style="padding: 8px 20px; border: none; border-radius: 6px; background: #3b7bf7; color: white; cursor: pointer; font-size: 13.5px; font-weight: 500;">${isEdit ? 'Save Changes' : 'Done'}</button>
+    </div>
+  `;
+
+  overlay.appendChild(popup);
+  document.body.appendChild(overlay);
+
+  if (isEdit) {
+    popup.querySelector('#projectName').value = existingProject.name || '';
+    popup.querySelector('#projectDescription').value = existingProject.description || '';
+    popup.querySelector('#projectStartDate').value = existingProject.startDate || '';
+    popup.querySelector('#projectDueDate').value = existingProject.dueDate || '';
+    popup.querySelector('#projectStatus').value = existingProject.status || '';
+  }
+
+  let selectedPriority = existingProject?.priority || 'none';
+  const priorityBtns = popup.querySelectorAll('.project-priority-btn');
+  priorityBtns.forEach((btn) => {
+    if (btn.dataset.priority === selectedPriority) btn.style.borderColor = '#3b7bf7';
+    btn.addEventListener('click', () => {
+      priorityBtns.forEach((b) => (b.style.borderColor = '#ddd'));
+      btn.style.borderColor = '#3b7bf7';
+      selectedPriority = btn.dataset.priority;
+    });
+  });
+
+  popup.querySelector('#cancelProjectBtn').addEventListener('click', () => overlay.remove());
+
+  popup.querySelector('#saveProjectBtn').addEventListener('click', () => {
+    const name = popup.querySelector('#projectName').value.trim();
+    if (!name) {
+      alert('Please enter a project name');
+      return;
+    }
+
+    const owners = Array.from(popup.querySelectorAll('.project-owner-check:checked')).map((el) => el.value);
+    const fields = {
+      name,
+      owner: owners[0] || 'Unassigned',
+      owners,
+      description: popup.querySelector('#projectDescription').value.trim(),
+      startDate: popup.querySelector('#projectStartDate').value || null,
+      dueDate: popup.querySelector('#projectDueDate').value || null,
+      priority: selectedPriority,
+      status: popup.querySelector('#projectStatus').value.trim(),
+    };
+
+    if (isEdit) {
+      Object.assign(existingProject, fields);
+    } else {
+      state.projects.push({
+        id: uid('proj'),
+        ...fields,
+        sections: [],
+        tasks: [],
+        archived: false,
+        archivedAt: null,
+        mood: 'neutral',
+        done: false,
+        completedAt: null,
+        progress: 0,
+      });
+      activeProjectEmployee = 'all';
+    }
+    persist();
+    overlay.remove();
+    render();
+  });
+
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) overlay.remove();
+  });
+}
+
+function renderRegularEmployeeSelector() {
+  const wrap = document.createElement('div');
+  wrap.className = 'regular-employee-selector';
+
+  const employees = ['all', ...(state.regular?.employees || [])];
+  employees.forEach((employee) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    const isActive = employee === 'all' ? activeRegularEmployee === 'all' : sameEmployee(activeRegularEmployee, employee);
+    btn.className = `employee-pill${isActive ? ' active' : ''}`;
+    btn.textContent = employee === 'all' ? 'All employees' : employee;
+    btn.addEventListener('click', () => {
+      activeRegularEmployee = employee;
+      render();
+    });
+    wrap.appendChild(btn);
+  });
+
+  return wrap;
+}
+
+function getActiveRegularSectionTitle() {
+  if (activeRegularEmployee && activeRegularEmployee !== 'all') {
+    return `${activeRegularEmployee}'s Regular Tasks`;
+  }
+  return 'Regular Tasks';
+}
+
+function renderRegularEmployeeRail() {
+  const rail = document.createElement('aside');
+  rail.className = 'regular-employee-rail';
+  const title = document.createElement('span');
+  title.className = 'sidebar-title';
+  title.textContent = 'Employees';
+  rail.appendChild(title);
+
+  const employees = ['all', ...(state.regular?.employees || [])];
+  employees.forEach((employee) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    const isActive = employee === 'all' ? activeRegularEmployee === 'all' : sameEmployee(activeRegularEmployee, employee);
+    btn.className = `employee-item${isActive ? ' active' : ''}`;
+    const label = employee === 'all' ? 'All employees' : employee;
+    btn.innerHTML = `<span>${label}</span>`;
+    btn.addEventListener('click', () => {
+      activeRegularEmployee = employee;
+      render();
+    });
+    if (employee !== 'all') {
+      btn.addEventListener('dblclick', () => {
+        const newName = prompt('Rename employee', employee);
+        if (newName && newName.trim() && newName.trim() !== employee) {
+          renameRegularEmployee(employee, newName.trim());
+        }
+      });
+    }
+    rail.appendChild(btn);
+  });
+
+  return rail;
+}
+
+function renderRegularToolbar() {
+  const toolbar = document.createElement('div');
+  toolbar.className = 'regular-toolbar';
+
+  const dates = getRegularDates();
+  const visibleStart = dates[0] || regularStartDate;
+  const visibleEnd = dates[dates.length - 1] || regularStartDate;
+  const isFullMonthView = dates.length > 1
+    && visibleStart.getDate() === 1
+    && visibleEnd.getMonth() === visibleStart.getMonth()
+    && visibleEnd.getFullYear() === visibleStart.getFullYear()
+    && visibleEnd.getDate() === daysInMonth(visibleStart);
+
+  const month = document.createElement('strong');
+  if (isFullMonthView) {
+    month.textContent = `${MONTHS[visibleStart.getMonth()]} ${visibleStart.getFullYear()}`;
+  } else {
+    const startLabel = `${visibleStart.getDate()} ${MONTHS[visibleStart.getMonth()]}`;
+    const endLabel = `${visibleEnd.getDate()} ${MONTHS[visibleEnd.getMonth()]} ${visibleEnd.getFullYear()}`;
+    month.textContent = `${startLabel} – ${endLabel}`;
+  }
+  toolbar.appendChild(month);
+
+  const actions = document.createElement('div');
+  actions.className = 'regular-date-actions';
+
+  const prevBtn = document.createElement('button');
+  prevBtn.type = 'button';
+  prevBtn.className = 'btn';
+  prevBtn.textContent = 'Prev';
+  prevBtn.addEventListener('click', () => {
+    const targetStart = firstDayOfMonth(addMonths(visibleStart, -1));
+    const count = daysInMonth(targetStart);
+    regularStartDate = targetStart;
+    state.regular.columns = Array.from({ length: count }, (_, index) => dateKey(addDays(regularStartDate, index)));
+    persist();
+    render();
+  });
+  actions.appendChild(prevBtn);
+
+  const currentBtn = document.createElement('button');
+  currentBtn.type = 'button';
+  currentBtn.className = 'btn';
+  currentBtn.textContent = 'Current';
+  currentBtn.title = 'Show previous 15 days, today, and next 7 days';
+  currentBtn.addEventListener('click', () => {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    const start = addDays(today, -15);
+    const totalDays = 15 + 1 + 7;
+    regularStartDate = start;
+    state.regular.columns = Array.from({ length: totalDays }, (_, index) => dateKey(addDays(start, index)));
+    persist();
+    render();
+  });
+  actions.appendChild(currentBtn);
+
+  const thisMonthBtn = document.createElement('button');
+  thisMonthBtn.type = 'button';
+  thisMonthBtn.className = 'btn';
+  thisMonthBtn.textContent = 'This month';
+  thisMonthBtn.addEventListener('click', () => {
+    const targetStart = firstDayOfMonth(new Date());
+    const count = daysInMonth(targetStart);
+    regularStartDate = targetStart;
+    state.regular.columns = Array.from({ length: count }, (_, index) => dateKey(addDays(regularStartDate, index)));
+    persist();
+    render();
+  });
+  actions.appendChild(thisMonthBtn);
+
+  const nextBtn = document.createElement('button');
+  nextBtn.type = 'button';
+  nextBtn.className = 'btn';
+  nextBtn.textContent = 'Next';
+  nextBtn.addEventListener('click', () => {
+    const targetStart = firstDayOfMonth(addMonths(visibleStart, 1));
+    const count = daysInMonth(targetStart);
+    regularStartDate = targetStart;
+    state.regular.columns = Array.from({ length: count }, (_, index) => dateKey(addDays(regularStartDate, index)));
+    persist();
+    render();
+  });
+  actions.appendChild(nextBtn);
+
+  const addRowBtn = document.createElement('button');
+  addRowBtn.type = 'button';
+  addRowBtn.className = 'btn secondary';
+  addRowBtn.textContent = '+ Row';
+  addRowBtn.addEventListener('click', openAddRegularRowPopup);
+  actions.appendChild(addRowBtn);
+
+  const removeRowBtn = document.createElement('button');
+  removeRowBtn.type = 'button';
+  removeRowBtn.className = 'btn secondary danger';
+  removeRowBtn.textContent = '- Row';
+  removeRowBtn.addEventListener('click', openRemoveRegularRowPopup);
+  actions.appendChild(removeRowBtn);
+
+  const addColBtn = document.createElement('button');
+  addColBtn.type = 'button';
+  addColBtn.className = 'btn secondary';
+  addColBtn.textContent = '+ Col';
+  addColBtn.addEventListener('click', openAddRegularColumnPopup);
+  actions.appendChild(addColBtn);
+
+  const removeColBtn = document.createElement('button');
+  removeColBtn.type = 'button';
+  removeColBtn.className = 'btn secondary';
+  removeColBtn.textContent = '- Col';
+  removeColBtn.addEventListener('click', openRemoveRegularColumnPopup);
+  actions.appendChild(removeColBtn);
+
+  const columnLabel = document.createElement('span');
+  columnLabel.className = 'regular-column-count';
+  columnLabel.textContent = `${dates.length} days`;
+  actions.appendChild(columnLabel);
+
+  toolbar.appendChild(actions);
+  return toolbar;
+}
+
+function renderRegularGridView() {
+  const panel = document.createElement('div');
+  panel.className = 'regular-grid-panel';
+  const dates = getRegularDates();
+  const tasks = getRegularTasks();
+
+  if (!tasks.length) {
+    panel.appendChild(renderEmptyState('No regular tasks for this employee.'));
+    return panel;
+  }
+
+  const table = document.createElement('table');
+  table.className = 'regular-grid';
+  const thead = document.createElement('thead');
+  const headRow = document.createElement('tr');
+  ['Employee', 'Task', 'Time', 'Status'].forEach((label) => {
+    const th = document.createElement('th');
+    th.textContent = label;
+    headRow.appendChild(th);
+  });
+  dates.forEach((date, index) => {
+    const th = document.createElement('th');
+    th.className = isWeekend(date) ? 'weekend' : '';
+    th.draggable = true;
+    th.dataset.columnIndex = String(index);
+    th.innerHTML = `<span>${date.getDate()}</span><small>${WEEKDAYS[date.getDay()].slice(0, 1)}</small>`;
+    th.title = `${date.getDate()} ${MONTHS[date.getMonth()]} (${WEEKDAYS[date.getDay()]})`;
+    th.addEventListener('dragstart', (event) => {
+      event.dataTransfer.setData('text/plain', String(index));
+      event.dataTransfer.effectAllowed = 'move';
+    });
+    th.addEventListener('dragover', (event) => event.preventDefault());
+    th.addEventListener('drop', (event) => {
+      event.preventDefault();
+      const fromIndex = Number(event.dataTransfer.getData('text/plain'));
+      const toIndex = Number(event.currentTarget.dataset.columnIndex);
+      moveRegularColumn(fromIndex, toIndex);
+    });
+    headRow.appendChild(th);
+  });
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  groupedRegularTasks(tasks).forEach(([group, rows]) => {
+    const groupRow = document.createElement('tr');
+    groupRow.className = 'regular-group-row';
+    const groupCell = document.createElement('td');
+    groupCell.colSpan = dates.length + 4;
+    groupCell.textContent = group;
+    groupRow.appendChild(groupCell);
+    tbody.appendChild(groupRow);
+
+    rows.forEach((task) => {
+      const tr = document.createElement('tr');
+      tr.draggable = true;
+      tr.dataset.taskId = task.id;
+      tr.addEventListener('dragstart', (event) => {
+        event.dataTransfer.setData('text/plain', task.id);
+        event.dataTransfer.effectAllowed = 'move';
+      });
+      tr.addEventListener('dragover', (event) => event.preventDefault());
+      tr.addEventListener('drop', (event) => {
+        event.preventDefault();
+        const fromId = event.dataTransfer.getData('text/plain');
+        if (fromId && fromId !== task.id) moveRegularRow(fromId, task.id);
+      });
+
+      const ownerCell = document.createElement('td');
+      ownerCell.appendChild(editableText(task.owner, (value) => updateRegularTask(task, 'owner', value), 'regular-editable'));
+      tr.appendChild(ownerCell);
+
+      const titleCell = document.createElement('td');
+      titleCell.appendChild(editableText(task.title, (value) => updateRegularTask(task, 'title', value), 'regular-editable'));
+      tr.appendChild(titleCell);
+
+      const timeCell = document.createElement('td');
+      timeCell.appendChild(editableText(task.time || '', (value) => updateRegularTask(task, 'time', value), 'regular-editable', 'Enter time'));
+      tr.appendChild(timeCell);
+
+      const statusCell = document.createElement('td');
+      statusCell.appendChild(textCell(`${regularTaskProgress(task, dates).pct}%`));
+      tr.appendChild(statusCell);
+
+      dates.forEach((date) => {
+        const td = document.createElement('td');
+        td.className = isWeekend(date) ? 'weekend' : '';
+        const checkbox = renderRegularCheckbox(task, date);
+        if (!isRegularTaskExpected(task, date)) checkbox.classList.add('inactive');
+        td.appendChild(checkbox);
+        tr.appendChild(td);
+      });
+      tbody.appendChild(tr);
+    });
+  });
+  table.appendChild(tbody);
+  panel.appendChild(table);
+  return panel;
+}
+
+function renderRegularTableView() {
+  const panel = document.createElement('div');
+  panel.className = 'table-panel';
+  const dates = getRegularDates();
+  const tasks = getRegularTasks();
+  const table = document.createElement('table');
+  table.className = 'task-table regular-summary-table';
+  const thead = document.createElement('thead');
+  const headerRow = document.createElement('tr');
+  ['Employee', 'Task', 'Schedule', 'Completed', 'Status'].forEach((label) => {
+    const th = document.createElement('th');
+    th.textContent = label;
+    headerRow.appendChild(th);
+  });
+  thead.appendChild(headerRow);
+  table.appendChild(thead);
+  const tbody = document.createElement('tbody');
+  table.appendChild(tbody);
+  tasks.forEach((task) => {
+    const progress = regularTaskProgress(task, dates);
+    const tr = document.createElement('tr');
+    tr.draggable = true;
+    tr.dataset.taskId = task.id;
+    tr.addEventListener('dragstart', (event) => {
+      event.dataTransfer.setData('text/plain', task.id);
+      event.dataTransfer.effectAllowed = 'move';
+    });
+    tr.addEventListener('dragover', (event) => event.preventDefault());
+    tr.addEventListener('drop', (event) => {
+      event.preventDefault();
+      const fromId = event.dataTransfer.getData('text/plain');
+      if (fromId && fromId !== task.id) moveRegularRow(fromId, task.id);
+    });
+
+    const ownerTd = document.createElement('td');
+    ownerTd.appendChild(editableText(task.owner, (value) => updateRegularTask(task, 'owner', value), 'regular-editable'));
+    tr.appendChild(ownerTd);
+
+    const titleTd = document.createElement('td');
+    titleTd.appendChild(editableText(task.title, (value) => updateRegularTask(task, 'title', value), 'regular-editable'));
+    tr.appendChild(titleTd);
+
+    const scheduleTd = document.createElement('td');
+    scheduleTd.appendChild(editableText(task.time || '', (value) => updateRegularTask(task, 'time', value), 'regular-editable', 'Enter time'));
+    tr.appendChild(scheduleTd);
+
+    tr.appendChild(textCell(`${progress.done}/${progress.total}`));
+    tr.appendChild(textCell(`${progress.pct}%`));
+
+
+    tbody.appendChild(tr);
+  });
+  panel.appendChild(tasks.length ? table : renderEmptyState('No regular tasks for this employee.'));
+  return panel;
+}
+
+function renderRegularStackView() {
+  const panel = document.createElement('div');
+  panel.className = 'stack-panel regular-stack';
+  const dates = getRegularDates();
+  const tasks = getRegularTasks();
+  if (!tasks.length) {
+    panel.appendChild(renderEmptyState('No regular tasks for this employee.'));
+    return panel;
+  }
+  tasks.forEach((task, index) => {
+    const progress = regularTaskProgress(task, dates);
+    const card = document.createElement('article');
+    card.className = `stack-item regular-card cadence-${task.cadence}`;
+    card.draggable = true;
+    card.dataset.taskId = task.id;
+    card.style.animationDelay = `${Math.min(index * 35, 420)}ms`;
+    card.addEventListener('dragstart', (event) => {
+      event.dataTransfer.setData('text/plain', task.id);
+      event.dataTransfer.effectAllowed = 'move';
+    });
+    card.addEventListener('dragover', (event) => event.preventDefault());
+    card.addEventListener('drop', (event) => {
+      event.preventDefault();
+      const fromId = event.dataTransfer.getData('text/plain');
+      if (fromId && fromId !== task.id) moveRegularRow(fromId, task.id);
+    });
+    const title = document.createElement('div');
+    title.className = 'stack-title';
+    title.appendChild(editableText(task.title, (value) => updateRegularTask(task, 'title', value), 'regular-editable title-edit'));
+    card.appendChild(title);
+    const meta = document.createElement('div');
+    meta.className = 'stack-meta';
+    const cadenceChip = document.createElement('span');
+    cadenceChip.appendChild(editableText(task.cadence, (value) => updateRegularTask(task, 'cadence', value), 'regular-editable'));
+    meta.appendChild(cadenceChip);
+    const ownerChip = document.createElement('span');
+    ownerChip.appendChild(editableText(task.owner, (value) => updateRegularTask(task, 'owner', value), 'regular-editable owner-edit'));
+    meta.appendChild(ownerChip);
+    const timeChip = document.createElement('span');
+    timeChip.appendChild(editableText(task.time || '', (value) => updateRegularTask(task, 'time', value), 'regular-editable'));
+    meta.appendChild(timeChip);
+    const groupChip = document.createElement('span');
+    groupChip.appendChild(editableText(task.group || '', (value) => updateRegularTask(task, 'group', value), 'regular-editable'));
+    meta.appendChild(groupChip);
+    const progressChip = document.createElement('span');
+    progressChip.textContent = `${progress.pct}% done`;
+    meta.appendChild(progressChip);
+    const actionChip = document.createElement('span');
+    const deleteBtn = document.createElement('button');
+    deleteBtn.type = 'button';
+    deleteBtn.className = 'btn small danger';
+    deleteBtn.textContent = 'Delete';
+    deleteBtn.addEventListener('click', () => deleteRegularTask(task.id));
+    actionChip.appendChild(deleteBtn);
+    meta.appendChild(actionChip);
+    card.appendChild(meta);
+    const checks = document.createElement('div');
+    checks.className = 'regular-card-checks';
+    dates.filter((date) => isRegularTaskExpected(task, date)).slice(0, 8).forEach((date) => {
+      const wrap = document.createElement('label');
+      wrap.title = dateKey(date);
+      wrap.appendChild(renderRegularCheckbox(task, date));
+      const text = document.createElement('span');
+      text.textContent = `${date.getDate()} ${WEEKDAYS[date.getDay()]}`;
+      wrap.appendChild(text);
+      checks.appendChild(wrap);
+    });
+    card.appendChild(checks);
+    panel.appendChild(card);
+  });
+  return panel;
+}
+
+function renderRegularCheckbox(task, date) {
+  const checked = isRegularDone(task, date);
+  const locked = isPastDate(date);
+  const wrapper = document.createElement('label');
+  wrapper.className = `regular-checkbox-wrap${locked ? ' locked' : ''}`;
+  wrapper.title = locked
+    ? `${task.title} - ${dateKey(date)} (locked: past date)`
+    : `${task.title} - ${dateKey(date)}`;
+
+  const input = document.createElement('input');
+  input.type = 'checkbox';
+  input.checked = checked;
+  input.disabled = locked;
+  input.className = 'regular-checkbox';
+  input.addEventListener('change', (event) => {
+    event.stopPropagation();
+    if (locked) return;
+    toggleRegularCompletion(task, date);
+  });
+
+  const span = document.createElement('span');
+  span.className = `regular-check${checked ? ' checked' : ''}${locked ? ' locked' : ''}`;
+
+  wrapper.appendChild(input);
+  wrapper.appendChild(span);
+  return wrapper;
+}
+
+function groupedRegularTasks(tasks) {
+  const order = ['Daily', 'Weekly', 'Monthly', 'Quarterly', 'Half-yearly', 'Yearly'];
+  const map = new Map();
+  tasks.forEach((task) => {
+    const group = task.group || cadenceLabel(task.cadence);
+    if (!map.has(group)) map.set(group, []);
+    map.get(group).push(task);
+  });
+  return [...map.entries()].sort((a, b) => {
+    const ai = order.indexOf(a[0]);
+    const bi = order.indexOf(b[0]);
+    return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+  });
+}
+
+function regularScheduleLabel(task) {
+  if (task.cadence === 'daily') return task.time || 'Daily';
+  if (task.cadence === 'weekly') return WEEKDAYS[task.weekday] || 'Weekly';
+  if (task.cadence === 'yearly') return `${MONTHS[task.month || 0]} ${task.dayOfMonth}`;
+  if (task.cadence === 'quarterly' || task.cadence === 'half-yearly') return `${MONTHS[task.month || 0]} ${task.dayOfMonth} +`;
+  return `Day ${task.dayOfMonth}`;
+}
+
+function renderViewTabs() {
+  const viewMenu = document.querySelector('.view-menu');
+  if (activeWorkspace === 'regular' || activeWorkspace === 'charts') {
+    if (viewMenu) viewMenu.style.display = 'none';
+    return;
+  }
+  if (viewMenu) viewMenu.style.display = '';
+
+  const meta = VIEW_META[viewMode] || VIEW_META.board;
+  const btn = document.querySelector('.view-menu-btn');
+  if (btn) {
+    btn.innerHTML = meta.icon;
+    btn.title = `Change view (currently ${meta.label})`;
+  }
+
+  document.querySelectorAll('.view-option').forEach((opt) => {
+    const active = opt.dataset.view === viewMode;
+    opt.classList.toggle('active', active);
+    opt.setAttribute('aria-selected', active ? 'true' : 'false');
+  });
+}
+
+function renderList(list, options = {}) {
+  const node = tplList.content.firstElementChild.cloneNode(true);
+  node.dataset.listId = list.id;
+  node.style.setProperty('--list-accent', listAccentColor(list.id));
+
+  const nameEl = node.querySelector('.list-name');
+  nameEl.textContent = list.name;
+  nameEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); nameEl.blur(); }
+    if (e.key === 'Escape') { e.preventDefault(); nameEl.textContent = list.name; nameEl.blur(); }
+  });
+  nameEl.addEventListener('blur', () => {
+    const val = nameEl.textContent.trim() || list.name;
+    nameEl.textContent = val;
+    if (val !== list.name) { list.name = val; persist(); }
+  });
+
+  const visibleTasks = filterTasks(list.tasks);
+
+  const countEl = node.querySelector('.list-count');
+  const openCount = visibleTasks.filter((t) => !t.done).length;
+  countEl.textContent = openCount || '';
+
+  // Employee mood button (one per list) shown beside the menu — only on the
+  // main task-board lists, not project cards.
+  if (options.container !== 'projects') {
+    const moodBtn = document.createElement('button');
+    moodBtn.type = 'button';
+    moodBtn.className = 'list-mood-btn';
+    const moodEmojis = { happy: '🤩', neutral: '😐', sad: '🥱', busy: '😎' };
+    const listMood = list.mood || 'neutral';
+    moodBtn.textContent = moodEmojis[listMood] || '😐';
+    moodBtn.title = 'Click to change employee mood';
+    moodBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      cycleListMood(list);
+    });
+    const menuWrap = node.querySelector('.list-menu-wrap');
+    menuWrap.parentNode.insertBefore(moodBtn, menuWrap);
+  }
+
+  // menu
+  const menuBtn = node.querySelector('.list-menu-btn');
+  const menu = node.querySelector('.list-menu');
+  menuBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    document.querySelectorAll('.list-menu').forEach((m) => { if (m !== menu) m.classList.add('hidden'); });
+    menu.classList.toggle('hidden');
+  });
+  const container = options.container === 'projects' ? state.projects : state.lists;
+  const isProject = options.container === 'projects';
+
+  const archiveListBtn = menu.querySelector('[data-action="archive-list"]');
+  archiveListBtn.textContent = isProject ? 'Archive project' : 'Archive list';
+  archiveListBtn.addEventListener('click', () => {
+    list.archived = true;
+    list.archivedAt = Date.now();
+    if (!isProject && activeListId === list.id) activeListId = 'all';
+    persist();
+    render();
+    showToast(`Archived ${isProject ? 'project' : 'list'} "${list.name}" — find it under Archived to restore`, () => {
+      list.archived = false;
+      list.archivedAt = null;
+      persist();
+      render();
+    });
+    menu.classList.add('hidden');
+  });
+
+  const deleteListBtn = menu.querySelector('[data-action="delete-list"]');
+  deleteListBtn.textContent = isProject ? 'Delete project' : 'Delete list';
+  deleteListBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (deleteListBtn.dataset.armed === '1') {
+      const idx = container.findIndex((l) => l.id === list.id);
+      if (idx === -1) return;
+      const removed = container.splice(idx, 1)[0];
+      if (!isProject && activeListId === removed.id) activeListId = 'all';
+      persist();
+      render();
+      showToast(`Deleted ${isProject ? 'project' : 'list'} "${removed.name}"`, () => {
+        container.splice(idx, 0, removed);
+        if (!isProject) activeListId = removed.id;
+        persist();
+        render();
+      });
+      menu.classList.add('hidden');
+    } else {
+      deleteListBtn.dataset.armed = '1';
+      deleteListBtn.textContent = 'Click again to confirm';
+      setTimeout(() => {
+        deleteListBtn.dataset.armed = '0';
+        deleteListBtn.textContent = isProject ? 'Delete project' : 'Delete list';
+      }, 3000);
+    }
+  });
+
+  const editListBtn = menu.querySelector('[data-action="edit-list"]');
+  if (editListBtn) {
+    if (isProject) {
+      editListBtn.addEventListener('click', () => {
+        openProjectPopup(list);
+        menu.classList.add('hidden');
+      });
+    } else {
+      // Editing a plain task list only ever exposed name/description/sections,
+      // which wasn't useful enough to keep — removed from the "All tasks" menu.
+      editListBtn.remove();
+    }
+  }
+
+  // sections
+  const sectionsWrap = node.querySelector('.sections');
+  (list.sections || []).forEach((section) => {
+    sectionsWrap.appendChild(renderSection(list, section));
+  });
+
+  // unsectioned tasks
+  const unsectioned = node.querySelector('.unsectioned');
+  const topTasks = visibleTasks.filter((t) => !t.done && !t.sectionId);
+  topTasks.forEach((task) => unsectioned.appendChild(renderTask(list, task)));
+
+  // completed
+  const completed = visibleTasks.filter((t) => t.done);
+  const completedList = node.querySelector('.completed-list');
+  const completedCount = node.querySelector('.completed-count');
+  completedCount.textContent = completed.length;
+  completed
+    .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0))
+    .forEach((task) => completedList.appendChild(renderTask(list, task)));
+
+  const completedToggle = node.querySelector('.completed-toggle');
+  completedToggle.addEventListener('click', () => {
+    completedList.classList.toggle('hidden');
+  });
+
+  return node;
+}
+
+function renderSection(list, section) {
+  const node = tplSection.content.firstElementChild.cloneNode(true);
+  node.dataset.sectionId = section.id;
+  if (section.collapsed) node.classList.add('collapsed');
+
+  const nameEl = node.querySelector('.section-name');
+  nameEl.textContent = section.name;
+  nameEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); nameEl.blur(); }
+    if (e.key === 'Escape') { e.preventDefault(); nameEl.textContent = section.name; nameEl.blur(); }
+  });
+  nameEl.addEventListener('blur', () => {
+    const val = nameEl.textContent.trim() || section.name;
+    nameEl.textContent = val;
+    if (val !== section.name) { section.name = val; persist(); }
+  });
+
+  const collapseBtn = node.querySelector('.section-collapse');
+  const tasksWrap = node.querySelector('.section-tasks');
+  if (section.collapsed) tasksWrap.classList.add('collapsed');
+  collapseBtn.textContent = section.collapsed ? '>' : 'v';
+  collapseBtn.addEventListener('click', () => {
+    section.collapsed = !section.collapsed;
+    persist();
+    render();
+  });
+
+  node.querySelector('.section-delete').addEventListener('click', () => {
+    const hasTasks = list.tasks.some((t) => t.sectionId === section.id && !t.done);
+    if (hasTasks && !confirm(`Delete section "${section.name}"? Its open tasks will move to the top of the list.`)) return;
+    list.tasks.forEach((t) => { if (t.sectionId === section.id) t.sectionId = null; });
+    list.sections = list.sections.filter((s) => s.id !== section.id);
+    persist();
+    render();
+  });
+
+  const sectionTasks = filterTasks(list.tasks).filter((t) => !t.done && t.sectionId === section.id);
+  sectionTasks.forEach((task) => tasksWrap.appendChild(renderTask(list, task)));
+
+  return node;
+}
+
+function renderTask(list, task) {
+  const node = tplTask.content.firstElementChild.cloneNode(true);
+  node.dataset.taskId = task.id;
+  if (task.done) node.classList.add('done');
+
+  const checkBtn = node.querySelector('.task-check');
+  checkBtn.title = task.done ? 'Restore task (undo)' : 'Mark done';
+  checkBtn.addEventListener('click', () => toggleDone(list, task));
+
+  const progress = PROGRESS_STEPS.includes(task.progress) ? task.progress : 0;
+  node.querySelectorAll('.task-progress-btn').forEach((btn) => {
+    const val = Number(btn.dataset.progress);
+    btn.textContent = val;
+    btn.title = `${val}%`;
+    btn.classList.toggle('current', val === progress);
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setTaskProgress(list, task, val);
+    });
+  });
+
+  const isOverdue = !task.done && dueLabel(task.due).cls === 'overdue';
+  if (isOverdue) {
+    node.classList.add('overdue-bar');
+  } else if (!task.done) {
+    node.classList.add(`progress-${progress}`);
+  }
+
+  const priorityEl = node.querySelector('.task-priority');
+  priorityEl.classList.add(task.priority || 'none');
+  priorityEl.title = 'Click to cycle priority';
+  priorityEl.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const idx = PRIORITY_ORDER.indexOf(task.priority || 'none');
+    task.priority = PRIORITY_ORDER[(idx + 1) % PRIORITY_ORDER.length];
+    persist();
+    render();
+  });
+
+  const textEl = node.querySelector('.task-text');
+  textEl.textContent = task.text;
+  textEl.contentEditable = !task.done;
+  textEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); textEl.blur(); }
+    if (e.key === 'Escape') { e.preventDefault(); textEl.textContent = task.text; textEl.blur(); }
+  });
+  textEl.addEventListener('blur', () => {
+    const val = textEl.textContent.trim();
+    if (!val) { textEl.textContent = task.text; return; }
+    if (val !== task.text) { task.text = val; persist(); }
+  });
+
+  // Assigned user display removed — assignment is tracked but not shown on task row
+
+  if (task.description) {
+    const descEl = document.createElement('div');
+    descEl.className = 'task-description';
+    descEl.textContent = task.description;
+    node.querySelector('.task-body').insertBefore(descEl, node.querySelector('.task-meta'));
+  }
+
+  const deleteBtn = node.querySelector('.task-delete');
+  deleteBtn.addEventListener('click', () => deleteTask(list, task));
+
+  const dueEl = node.querySelector('.task-due');
+  const { text: dueText, cls: dueCls } = dueLabel(task.due);
+  dueEl.textContent = dueText;
+  dueEl.className = `task-due ${dueCls}`;
+  dueEl.addEventListener('click', () => openDatePicker(list, task, dueEl));
+
+  const createdEl = node.querySelector('.task-created');
+  createdEl.textContent = task.done && task.completedAt
+    ? formatCompletedDate(task.completedAt)
+    : `Started on ${fmtShort(task.createdAt)}`;
+
+  if (task.startDate) {
+    const startDateEl = document.createElement('span');
+    startDateEl.className = 'task-start-date';
+    startDateEl.textContent = `Start ${fmtShort(new Date(`${task.startDate}T00:00:00`).getTime())}`;
+    node.querySelector('.task-meta').insertBefore(startDateEl, createdEl.nextSibling);
+  }
+
+  const statusEl = node.querySelector('.task-status');
+  if (task.status) {
+    statusEl.className = 'task-status';
+    statusEl.textContent = task.status;
+  } else {
+    statusEl.remove();
+  }
+
+  const editBtn = node.querySelector('.task-edit');
+  editBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openTaskPopup(list, task.sectionId || null, task);
+  });
+
+  return node;
+}
+
+function renderTableView() {
+  const wrap = document.createElement('div');
+  wrap.className = 'table-panel';
+
+  const rows = getAllTaskRows(true).sort((a, b) => {
+    if (a.task.done !== b.task.done) return a.task.done ? 1 : -1;
+    if ((a.task.due || '') !== (b.task.due || '')) return (a.task.due || '9999') > (b.task.due || '9999') ? 1 : -1;
+    return b.task.createdAt - a.task.createdAt;
+  });
+
+  if (!rows.length) {
+    wrap.appendChild(renderEmptyState('No tasks here yet. Add one from the horizontal board view.'));
+    return wrap;
+  }
+
+  const table = document.createElement('table');
+  table.className = 'task-table';
+  table.innerHTML = `
+    <thead>
+      <tr>
+        <th>Done</th>
+        <th>Task</th>
+        <th>List</th>
+        <th>Section</th>
+        <th>Priority</th>
+        <th>Start Date</th>
+        <th>Status</th>
+        <th>Due</th>
+        <th></th>
+      </tr>
+    </thead>
+    <tbody></tbody>
+  `;
+  const tbody = table.querySelector('tbody');
+
+  rows.forEach(({ list, task, sectionName }) => {
+    const tr = document.createElement('tr');
+    if (task.done) tr.classList.add('done');
+
+    const status = document.createElement('td');
+    const check = document.createElement('button');
+    check.className = 'task-check table-check';
+    check.title = task.done ? 'Restore task' : 'Mark done';
+    check.addEventListener('click', () => toggleDone(list, task));
+    status.appendChild(check);
+    tr.appendChild(status);
+
+    const title = document.createElement('td');
+    const text = document.createElement('span');
+    text.className = 'table-task-text';
+    text.textContent = task.text;
+    text.contentEditable = !task.done;
+    text.spellcheck = false;
+    text.addEventListener('keydown', (e) => {
+      if (e.key === 'Enter') { e.preventDefault(); text.blur(); }
+      if (e.key === 'Escape') { e.preventDefault(); text.textContent = task.text; text.blur(); }
+    });
+    text.addEventListener('blur', () => {
+      const val = text.textContent.trim();
+      if (!val) { text.textContent = task.text; return; }
+      if (val !== task.text) { task.text = val; persist(); render(); }
+    });
+    title.appendChild(text);
+    tr.appendChild(title);
+
+    tr.appendChild(textCell(list.name));
+    tr.appendChild(textCell(sectionName));
+
+    const priority = document.createElement('td');
+    const priorityBtn = document.createElement('button');
+    priorityBtn.className = `priority-pill ${task.priority || 'none'}`;
+    priorityBtn.textContent = task.priority && task.priority !== 'none' ? task.priority : 'none';
+    priorityBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const idx = PRIORITY_ORDER.indexOf(task.priority || 'none');
+      task.priority = PRIORITY_ORDER[(idx + 1) % PRIORITY_ORDER.length];
+      persist();
+      render();
+    });
+    priority.appendChild(priorityBtn);
+    tr.appendChild(priority);
+
+    // (Assigned To removed from table view by request)
+
+    // Start Date column
+    const startDateCell = document.createElement('td');
+    startDateCell.textContent = task.startDate || '-';
+    tr.appendChild(startDateCell);
+
+    // Status (plain text, set via the task Edit popup)
+    const statusTagCell = document.createElement('td');
+    if (task.status) {
+      const statusTag = document.createElement('span');
+      statusTag.className = 'task-status';
+      statusTag.textContent = task.status;
+      statusTagCell.appendChild(statusTag);
+    }
+    tr.appendChild(statusTagCell);
+
+    const due = document.createElement('td');
+    const dueBtn = document.createElement('button');
+    const { text: dueText, cls: dueCls } = dueLabel(task.due);
+    dueBtn.className = `due-pill ${dueCls}`;
+    dueBtn.textContent = dueText || '+ due date';
+    dueBtn.addEventListener('click', () => openDatePicker(list, task, dueBtn));
+    due.appendChild(dueBtn);
+    tr.appendChild(due);
+
+    const actions = document.createElement('td');
+    const editBtn = document.createElement('button');
+    editBtn.className = 'icon-btn table-edit';
+    editBtn.title = 'Edit task';
+    editBtn.innerHTML = '&#9998;';
+    editBtn.addEventListener('click', () => openTaskPopup(list, task.sectionId || null, task));
+    actions.appendChild(editBtn);
+    const del = document.createElement('button');
+    del.className = 'icon-btn table-delete';
+    del.title = 'Delete task';
+    del.textContent = 'x';
+    del.addEventListener('click', () => deleteTask(list, task));
+    actions.appendChild(del);
+    tr.appendChild(actions);
+
+    tbody.appendChild(tr);
+  });
+
+  wrap.appendChild(table);
+  return wrap;
+}
+
+function renderStackView() {
+  const wrap = document.createElement('div');
+  wrap.className = 'stack-panel';
+
+  const rows = getAllTaskRows(false).sort((a, b) => {
+    const priorityDelta = PRIORITY_ORDER.indexOf(b.task.priority || 'none') - PRIORITY_ORDER.indexOf(a.task.priority || 'none');
+    if (priorityDelta) return priorityDelta;
+    return (a.task.due || '9999') > (b.task.due || '9999') ? 1 : -1;
+  });
+
+  if (!rows.length) {
+    wrap.appendChild(renderEmptyState('Everything is complete. Nice clean dashboard.'));
+    return wrap;
+  }
+
+  rows.forEach(({ list, task, sectionName }, index) => {
+    const item = document.createElement('article');
+    item.className = `stack-item priority-${task.priority || 'none'}`;
+    item.style.animationDelay = `${Math.min(index * 35, 420)}ms`;
+
+    const check = document.createElement('button');
+    check.className = 'task-check';
+    check.title = 'Mark done';
+    check.addEventListener('click', () => toggleDone(list, task));
+    item.appendChild(check);
+
+    const body = document.createElement('div');
+    body.className = 'stack-body';
+
+    const title = document.createElement('div');
+    title.className = 'stack-title';
+    title.textContent = task.text;
+    body.appendChild(title);
+
+    // Assigned user display removed — assignment is tracked but not shown here
+
+    const meta = document.createElement('div');
+    meta.className = 'stack-meta';
+    const listChip = document.createElement('span');
+    listChip.textContent = list.name;
+    meta.appendChild(listChip);
+    const sectionChip = document.createElement('span');
+    sectionChip.textContent = sectionName;
+    meta.appendChild(sectionChip);
+
+    if (task.status) {
+      const statusTag = document.createElement('span');
+      statusTag.className = 'task-status';
+      statusTag.textContent = task.status;
+      meta.appendChild(statusTag);
+    }
+
+    const { text: dueText, cls: dueCls } = dueLabel(task.due);
+    const due = document.createElement('button');
+    due.className = `due-pill ${dueCls}`;
+    due.textContent = dueText || '+ due date';
+    due.addEventListener('click', () => openDatePicker(list, task, due));
+    meta.appendChild(due);
+    body.appendChild(meta);
+
+    item.appendChild(body);
+
+    const editBtn = document.createElement('button');
+    editBtn.className = 'icon-btn stack-edit';
+    editBtn.title = 'Edit task';
+    editBtn.innerHTML = '&#9998;';
+    editBtn.addEventListener('click', () => openTaskPopup(list, task.sectionId || null, task));
+    item.appendChild(editBtn);
+
+    wrap.appendChild(item);
+  });
+
+  return wrap;
+}
+
+function renderEmptyState(text) {
+  const empty = document.createElement('div');
+  empty.className = 'empty-state';
+  empty.textContent = text;
+  return empty;
+}
+
+function textCell(text) {
+  const td = document.createElement('td');
+  td.textContent = text;
+  return td;
+}
+
+function openDatePicker(list, task, dueEl) {
+  const input = document.createElement('input');
+  input.type = 'date';
+  input.value = task.due || '';
+  input.style.position = 'absolute';
+  input.style.opacity = '0';
+  input.style.pointerEvents = 'none';
+  document.body.appendChild(input);
+  input.addEventListener('change', () => {
+    const newDue = input.value || null;
+    const oldDue = task.due;
+    
+    // Check if due date is actually changing
+    if (newDue !== oldDue) {
+      const changeCount = (task.dueChangeCount || 0) + 1;
+      const container = list.container || 'lists';
+      const context = container === 'projects' ? 'project' : 'task';
+      
+      const confirmed = confirm(
+        `Due date change count for this ${context}: ${changeCount}\n\n` +
+        `You are about to change the due date from "${oldDue || 'none'}" to "${newDue || 'none'}".\n\n` +
+        `Do you want to proceed with this change?`
+      );
+      
+      if (confirmed) {
+        task.due = newDue;
+        task.dueChangeCount = changeCount;
+        persist();
+        render();
+      }
+    }
+    
+    input.remove();
+  });
+  input.addEventListener('blur', () => setTimeout(() => input.remove(), 200));
+  if (input.showPicker) input.showPicker(); else input.click();
+}
+
+// ---------- task popup ----------
+
+function getAllEmployees() {
+  const employees = new Set();
+
+  // The main task-board lists ARE the employees — each list is a person, so
+  // this is the most direct source, regardless of whether any individual
+  // task has an assignedTo/owner field filled in.
+  (state.lists || []).forEach((list) => {
+    if (!list.archived && list.name && list.name.trim()) employees.add(list.name.trim());
+    (list.tasks || []).forEach((task) => {
+      if (task.assignedTo && task.assignedTo.trim()) employees.add(task.assignedTo.trim());
+      if (task.owner && task.owner.trim()) employees.add(task.owner.trim());
+    });
+  });
+
+  // From projects: all assigned owners and task assignedTo/owner
+  (state.projects || []).forEach((project) => {
+    (project.owners && project.owners.length ? project.owners : [project.owner]).forEach((o) => {
+      if (o && o.trim() && o !== 'Unassigned') employees.add(o.trim());
+    });
+    (project.tasks || []).forEach((task) => {
+      if (task.assignedTo && task.assignedTo.trim()) employees.add(task.assignedTo.trim());
+      if (task.owner && task.owner.trim()) employees.add(task.owner.trim());
+    });
+  });
+
+  // From regular tasks (owners) and regular.employees list
+  (state.regular?.tasks || []).forEach((task) => {
+    if (task.owner && task.owner.trim()) employees.add(task.owner.trim());
+  });
+  if (Array.isArray(state.regular?.employees)) {
+    state.regular.employees.forEach((e) => { if (e && e.trim()) employees.add(e.trim()); });
+  }
+
+  employees.delete('Unassigned');
+  return Array.from(employees).sort();
+}
+
+function openTaskPopup(list, sectionId, existingTask = null) {
+  const existing = document.querySelector('.task-popup-overlay');
+  if (existing) existing.remove();
+  const isEdit = Boolean(existingTask);
+
+  const overlay = document.createElement('div');
+  overlay.className = 'task-popup-overlay';
+  overlay.style.cssText = `
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    background: rgba(0, 0, 0, 0.5);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+  `;
+
+  const popup = document.createElement('div');
+  popup.className = 'task-popup';
+  popup.style.cssText = `
+    background: white;
+    border-radius: 12px;
+    padding: 18px;
+    width: 90%;
+    max-width: 480px;
+    max-height: 92vh;
+    overflow-y: auto;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
+  `;
+
+  // Get all existing employees
+  const employees = getAllEmployees();
+  const employeeOptions = employees.length > 0
+    ? employees.map(emp => `<option value="${emp}">${emp}</option>`).join('')
+    : '<option value="">No employees yet</option>';
+
+  popup.innerHTML = `
+    <h2 style="margin: 0 0 12px 0; font-size: 17px; font-weight: 600;">${isEdit ? 'Edit Task' : 'Add New Task'}</h2>
+
+    <div style="margin-bottom: 10px;">
+      <label style="${FIELD_LABEL_STYLE}">Task Name *</label>
+      <input type="text" id="taskName" placeholder="Enter task name" style="${FIELD_STYLE}">
+    </div>
+
+    <div style="margin-bottom: 10px;">
+      <label style="${FIELD_LABEL_STYLE}">Description</label>
+      <textarea id="taskDescription" placeholder="Optional details about this task" style="${FIELD_STYLE} min-height: 36px; font-family: inherit;"></textarea>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+      <div>
+        <label style="${FIELD_LABEL_STYLE}">Start Date</label>
+        <input type="date" id="startDate" style="${FIELD_STYLE}">
+      </div>
+      <div>
+        <label style="${FIELD_LABEL_STYLE}">Due Date</label>
+        <input type="date" id="dueDate" style="${FIELD_STYLE}">
+      </div>
+    </div>
+
+    <div style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 10px; margin-bottom: 10px;">
+      <div>
+        <label style="${FIELD_LABEL_STYLE}">Priority</label>
+        <div style="display: flex; gap: 5px;">
+          <button type="button" class="priority-btn" data-priority="low" title="Low" style="flex: 1; padding: 7px; border: 2px solid #ddd; border-radius: 6px; background: white; cursor: pointer; transition: all 0.2s;">
+            <span style="display: inline-block; width: 10px; height: 10px; background: #5ac8fa; border-radius: 50%;"></span>
+          </button>
+          <button type="button" class="priority-btn" data-priority="medium" title="Medium" style="flex: 1; padding: 7px; border: 2px solid #ddd; border-radius: 6px; background: white; cursor: pointer; transition: all 0.2s;">
+            <span style="display: inline-block; width: 10px; height: 10px; background: #f5a623; border-radius: 50%;"></span>
+          </button>
+          <button type="button" class="priority-btn" data-priority="high" title="High" style="flex: 1; padding: 7px; border: 2px solid #ddd; border-radius: 6px; background: white; cursor: pointer; transition: all 0.2s;">
+            <span style="display: inline-block; width: 10px; height: 10px; background: #e04858; border-radius: 50%;"></span>
+          </button>
+        </div>
+      </div>
+      <div>
+        <label style="${FIELD_LABEL_STYLE}">Assigned To</label>
+        <select id="assignedTo" style="${FIELD_STYLE}">
+          <option value="">Unassigned</option>
+          ${employeeOptions}
+        </select>
+      </div>
+    </div>
+
+    <div style="margin-bottom: 14px;">
+      <label style="${FIELD_LABEL_STYLE}">Status</label>
+      <input type="text" id="status" placeholder="e.g. Waiting on review, Blocked..." style="${FIELD_STYLE}">
+    </div>
+
+    <div style="display: flex; gap: 10px; justify-content: flex-end;">
+      <button type="button" id="cancelBtn" style="padding: 8px 20px; border: 1px solid #ddd; border-radius: 6px; background: white; cursor: pointer; font-size: 13.5px; font-weight: 500;">Cancel</button>
+      <button type="button" id="saveBtn" style="padding: 8px 20px; border: none; border-radius: 6px; background: #3b7bf7; color: white; cursor: pointer; font-size: 13.5px; font-weight: 500;">${isEdit ? 'Save Changes' : 'Add Task'}</button>
+    </div>
+  `;
+
+  overlay.appendChild(popup);
+  document.body.appendChild(overlay);
+
+  // Priority selection
+  let selectedPriority = existingTask ? (existingTask.priority || 'none') : 'none';
+  const priorityBtns = popup.querySelectorAll('.priority-btn');
+  priorityBtns.forEach(btn => {
+    if (btn.dataset.priority === selectedPriority) btn.style.borderColor = '#3b7bf7';
+    btn.addEventListener('click', () => {
+      priorityBtns.forEach(b => b.style.borderColor = '#ddd');
+      btn.style.borderColor = '#3b7bf7';
+      selectedPriority = btn.dataset.priority;
+    });
+  });
+
+  if (isEdit) {
+    popup.querySelector('#taskName').value = existingTask.text || '';
+    popup.querySelector('#taskDescription').value = existingTask.description || '';
+    popup.querySelector('#startDate').value = existingTask.startDate || '';
+    popup.querySelector('#dueDate').value = existingTask.due || '';
+    popup.querySelector('#assignedTo').value = existingTask.assignedTo || '';
+    popup.querySelector('#status').value = existingTask.status || '';
+  }
+
+  // Cancel button
+  document.getElementById('cancelBtn').addEventListener('click', () => {
+    overlay.remove();
+  });
+
+  // Save button
+  document.getElementById('saveBtn').addEventListener('click', () => {
+    const taskName = document.getElementById('taskName').value.trim();
+    if (!taskName) {
+      alert('Please enter a task name');
+      return;
+    }
+
+    const taskData = {
+      text: taskName,
+      description: document.getElementById('taskDescription').value.trim(),
+      startDate: document.getElementById('startDate').value || null,
+      due: document.getElementById('dueDate').value || null,
+      priority: selectedPriority,
+      assignedTo: document.getElementById('assignedTo').value.trim(),
+      status: document.getElementById('status').value.trim(),
+    };
+
+    if (isEdit) {
+      Object.assign(existingTask, taskData);
+      persist();
+    } else {
+      taskData.mood = 'neutral';
+      addTask(list, sectionId, taskData);
+    }
+    overlay.remove();
+    render();
+  });
+
+  // Close on overlay click
+  overlay.addEventListener('click', (e) => {
+    if (e.target === overlay) {
+      overlay.remove();
+    }
+  });
+
+  // Focus on task name
+  setTimeout(() => document.getElementById('taskName').focus(), 100);
+}
+
+function escapeHtml(str) {
+  return String(str || '').replace(/[&<>"]/g, (s) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[s]));
+}
+
+// ---------- mutations ----------
+
+function addTask(list, sectionId, taskData) {
+  // If an Assigned To value matches an existing list name, add the task to
+  // that person's list instead of the currently-open list. Only applies to
+  // the main task-board lists — a task added inside a project should stay
+  // in that project regardless of who it's assigned to.
+  const belongsToMainLists = state.lists.some((l) => l.id === list.id);
+  const assigned = (taskData.assignedTo || '').trim();
+  let targetList = list;
+  if (belongsToMainLists && assigned) {
+    const found = state.lists.find((l) => sameEmployee(l.name, assigned));
+    if (found) targetList = found;
+  }
+
+  targetList.tasks.push({
+    id: uid('task'),
+    text: taskData.text || 'Untitled task',
+    priority: taskData.priority || 'none',
+    due: taskData.due || null,
+    startDate: taskData.startDate || null,
+    createdAt: Date.now(),
+    completedAt: null,
+    done: false,
+    status: taskData.status || 'pending',
+    sectionId: targetList === list ? (sectionId || null) : null,
+    dueChangeCount: 0,
+    assignedTo: taskData.assignedTo || '',
+    mood: taskData.mood || 'neutral',
+    description: taskData.description || '',
+    progress: 0,
+  });
+  persist();
+}
+
+function toggleDone(list, task) {
+  task.done = !task.done;
+  task.completedAt = task.done ? Date.now() : null;
+  task.progress = task.done ? 100 : (task.progress === 100 ? 0 : task.progress);
+  persist();
+  render();
+}
+
+function setTaskProgress(list, task, value) {
+  task.progress = value;
+  task.done = value === 100;
+  task.completedAt = task.done ? Date.now() : null;
+  persist();
+  render();
+}
+
+function setProjectProgress(project, value) {
+  project.progress = value;
+  project.done = value === 100;
+  project.completedAt = project.done ? Date.now() : null;
+  persist();
+  render();
+}
+
+function cycleListMood(list) {
+  const order = ['neutral', 'happy', 'sad', 'busy'];
+  const idx = Math.max(0, order.indexOf(list.mood));
+  list.mood = order[(idx + 1) % order.length];
+  persist();
+  render();
+}
+
+function deleteTask(list, task) {
+  const idx = list.tasks.findIndex((t) => t.id === task.id);
+  const removed = list.tasks.splice(idx, 1)[0];
+  persist();
+  render();
+  showToast(`Deleted "${removed.text}"`, () => {
+    list.tasks.splice(idx, 0, removed);
+    persist();
+    render();
+  });
+}
+
+function addList(name) {
+  const list = { id: uid('list'), name, sections: [], tasks: [] };
+  state.lists.push(list);
+  activeListId = list.id;
+  persist();
+  render();
+}
+
+function promptAddList() {
+  const name = prompt('New list name (e.g. a person or category):');
+  if (name && name.trim()) addList(name.trim());
+}
+
+function openArchivedListsMenu(anchorEl) {
+  document.querySelectorAll('.archived-lists-popup').forEach((m) => m.remove());
+
+  const menu = document.createElement('div');
+  menu.className = 'status-dropdown-popup archived-lists-popup';
+
+  const archivedLists = getArchivedLists().map((l) => ({ item: l, isProject: false }));
+  const archivedProjects = getArchivedProjects().map((p) => ({ item: p, isProject: true }));
+  const archived = [...archivedLists, ...archivedProjects];
+
+  if (!archived.length) {
+    const empty = document.createElement('div');
+    empty.className = 'archived-empty';
+    empty.textContent = 'Nothing archived. Archive a list or project from its "⋮" menu when someone leaves.';
+    menu.appendChild(empty);
+  } else {
+    archived
+      .sort((a, b) => (b.item.archivedAt || 0) - (a.item.archivedAt || 0))
+      .forEach(({ item, isProject }) => {
+        const row = document.createElement('div');
+        row.className = 'archived-row';
+
+        const info = document.createElement('div');
+        info.className = 'archived-info';
+        const name = document.createElement('span');
+        name.className = 'archived-name';
+        name.textContent = `${item.name}${isProject ? ' (project)' : ''}`;
+        info.appendChild(name);
+        const meta = document.createElement('span');
+        meta.className = 'archived-meta';
+        const openCount = item.tasks.filter((t) => !t.done).length;
+        meta.textContent = `${item.tasks.length} task${item.tasks.length === 1 ? '' : 's'} · ${openCount} open${item.archivedAt ? ` · archived ${fmtShort(item.archivedAt)}` : ''}`;
+        info.appendChild(meta);
+        row.appendChild(info);
+
+        const restoreBtn = document.createElement('button');
+        restoreBtn.type = 'button';
+        restoreBtn.className = 'archived-restore';
+        restoreBtn.textContent = 'Restore';
+        restoreBtn.addEventListener('click', (e) => {
+          e.stopPropagation();
+          item.archived = false;
+          item.archivedAt = null;
+          if (!isProject) activeListId = item.id;
+          persist();
+          menu.remove();
+          render();
+          showToast(`Restored "${item.name}"`);
+        });
+        row.appendChild(restoreBtn);
+
+        menu.appendChild(row);
+      });
+  }
+
+  document.body.appendChild(menu);
+  const rect = anchorEl.getBoundingClientRect();
+  const menuWidth = menu.offsetWidth;
+  menu.style.position = 'absolute';
+  menu.style.top = `${rect.bottom + window.scrollY + 6}px`;
+  if (rect.left + menuWidth > window.innerWidth - 12) {
+    menu.style.left = `${rect.right + window.scrollX - menuWidth}px`;
+  } else {
+    menu.style.left = `${rect.left + window.scrollX}px`;
+  }
+  menu.style.zIndex = '1000';
+
+  const closeMenu = (e) => {
+    if (!menu.contains(e.target) && e.target !== anchorEl) {
+      menu.remove();
+      document.removeEventListener('click', closeMenu);
+      document.removeEventListener('scroll', closeOnScroll, true);
+    }
+  };
+  const closeOnScroll = () => {
+    menu.remove();
+    document.removeEventListener('click', closeMenu);
+    document.removeEventListener('scroll', closeOnScroll, true);
+  };
+  setTimeout(() => {
+    document.addEventListener('click', closeMenu);
+    document.addEventListener('scroll', closeOnScroll, true);
+  }, 0);
+}
+
+// ---------- analytics / charts ----------
+
+function getRegularCompletionDates(employeeFilter = 'all') {
+  const completions = state.regular?.completions || {};
+  const tasksById = new Map((state.regular?.tasks || []).map((task) => [task.id, task]));
+  return Object.keys(completions)
+    .filter((key) => completions[key])
+    .map((key) => {
+      const [taskId, datePart] = key.split(':');
+      if (employeeFilter !== 'all') {
+        const task = tasksById.get(taskId);
+        if (!task || task.owner !== employeeFilter) return null;
+      }
+      if (!datePart) return null;
+      const [y, m, d] = datePart.split('-').map(Number);
+      if (!y || !m || !d) return null;
+      return new Date(y, m - 1, d);
+    })
+    .filter(Boolean);
+}
+
+function weekStart(date) {
+  const d = new Date(date);
+  const day = d.getDay();
+  const diff = (day === 0 ? -6 : 1) - day;
+  return addDays(d, diff);
+}
+
+function chartCadenceProgress() {
+  const dates = getRegularDates();
+  const tasks = (state.regular?.tasks || []).filter((task) => activeRegularEmployee === 'all' || sameEmployee(task.owner, activeRegularEmployee));
+  return ['daily', 'weekly', 'monthly'].map((cadence) => {
+    const cadenceTasks = tasks.filter((task) => task.cadence === cadence);
+    const totals = cadenceTasks.reduce((acc, task) => {
+      const progress = regularTaskProgress(task, dates);
+      acc.done += progress.done;
+      acc.total += progress.total;
+      return acc;
+    }, { done: 0, total: 0 });
+    return { label: cadenceLabel(cadence), value: totals.total ? Math.round((totals.done / totals.total) * 100) : 0 };
+  });
+}
+
+function chartDailyCompletions() {
+  const dates = getRegularCompletionDates(activeRegularEmployee);
+  const days = Array.from({ length: 14 }, (_, i) => addDays(new Date(), -(13 - i))).reverse();
+  return days.map((day) => {
+    const key = dateKey(day);
+    const count = dates.filter((d) => dateKey(d) === key).length;
+    return { label: `${day.getDate()} ${MONTHS[day.getMonth()]}`, value: count };
+  });
+}
+
+function chartWeeklyCompletions() {
+  const dates = getRegularCompletionDates(activeRegularEmployee);
+  const weeks = Array.from({ length: 8 }, (_, i) => weekStart(addDays(new Date(), -7 * (7 - i)))).reverse();
+  return weeks.map((start) => {
+    const end = addDays(start, 6);
+    const count = dates.filter((d) => d >= start && d <= end).length;
+    return { label: `${start.getDate()} ${MONTHS[start.getMonth()]}`, value: count };
+  });
+}
+
+function chartMonthlyCompletions() {
+  const dates = getRegularCompletionDates(activeRegularEmployee);
+  const year = new Date().getFullYear();
+  const currentMonth = new Date().getMonth();
+  const orderedMonths = [];
+  for (let i = 0; i < 12; i++) {
+    const monthIndex = (currentMonth - i + 12) % 12;
+    orderedMonths.push({ label: MONTHS[monthIndex], monthIndex });
+  }
+  return orderedMonths.map(({ label, monthIndex }) => {
+    const count = dates.filter((d) => d.getFullYear() === year && d.getMonth() === monthIndex).length;
+    return { label, value: count };
+  });
+}
+
+function chartYearlyCompletions() {
+  const dates = getRegularCompletionDates(activeRegularEmployee);
+  if (!dates.length) return [];
+  const years = [...new Set(dates.map((d) => d.getFullYear()))].sort((a, b) => b - a);
+  return years.map((year) => ({
+    label: String(year),
+    value: dates.filter((d) => d.getFullYear() === year).length,
+  }));
+}
+
+function chartPriorityBreakdown() {
+  const tasks = state.lists.flatMap((list) => list.tasks);
+  const counts = { none: 0, low: 0, medium: 0, high: 0 };
+  tasks.forEach((task) => { counts[task.priority || 'none'] += 1; });
+  return [
+    { label: 'High', value: counts.high, color: 'var(--high)' },
+    { label: 'Medium', value: counts.medium, color: 'var(--medium)' },
+    { label: 'Low', value: counts.low, color: 'var(--low)' },
+    { label: 'None', value: counts.none, color: 'var(--done)' },
+  ];
+}
+
+function chartStatusBreakdown() {
+  const tasks = state.lists.flatMap((list) => list.tasks);
+  const today = todayStr();
+  const done = tasks.filter((task) => task.done).length;
+  const overdue = tasks.filter((task) => !task.done && task.due && task.due < today).length;
+  const open = tasks.filter((task) => !task.done).length - overdue;
+  return [
+    { label: 'Open', value: Math.max(open, 0), color: 'var(--accent)' },
+    { label: 'Overdue', value: overdue, color: 'var(--danger)' },
+    { label: 'Done', value: done, color: '#0ca30c' },
+  ];
+}
+
+function chartTasksPerList() {
+  return state.lists.map((list) => ({
+    label: list.name,
+    value: list.tasks.filter((task) => !task.done).length,
+    color: listAccentColor(list.id),
+  }));
+}
+
+function chartEmployeeProgress() {
+  const allEmployees = state.regular?.employees || [];
+  const employees = activeRegularEmployee === 'all' ? allEmployees : allEmployees.filter((e) => sameEmployee(e, activeRegularEmployee));
+  const dates = getRegularDates();
+  return employees.map((owner) => {
+    const tasks = (state.regular?.tasks || []).filter((task) => task.owner === owner);
+    const totals = tasks.reduce((acc, task) => {
+      const progress = regularTaskProgress(task, dates);
+      acc.done += progress.done;
+      acc.total += progress.total;
+      return acc;
+    }, { done: 0, total: 0 });
+    return { label: owner, value: totals.total ? Math.round((totals.done / totals.total) * 100) : 0 };
+  });
+}
+
+function renderChartCard(title, subtitle, contentEl) {
+  const card = document.createElement('article');
+  card.className = 'chart-card';
+  const head = document.createElement('div');
+  head.className = 'chart-card-head';
+  const h3 = document.createElement('h3');
+  h3.textContent = title;
+  head.appendChild(h3);
+  if (subtitle) {
+    const sub = document.createElement('span');
+    sub.className = 'chart-card-sub';
+    sub.textContent = subtitle;
+    head.appendChild(sub);
+  }
+  card.appendChild(head);
+  card.appendChild(contentEl);
+  return card;
+}
+
+function renderBarChart({ data, color = 'var(--accent)', maxValue, valueFormatter }) {
+  const wrap = document.createElement('div');
+  wrap.className = 'bar-chart';
+  if (!data.length) {
+    wrap.appendChild(renderEmptyState('No data yet.'));
+    return wrap;
+  }
+  const max = maxValue != null ? maxValue : Math.max(1, ...data.map((d) => d.value));
+  data.forEach((d, i) => {
+    const row = document.createElement('div');
+    row.className = 'bar-row';
+    row.style.animationDelay = `${Math.min(i * 40, 400)}ms`;
+
+    const label = document.createElement('span');
+    label.className = 'bar-label';
+    label.textContent = d.label;
+    row.appendChild(label);
+
+    const track = document.createElement('span');
+    track.className = 'bar-track';
+    const fill = document.createElement('span');
+    fill.className = 'bar-fill';
+    const pct = max ? Math.max(d.value > 0 ? 2 : 0, (d.value / max) * 100) : 0;
+    fill.style.width = `${pct}%`;
+    fill.style.background = d.color || color;
+    fill.title = `${d.label}: ${valueFormatter ? valueFormatter(d.value) : d.value}`;
+    track.appendChild(fill);
+    row.appendChild(track);
+
+    const value = document.createElement('span');
+    value.className = 'bar-value';
+    value.textContent = valueFormatter ? valueFormatter(d.value) : d.value;
+    row.appendChild(value);
+
+    wrap.appendChild(row);
+  });
+  return wrap;
+}
+
+function renderPieChart({ data, size = 148, thickness = 26 }) {
+  const wrap = document.createElement('div');
+  wrap.className = 'pie-chart';
+  const total = data.reduce((sum, d) => sum + d.value, 0);
+  if (!total) {
+    wrap.appendChild(renderEmptyState('No data yet.'));
+    return wrap;
+  }
+
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${size} ${size}`);
+  svg.setAttribute('width', size);
+  svg.setAttribute('height', size);
+  svg.classList.add('pie-svg');
+
+  const radius = (size - thickness) / 2;
+  const circumference = 2 * Math.PI * radius;
+  const cx = size / 2;
+  const cy = size / 2;
+
+  const track = document.createElementNS(svgNS, 'circle');
+  track.setAttribute('cx', cx);
+  track.setAttribute('cy', cy);
+  track.setAttribute('r', radius);
+  track.setAttribute('fill', 'none');
+  track.setAttribute('stroke', 'var(--border)');
+  track.setAttribute('stroke-width', thickness);
+  svg.appendChild(track);
+
+  let offset = 0;
+  data.forEach((d, i) => {
+    if (!d.value) return;
+    const fraction = d.value / total;
+    const dash = fraction * circumference;
+    const gap = circumference - dash;
+    const circle = document.createElementNS(svgNS, 'circle');
+    circle.setAttribute('cx', cx);
+    circle.setAttribute('cy', cy);
+    circle.setAttribute('r', radius);
+    circle.setAttribute('fill', 'none');
+    circle.setAttribute('stroke', d.color);
+    circle.setAttribute('stroke-width', thickness);
+    circle.setAttribute('stroke-dasharray', `${Math.max(dash - 2, 0)} ${gap + 2}`);
+    circle.setAttribute('stroke-dashoffset', String(-offset));
+    circle.setAttribute('transform', `rotate(-90 ${cx} ${cy})`);
+    circle.classList.add('pie-slice');
+    circle.style.animationDelay = `${i * 80}ms`;
+    const titleEl = document.createElementNS(svgNS, 'title');
+    titleEl.textContent = `${d.label}: ${d.value} (${Math.round(fraction * 100)}%)`;
+    circle.appendChild(titleEl);
+    svg.appendChild(circle);
+    offset += dash;
+  });
+
+  // Donut center text
+  const totalText = document.createElementNS(svgNS, 'text');
+  totalText.setAttribute('x', cx);
+  totalText.setAttribute('y', cy - 5);
+  totalText.setAttribute('text-anchor', 'middle');
+  totalText.setAttribute('fill', 'var(--text-muted)');
+  totalText.setAttribute('font-size', '9px');
+  totalText.setAttribute('font-weight', '700');
+  totalText.setAttribute('letter-spacing', '0.5px');
+  totalText.textContent = 'TOTAL';
+  svg.appendChild(totalText);
+
+  const numText = document.createElementNS(svgNS, 'text');
+  numText.setAttribute('x', cx);
+  numText.setAttribute('y', cy + 13);
+  numText.setAttribute('text-anchor', 'middle');
+  numText.setAttribute('fill', 'var(--text)');
+  numText.setAttribute('font-size', '18px');
+  numText.setAttribute('font-weight', '800');
+  numText.textContent = total;
+  svg.appendChild(numText);
+
+  wrap.appendChild(svg);
+
+  const legend = document.createElement('div');
+  legend.className = 'pie-legend';
+  data.forEach((d) => {
+    const item = document.createElement('div');
+    item.className = 'pie-legend-item';
+    
+    const leftWrap = document.createElement('div');
+    leftWrap.style.display = 'flex';
+    leftWrap.style.alignItems = 'center';
+    leftWrap.style.gap = '8px';
+    
+    const swatch = document.createElement('span');
+    swatch.className = 'pie-swatch';
+    swatch.style.background = d.color;
+    leftWrap.appendChild(swatch);
+    
+    const labelSpan = document.createElement('span');
+    labelSpan.className = 'legend-label';
+    labelSpan.textContent = d.label;
+    leftWrap.appendChild(labelSpan);
+    
+    item.appendChild(leftWrap);
+
+    const valSpan = document.createElement('strong');
+    valSpan.className = 'legend-value';
+    const pct = total ? Math.round((d.value / total) * 100) : 0;
+    valSpan.textContent = `${d.value} (${pct}%)`;
+    item.appendChild(valSpan);
+
+    legend.appendChild(item);
+  });
+  wrap.appendChild(legend);
+
+  return wrap;
+}
+
+function renderChartsWorkspace() {
+  const wrap = document.createElement('div');
+  wrap.className = 'charts-shell';
+  wrap.appendChild(renderRegularEmployeeRail());
+
+  const scopeLabel = activeRegularEmployee === 'all' ? 'All employees' : activeRegularEmployee;
+  const employeeKey = activeRegularEmployee === 'all' ? 'all' : activeRegularEmployee;
+
+  const chartDefinitions = [
+    { id: 'cadence', title: 'Progress by cadence', subtitle: `Regular tasks — daily / weekly / monthly · ${scopeLabel}`, render: () => renderBarChart({ data: chartCadenceProgress(), maxValue: 100, valueFormatter: (v) => `${v}%` }) },
+    { id: 'daily', title: 'Daily completions', subtitle: `Regular tasks — last 14 days · ${scopeLabel}`, render: () => renderBarChart({ data: chartDailyCompletions() }) },
+    { id: 'weekly', title: 'Weekly completions', subtitle: `Regular tasks — last 8 weeks · ${scopeLabel}`, render: () => renderBarChart({ data: chartWeeklyCompletions() }) },
+    { id: 'monthly', title: 'Monthly completions', subtitle: `Regular tasks — ${new Date().getFullYear()} · ${scopeLabel}`, render: () => renderBarChart({ data: chartMonthlyCompletions() }) },
+    { id: 'yearly', title: 'Yearly completions', subtitle: `Regular tasks — all recorded years · ${scopeLabel}`, render: () => renderBarChart({ data: chartYearlyCompletions() }) },
+    { id: 'priority', title: 'Tasks by priority', subtitle: 'All lists', render: () => renderPieChart({ data: chartPriorityBreakdown() }) },
+    { id: 'status', title: 'Tasks by status', subtitle: 'All lists', render: () => renderPieChart({ data: chartStatusBreakdown() }) },
+    { id: 'perlist', title: 'Tasks per list', subtitle: 'Open tasks', render: () => renderBarChart({ data: chartTasksPerList() }) },
+    { id: 'employee', title: 'Regular tasks by employee', subtitle: `Completion % · ${scopeLabel}`, render: () => renderBarChart({ data: chartEmployeeProgress(), maxValue: 100, valueFormatter: (v) => `${v}%` }) },
+  ];
+
+  const customOrder = state.chartsOrder?.[employeeKey] || chartDefinitions.map(c => c.id);
+  const orderedCharts = [];
+  customOrder.forEach(id => {
+    const chart = chartDefinitions.find(c => c.id === id);
+    if (chart) orderedCharts.push(chart);
+  });
+  chartDefinitions.forEach(chart => {
+    if (!customOrder.includes(chart.id)) orderedCharts.push(chart);
+  });
+
+  const grid = document.createElement('div');
+  grid.className = 'charts-grid';
+
+  orderedCharts.forEach((chartDef, index) => {
+    const card = renderChartCard(chartDef.title, chartDef.subtitle, chartDef.render());
+    card.dataset.chartId = chartDef.id;
+    card.draggable = true;
+    card.style.cursor = 'grab';
+    
+    card.addEventListener('dragstart', (e) => {
+      e.dataTransfer.setData('text/plain', chartDef.id);
+      e.dataTransfer.effectAllowed = 'move';
+      card.classList.add('dragging');
+    });
+    
+    card.addEventListener('dragend', () => {
+      card.classList.remove('dragging');
+    });
+    
+    card.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      e.dataTransfer.dropEffect = 'move';
+    });
+    
+    card.addEventListener('drop', (e) => {
+      e.preventDefault();
+      const fromId = e.dataTransfer.getData('text/plain');
+      if (fromId === chartDef.id) return;
+      
+      const currentOrder = orderedCharts.map(c => c.id);
+      const fromIndex = currentOrder.indexOf(fromId);
+      const toIndex = currentOrder.indexOf(chartDef.id);
+      
+      if (fromIndex === -1 || toIndex === -1) return;
+      
+      const newOrder = [...currentOrder];
+      newOrder.splice(fromIndex, 1);
+      newOrder.splice(toIndex, 0, fromId);
+      
+      if (!state.chartsOrder) state.chartsOrder = {};
+      state.chartsOrder[employeeKey] = newOrder;
+      persist();
+      render();
+    });
+    
+    grid.appendChild(card);
+  });
+
+  wrap.appendChild(grid);
+  return wrap;
+}
+
+function renderChartsDashboardHeader() {
+  dashboardTitleEl.textContent = activeRegularEmployee === 'all' ? 'Analytics' : `Analytics — ${activeRegularEmployee}`;
+  statsEl.innerHTML = '';
+  const activeLists = getActiveLists();
+  const tasks = activeLists.flatMap((list) => list.tasks);
+  const open = tasks.filter((task) => !task.done).length;
+  const done = tasks.filter((task) => task.done).length;
+  const regularPct = regularOverallProgress();
+
+  [
+    ['Open tasks', open],
+    ['Completed', done],
+    ['Lists', activeLists.length],
+    ['Regular progress', `${regularPct}%`],
+  ].forEach(([label, value]) => {
+    const stat = document.createElement('div');
+    stat.className = 'stat-card open';
+    stat.innerHTML = `<span>${label}</span><strong>${value}</strong>`;
+    statsEl.appendChild(stat);
+  });
+}
+
+// ---------- global UI wiring ----------
+
+document.addEventListener('click', () => {
+  document.querySelectorAll('.list-menu').forEach((m) => m.classList.add('hidden'));
+  document.querySelectorAll('.view-dropdown.open').forEach((m) => m.classList.remove('open'));
+  document.querySelectorAll('.stat-card-dropdown.open').forEach((m) => m.classList.remove('open'));
+});
+
+const viewMenuBtn = document.querySelector('.view-menu-btn');
+const viewDropdown = document.querySelector('.view-dropdown');
+if (viewMenuBtn && viewDropdown) {
+  viewMenuBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    viewDropdown.classList.toggle('open');
+  });
+  viewDropdown.addEventListener('click', (e) => e.stopPropagation());
+}
+
+document.getElementById('topAddListBtn').addEventListener('click', () => {
+  promptAddList();
+});
+
+document.getElementById('archivedListsBtn').addEventListener('click', (e) => {
+  e.stopPropagation();
+  openArchivedListsMenu(e.currentTarget);
+});
+
+function openAddTaskFlow() {
+  const activeLists = getActiveLists();
+  if (activeLists.length === 0) {
+    alert('Please create a list first before adding tasks.');
+    return;
+  }
+
+  // If a specific list is selected, use that; otherwise use the first list
+  const targetList = activeListId !== 'all' ? findList(activeListId) : activeLists[0];
+  if (targetList) {
+    openTaskPopup(targetList, null);
+  }
+}
+
+function openAddChoicePopup() {
+  document.querySelectorAll('.add-choice-overlay').forEach((m) => m.remove());
+
+  const overlay = document.createElement('div');
+  overlay.className = 'add-choice-overlay';
+  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:1000;';
+
+  const popup = document.createElement('div');
+  popup.style.cssText = 'background:white;border-radius:12px;padding:24px;width:90%;max-width:360px;box-shadow:0 20px 60px rgba(0,0,0,0.3);';
+  popup.innerHTML = `
+    <h2 style="margin:0 0 20px 0;font-size:20px;font-weight:600;">What would you like to add?</h2>
+    <div style="display:flex;flex-direction:column;gap:12px;">
+      <button type="button" id="addChoiceTask" style="padding:16px;border:1.5px solid #ddd;border-radius:10px;background:white;cursor:pointer;font-size:15px;font-weight:600;text-align:left;">
+        Task
+        <div style="font-weight:400;font-size:12.5px;color:#8a94a6;margin-top:4px;">Add a task to one of your lists</div>
+      </button>
+      <button type="button" id="addChoiceProject" style="padding:16px;border:1.5px solid #ddd;border-radius:10px;background:white;cursor:pointer;font-size:15px;font-weight:600;text-align:left;">
+        Project
+        <div style="font-weight:400;font-size:12.5px;color:#8a94a6;margin-top:4px;">Add a new project to the Project section</div>
+      </button>
+    </div>
+    <div style="display:flex;justify-content:flex-end;margin-top:20px;">
+      <button type="button" id="addChoiceCancel" style="padding:10px 24px;border:1px solid #ddd;border-radius:6px;background:white;cursor:pointer;font-size:14px;font-weight:500;">Cancel</button>
+    </div>
+  `;
+  overlay.appendChild(popup);
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+  popup.querySelector('#addChoiceCancel').addEventListener('click', () => overlay.remove());
+
+  popup.querySelector('#addChoiceTask').addEventListener('click', () => {
+    overlay.remove();
+    openAddTaskFlow();
+  });
+  popup.querySelector('#addChoiceProject').addEventListener('click', () => {
+    overlay.remove();
+    openProjectPopup();
+  });
+}
+
+document.getElementById('globalAddTaskBtn').addEventListener('click', () => {
+  openAddChoicePopup();
+});
+
+document.getElementById('analyticsBtn').addEventListener('click', () => {
+  activeWorkspace = 'charts';
+  render();
+});
+
+document.getElementById('registerBtn').addEventListener('click', () => openRegisterPopup());
+document.getElementById('checkinBtn').addEventListener('click', () => openAttendancePopup());
+document.getElementById('checkoutBtn').addEventListener('click', () => openAttendancePopup());
+document.getElementById('exitBtn').addEventListener('click', () => openExitPopup());
+
+const searchInputEl = document.getElementById('searchInput');
+const searchClearBtn = document.getElementById('searchClearBtn');
+searchInputEl.addEventListener('input', () => {
+  searchQuery = searchInputEl.value;
+  searchClearBtn.classList.toggle('hidden', !searchQuery);
+  render();
+});
+searchClearBtn.addEventListener('click', () => {
+  searchQuery = '';
+  searchInputEl.value = '';
+  searchClearBtn.classList.add('hidden');
+  searchInputEl.focus();
+  render();
+});
+
+document.querySelectorAll('.view-option').forEach((btn) => {
+  btn.addEventListener('click', () => {
+    viewMode = btn.dataset.view;
+    saveViewMode(viewMode);
+    if (viewDropdown) viewDropdown.classList.remove('open');
+    render();
+  });
+});
+
+// ---------- boot ----------
+
+function ensureDefaultList() {
+  if (!VIEW_MODES.has(viewMode)) viewMode = 'board';
+  if (!state.lists.length) {
+    console.log('No lists found, creating default list');
+    state.lists.push({ id: uid('list'), name: 'My Tasks', sections: [], tasks: [] });
+  }
+}
+
+function safeRender() {
+  try {
+    render();
+  } catch (err) {
+    console.error('Render failed:', err);
+    showFatal('Tasklist could not render. Saved data was reset for this session.', err);
+    state = normalizeState({ lists: [{ id: uid('list'), name: 'My Tasks', sections: [], tasks: [] }] });
+    render();
+  }
+}
+
+// Applies a state that arrived from Supabase after boot (either the
+// post-boot reconciliation or a background poll picking up a change made
+// on another device/tab) and re-renders with it.
+function applyRemoteState(rawState) {
+  state = normalizeState(rawState);
+  ensureDefaultList();
+  safeRender();
+}
+
+async function boot() {
+  console.log('Starting boot process...');
+
+  // Local-first: paint immediately from whatever was cached last time, so
+  // the UI never sits waiting on a network round-trip just to show the
+  // board you already had open.
+  const cached = loadCachedState();
+  if (cached) {
+    state = normalizeState(cached);
+    ensureDefaultList();
+    safeRender();
+  }
+
+  try {
+    const fresh = normalizeState(await loadState());
+    if (!cached || JSON.stringify(fresh) !== JSON.stringify(state)) {
+      console.log('State reconciled from Supabase:', fresh);
+      state = fresh;
+      ensureDefaultList();
+      safeRender();
+    }
+  } catch (err) {
+    console.error('Tikona Tasklist load failed', err);
+    if (!cached) {
+      state = normalizeState({ lists: [] });
+      ensureDefaultList();
+      safeRender();
+    }
+  }
+
+  // Pick up changes made from another tab or device without needing a
+  // manual refresh.
+  startPolling(applyRemoteState);
+}
+
+boot();

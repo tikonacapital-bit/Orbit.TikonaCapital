@@ -1,0 +1,153 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<title>Tikona Orbit</title>
+<link rel="icon" type="image/png" sizes="16x16" href="../icons/icon16.png" />
+<link rel="icon" type="image/png" sizes="32x32" href="../icons/icon32.png" />
+<link rel="icon" type="image/png" sizes="128x128" href="../icons/icon128.png" />
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+<link rel="stylesheet" href="style.css" />
+</head>
+<body>
+<div id="toast"></div>
+
+<header class="topbar">
+  <div class="brand">
+    <img class="brand-logo-img" src="https://tikonacapital.com/assets/logo-sUFGv148.png" alt="Tikona Capital" />
+    <div class="brand-text">
+      <span class="brand-sub">Orbit</span>
+    </div>
+  </div>
+  <p class="topbar-quote">It&rsquo;s not about whether I can or not. I&rsquo;m gonna do it because I want to.</p>
+  <div class="topbar-actions">
+    <div id="stats" class="stats"></div>
+    <button id="analyticsBtn" class="analytics-btn" type="button" title="Analytics">
+      <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true"><rect x="2" y="10" width="4" height="8" rx="1"/><rect x="8" y="5" width="4" height="13" rx="1"/><rect x="14" y="2" width="4" height="16" rx="1"/></svg>
+    </button>
+    <button id="registerBtn" class="analytics-btn" type="button" title="Register employee">
+      <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="7" r="3.2"/><path d="M2.5 17c0-3.3 2.5-5.5 5.5-5.5s5.5 2.2 5.5 5.5"/><path d="M15.5 6.5v5M13 9h5"/></svg>
+    </button>
+    <button id="checkinBtn" class="analytics-btn" type="button" title="Check in">
+      <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M8 3H4.5a1 1 0 0 0-1 1v12a1 1 0 0 0 1 1H8"/><path d="M11 6.5 15 10l-4 3.5"/><path d="M15 10H7"/></svg>
+    </button>
+    <button id="checkoutBtn" class="analytics-btn" type="button" title="Check out">
+      <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M12 3h3.5a1 1 0 0 1 1 1v12a1 1 0 0 1-1 1H12"/><path d="M9 6.5 5 10l4 3.5"/><path d="M5 10h8"/></svg>
+    </button>
+    <button id="exitBtn" class="analytics-btn exit-btn" type="button" title="Employee exit">
+      <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="6" r="2.6"/><path d="M3.5 17c0-3 2-5 4.5-5"/><path d="M12 8.5 16.5 13M16.5 8.5 12 13"/></svg>
+    </button>
+    <div class="view-menu" aria-label="View menu">
+      <button class="view-menu-btn" type="button" title="Change view">
+        <svg class="view-menu-icon" viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><rect x="1" y="3" width="5" height="14" rx="1.5"/><rect x="7.5" y="3" width="5" height="14" rx="1.5"/><rect x="14" y="3" width="5" height="14" rx="1.5"/></svg>
+      </button>
+      <div class="view-dropdown" role="menu">
+        <button class="view-option" data-view="board" type="button">
+          <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><rect x="1" y="3" width="5" height="14" rx="1.5"/><rect x="7.5" y="3" width="5" height="14" rx="1.5"/><rect x="14" y="3" width="5" height="14" rx="1.5"/></svg>
+          <span>Horizontal</span>
+        </button>
+        <button class="view-option" data-view="table" type="button">
+          <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><rect x="1" y="2" width="18" height="16" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><line x1="1" y1="8" x2="19" y2="8" stroke="currentColor" stroke-width="1.6"/><line x1="1" y1="13" x2="19" y2="13" stroke="currentColor" stroke-width="1.6"/></svg>
+          <span>Table</span>
+        </button>
+        <button class="view-option" data-view="stack" type="button">
+          <svg viewBox="0 0 20 20" width="15" height="15" aria-hidden="true"><rect x="2" y="2" width="16" height="4.5" rx="1.3"/><rect x="2" y="8" width="16" height="4.5" rx="1.3"/><rect x="2" y="14" width="16" height="4.5" rx="1.3"/></svg>
+          <span>Stack</span>
+        </button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<div class="dashboard-shell">
+  <main class="dashboard-main">
+    <section class="dashboard-header">
+      <div>
+        <p class="eyebrow">Dashboard</p>
+        <h1 id="dashboardTitle">All tasks</h1>
+      </div>
+      <div class="dashboard-search">
+        <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true"><circle cx="8.5" cy="8.5" r="6" fill="none" stroke="currentColor" stroke-width="1.6"/><line x1="13" y1="13" x2="18" y2="18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+        <input id="searchInput" type="text" placeholder="Search tasks..." autocomplete="off" />
+        <button id="searchClearBtn" type="button" class="search-clear hidden" title="Clear search">&times;</button>
+      </div>
+    </section>
+
+    <div class="viewbar">
+      <nav id="listNav" class="list-nav horizontal" aria-label="Task lists"></nav>
+      <button id="archivedListsBtn" class="tab-add" type="button" title="View archived lists">Archived</button>
+      <button id="globalAddTaskBtn" class="tab-add" type="button" title="Add new task or project">+ Add</button>
+      <button id="topAddListBtn" class="tab-add" type="button" title="Add list">+ New list</button>
+    </div>
+
+    <section id="board" class="board"></section>
+  </main>
+</div>
+
+<template id="tpl-list">
+  <section class="list-column" draggable="false">
+    <header class="list-header">
+      <h2 class="list-name" contenteditable="true" spellcheck="false"></h2>
+      <span class="list-count"></span>
+      <div class="list-menu-wrap">
+        <button class="icon-btn list-menu-btn" title="List options">&#8942;</button>
+        <div class="list-menu hidden">
+          <button data-action="edit-list">Edit</button>
+          <button data-action="archive-list">Archive list</button>
+          <button data-action="delete-list" class="danger">Delete list</button>
+        </div>
+      </div>
+    </header>
+    <div class="sections"></div>
+    <div class="unsectioned tasks-list"></div>
+    <div class="completed-wrap">
+      <button class="completed-toggle">Completed (<span class="completed-count">0</span>)</button>
+      <div class="completed-list tasks-list hidden"></div>
+    </div>
+  </section>
+</template>
+
+<template id="tpl-section">
+  <div class="section-block">
+    <div class="section-header">
+      <button class="section-collapse">&#9662;</button>
+      <span class="section-name" contenteditable="true" spellcheck="false"></span>
+      <button class="icon-btn section-delete" title="Delete section">&times;</button>
+    </div>
+    <div class="tasks-list section-tasks"></div>
+  </div>
+</template>
+
+<template id="tpl-task">
+  <div class="task-row">
+    <div class="task-check-col">
+      <button class="task-check" title="Mark done"></button>
+      <div class="task-progress-bar" title="Set progress">
+        <button type="button" class="task-progress-btn" data-progress="0"></button>
+        <button type="button" class="task-progress-btn" data-progress="25"></button>
+        <button type="button" class="task-progress-btn" data-progress="50"></button>
+        <button type="button" class="task-progress-btn" data-progress="75"></button>
+        <button type="button" class="task-progress-btn" data-progress="100"></button>
+      </div>
+    </div>
+    <div class="task-body">
+      <div class="task-title-row">
+        <span class="task-priority" title="Click to set priority"></span>
+        <span class="task-text" contenteditable="true" spellcheck="false"></span>
+        <button class="icon-btn task-edit" title="Edit task">&#9998;</button>
+        <button class="icon-btn task-delete" title="Delete task">&times;</button>
+      </div>
+      <div class="task-meta">
+        <span class="task-created"></span>
+        <span class="task-status"></span>
+        <span class="task-due"></span>
+      </div>
+    </div>
+  </div>
+</template>
+
+<script type="module" src="app.js"></script>
+</body>
+</html>
