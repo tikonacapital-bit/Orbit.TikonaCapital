@@ -94,6 +94,21 @@ const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov
 const WEEKDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
 const PRIORITY_ORDER = ['none', 'low', 'medium', 'high'];
 const PROGRESS_STEPS = [0, 25, 50, 75, 100];
+const STATUS_OPTIONS = ['Pending', 'In Progress', 'Done'];
+
+function normalizeStatusValue(status) {
+  const match = STATUS_OPTIONS.find((opt) => opt.toLowerCase() === (status || '').trim().toLowerCase());
+  return match || 'Pending';
+}
+
+function nextStatus(current) {
+  const idx = STATUS_OPTIONS.indexOf(normalizeStatusValue(current));
+  return STATUS_OPTIONS[(idx + 1) % STATUS_OPTIONS.length];
+}
+
+function statusSlug(status) {
+  return `status-${normalizeStatusValue(status).toLowerCase().replace(/\s+/g, '-')}`;
+}
 const LIST_COLORS = ['#6fd5c8', '#f0b95a', '#8b8cf6', '#ff7d7d', '#5ac8fa', '#34d399', '#f472b6', '#facc15'];
 const VIEW_META = {
   board: { label: 'Horizontal', icon: '<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><rect x="1" y="3" width="5" height="14" rx="1.5"/><rect x="7.5" y="3" width="5" height="14" rx="1.5"/><rect x="14" y="3" width="5" height="14" rx="1.5"/></svg>' },
@@ -1385,6 +1400,21 @@ function renderSidebar() {
   });
 }
 
+function fmtTimeShort(ts) {
+  const d = new Date(ts);
+  return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
+}
+
+function getEmployeeAttendanceLabel(listName) {
+  const emp = getRegisteredEmployees().find((e) => sameEmployee(e.name, listName));
+  if (!emp) return null;
+  const checkin = getTodayActivity(emp.email, 'checkin');
+  if (!checkin) return null;
+  const checkout = getTodayActivity(emp.email, 'checkout');
+  if (!checkout) return { text: `In ${fmtTimeShort(checkin.timestamp)}`, done: false };
+  return { text: `${fmtTimeShort(checkin.timestamp)}–${fmtTimeShort(checkout.timestamp)}`, done: true };
+}
+
 function renderPinnedState() {
   const analyticsBtn = document.getElementById('analyticsBtn');
   if (analyticsBtn) analyticsBtn.classList.toggle('active', activeWorkspace === 'charts');
@@ -1881,6 +1911,7 @@ function renderProjectCard(project) {
       const btn = document.createElement('button');
       btn.type = 'button';
       btn.className = 'task-progress-btn';
+      btn.dataset.progress = val;
       btn.textContent = val;
       btn.title = `${val}%`;
       if (val === projectProgress) btn.classList.add('current');
@@ -1931,12 +1962,17 @@ function renderProjectCard(project) {
       chip.textContent = project.priority.charAt(0).toUpperCase() + project.priority.slice(1);
       chipsRow.appendChild(chip);
     }
-    if (project.status) {
-      const chip = document.createElement('span');
-      chip.className = 'project-chip project-status-chip';
-      chip.textContent = project.status;
-      chipsRow.appendChild(chip);
-    }
+    const statusChip = document.createElement('span');
+    statusChip.className = `project-chip project-status-chip ${statusSlug(project.status)}`;
+    statusChip.textContent = normalizeStatusValue(project.status);
+    statusChip.title = 'Click to change status';
+    statusChip.addEventListener('click', (e) => {
+      e.stopPropagation();
+      project.status = nextStatus(project.status);
+      persist();
+      render();
+    });
+    chipsRow.appendChild(statusChip);
     if (project.startDate) {
       const chip = document.createElement('span');
       chip.className = 'project-chip';
@@ -2091,7 +2127,7 @@ function openProjectPopup(existingProject = null) {
       </div>
       <div>
         <label style="${FIELD_LABEL_STYLE}">Status</label>
-        <input type="text" id="projectStatus" placeholder="e.g. In review" style="${FIELD_STYLE}">
+        <select id="projectStatus" style="${FIELD_STYLE}">${STATUS_OPTIONS.map((opt) => `<option value="${opt}">${opt}</option>`).join('')}</select>
       </div>
     </div>
 
@@ -2109,7 +2145,7 @@ function openProjectPopup(existingProject = null) {
     popup.querySelector('#projectDescription').value = existingProject.description || '';
     popup.querySelector('#projectStartDate').value = existingProject.startDate || '';
     popup.querySelector('#projectDueDate').value = existingProject.dueDate || '';
-    popup.querySelector('#projectStatus').value = existingProject.status || '';
+    popup.querySelector('#projectStatus').value = normalizeStatusValue(existingProject.status);
   }
 
   let selectedPriority = existingProject?.priority || 'none';
@@ -2680,9 +2716,18 @@ function renderList(list, options = {}) {
   const openCount = visibleTasks.filter((t) => !t.done).length;
   countEl.textContent = openCount || '';
 
-  // Employee mood button (one per list) shown beside the menu — only on the
-  // main task-board lists, not project cards.
+  // Attendance time badge + mood button (one per list) shown beside the
+  // menu — only on the main task-board lists, not project cards.
   if (options.container !== 'projects') {
+    const attendance = getEmployeeAttendanceLabel(list.name);
+    if (attendance) {
+      const att = document.createElement('span');
+      att.className = `list-attendance${attendance.done ? ' done' : ''}`;
+      att.textContent = attendance.text;
+      att.title = attendance.done ? 'Checked in & out today' : 'Checked in today';
+      nameEl.after(att);
+    }
+
     const moodBtn = document.createElement('button');
     moodBtn.type = 'button';
     moodBtn.className = 'list-mood-btn';
@@ -2921,12 +2966,15 @@ function renderTask(list, task) {
   }
 
   const statusEl = node.querySelector('.task-status');
-  if (task.status) {
-    statusEl.className = 'task-status';
-    statusEl.textContent = task.status;
-  } else {
-    statusEl.remove();
-  }
+  statusEl.className = `task-status ${statusSlug(task.status)}`;
+  statusEl.textContent = normalizeStatusValue(task.status);
+  statusEl.title = 'Click to change status';
+  statusEl.addEventListener('click', (e) => {
+    e.stopPropagation();
+    task.status = nextStatus(task.status);
+    persist();
+    render();
+  });
 
   const editBtn = node.querySelector('.task-edit');
   editBtn.addEventListener('click', (e) => {
@@ -3026,14 +3074,18 @@ function renderTableView() {
     startDateCell.textContent = task.startDate || '-';
     tr.appendChild(startDateCell);
 
-    // Status (plain text, set via the task Edit popup)
     const statusTagCell = document.createElement('td');
-    if (task.status) {
-      const statusTag = document.createElement('span');
-      statusTag.className = 'task-status';
-      statusTag.textContent = task.status;
-      statusTagCell.appendChild(statusTag);
-    }
+    const statusTag = document.createElement('span');
+    statusTag.className = `task-status ${statusSlug(task.status)}`;
+    statusTag.textContent = normalizeStatusValue(task.status);
+    statusTag.title = 'Click to change status';
+    statusTag.addEventListener('click', (e) => {
+      e.stopPropagation();
+      task.status = nextStatus(task.status);
+      persist();
+      render();
+    });
+    statusTagCell.appendChild(statusTag);
     tr.appendChild(statusTagCell);
 
     const due = document.createElement('td');
@@ -3112,12 +3164,17 @@ function renderStackView() {
     sectionChip.textContent = sectionName;
     meta.appendChild(sectionChip);
 
-    if (task.status) {
-      const statusTag = document.createElement('span');
-      statusTag.className = 'task-status';
-      statusTag.textContent = task.status;
-      meta.appendChild(statusTag);
-    }
+    const statusTag = document.createElement('span');
+    statusTag.className = `task-status ${statusSlug(task.status)}`;
+    statusTag.textContent = normalizeStatusValue(task.status);
+    statusTag.title = 'Click to change status';
+    statusTag.addEventListener('click', (e) => {
+      e.stopPropagation();
+      task.status = nextStatus(task.status);
+      persist();
+      render();
+    });
+    meta.appendChild(statusTag);
 
     const { text: dueText, cls: dueCls } = dueLabel(task.due);
     const due = document.createElement('button');
@@ -3321,7 +3378,7 @@ function openTaskPopup(list, sectionId, existingTask = null) {
 
     <div style="margin-bottom: 14px;">
       <label style="${FIELD_LABEL_STYLE}">Status</label>
-      <input type="text" id="status" placeholder="e.g. Waiting on review, Blocked..." style="${FIELD_STYLE}">
+      <select id="status" style="${FIELD_STYLE}">${STATUS_OPTIONS.map((opt) => `<option value="${opt}">${opt}</option>`).join('')}</select>
     </div>
 
     <div style="display: flex; gap: 10px; justify-content: flex-end;">
@@ -3351,7 +3408,7 @@ function openTaskPopup(list, sectionId, existingTask = null) {
     popup.querySelector('#startDate').value = existingTask.startDate || '';
     popup.querySelector('#dueDate').value = existingTask.due || '';
     popup.querySelector('#assignedTo').value = existingTask.assignedTo || '';
-    popup.querySelector('#status').value = existingTask.status || '';
+    popup.querySelector('#status').value = normalizeStatusValue(existingTask.status);
   }
 
   // Cancel button

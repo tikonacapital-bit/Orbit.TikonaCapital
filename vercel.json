@@ -1,0 +1,8 @@
+{
+  "rewrites": [
+    { "source": "/", "destination": "/src/index.html" },
+    { "source": "/app.js", "destination": "/src/app.js" },
+    { "source": "/style.css", "destination": "/src/style.css" },
+    { "source": "/storage-supabase.js", "destination": "/src/storage-supabase.js" }
+  ]
+}
