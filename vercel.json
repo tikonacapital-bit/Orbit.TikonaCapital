@@ -11,6 +11,14 @@
     {
       "source": "/app.js",
       "destination": "/src/app.js"
+    },
+    {
+      "source": "/storage.js",
+      "destination": "/src/storage.js"
+    },
+    {
+      "source": "/storage-supabase.js",
+      "destination": "/src/storage-supabase.js"
     }
   ]
 }
