@@ -3,6 +3,14 @@
     {
       "source": "/",
       "destination": "/src/index.html"
+    },
+    {
+      "source": "/style.css",
+      "destination": "/src/style.css"
+    },
+    {
+      "source": "/app.js",
+      "destination": "/src/app.js"
     }
   ]
 }
