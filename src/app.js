@@ -568,31 +568,29 @@ function formatDateStrForShare(dateStr) {
 
 function buildListShareText(list) {
   const priorityEmoji = { high: '🔴', medium: '🟠', low: '🔵', none: '⚪' };
-  const tasks = (list.tasks || []).slice().sort((a, b) => {
-    if (a.done !== b.done) return a.done ? 1 : -1;
-    return (b.createdAt || 0) - (a.createdAt || 0);
-  });
+  const tasks = (list.tasks || [])
+    .filter((t) => !t.done)
+    .slice()
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
 
-  const lines = [`📋 *${list.name}* — Tasks`, ''];
+  const lines = [`📋 *${list.name}* — Pending Tasks`, ''];
   if (!tasks.length) {
-    lines.push('_No tasks yet._');
+    lines.push('_No pending tasks._');
   } else {
     tasks.forEach((task, i) => {
-      const check = task.done ? '✅' : '⬜';
-      lines.push(`${i + 1}. ${check} *${task.text}*`);
+      lines.push(`${i + 1}. ⬜ *${task.text}*`);
       const priority = task.priority || 'none';
       const meta = [`${priorityEmoji[priority] || priorityEmoji.none} ${priority.charAt(0).toUpperCase()}${priority.slice(1)}`];
       if (task.category) meta.push(`🏷 ${task.category}`);
       lines.push(`   ${meta.join('   ')}`);
-      const statusLine = [`Status: ${task.status || (task.done ? 'Done' : 'Pending')}`];
+      const statusLine = [`Status: ${task.status || 'Pending'}`];
       const dueText = formatDateStrForShare(task.due);
       if (dueText) statusLine.push(`Due: ${dueText}`);
       lines.push(`   ${statusLine.join('   |   ')}`);
       lines.push('');
     });
   }
-  const openCount = tasks.filter((t) => !t.done).length;
-  lines.push(`_Open: ${openCount}  •  Done: ${tasks.length - openCount}_`);
+  lines.push(`_Open: ${tasks.length}_`);
   return lines.join('\n');
 }
 
