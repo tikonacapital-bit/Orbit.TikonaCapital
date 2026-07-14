@@ -559,6 +559,57 @@ function normalizeTasks(tasks) {
   }));
 }
 
+function formatDateStrForShare(dateStr) {
+  if (!dateStr) return null;
+  const [y, m, d] = dateStr.split('-').map(Number);
+  if (!y || !m || !d) return dateStr;
+  return `${d} ${MONTHS[m - 1]} ${y}`;
+}
+
+function buildListShareText(list) {
+  const priorityEmoji = { high: '🔴', medium: '🟠', low: '🔵', none: '⚪' };
+  const tasks = (list.tasks || []).slice().sort((a, b) => {
+    if (a.done !== b.done) return a.done ? 1 : -1;
+    return (b.createdAt || 0) - (a.createdAt || 0);
+  });
+
+  const lines = [`📋 *${list.name}* — Tasks`, ''];
+  if (!tasks.length) {
+    lines.push('_No tasks yet._');
+  } else {
+    tasks.forEach((task, i) => {
+      const check = task.done ? '✅' : '⬜';
+      lines.push(`${i + 1}. ${check} *${task.text}*`);
+      const priority = task.priority || 'none';
+      const meta = [`${priorityEmoji[priority] || priorityEmoji.none} ${priority.charAt(0).toUpperCase()}${priority.slice(1)}`];
+      if (task.category) meta.push(`🏷 ${task.category}`);
+      lines.push(`   ${meta.join('   ')}`);
+      const statusLine = [`Status: ${task.status || (task.done ? 'Done' : 'Pending')}`];
+      const dueText = formatDateStrForShare(task.due);
+      if (dueText) statusLine.push(`Due: ${dueText}`);
+      lines.push(`   ${statusLine.join('   |   ')}`);
+      lines.push('');
+    });
+  }
+  const openCount = tasks.filter((t) => !t.done).length;
+  lines.push(`_Open: ${openCount}  •  Done: ${tasks.length - openCount}_`);
+  return lines.join('\n');
+}
+
+function copyTextToClipboard(text) {
+  if (navigator.clipboard && navigator.clipboard.writeText) {
+    return navigator.clipboard.writeText(text);
+  }
+  const textarea = document.createElement('textarea');
+  textarea.value = text;
+  textarea.style.cssText = 'position:fixed;opacity:0;top:0;left:0;';
+  document.body.appendChild(textarea);
+  textarea.select();
+  document.execCommand('copy');
+  textarea.remove();
+  return Promise.resolve();
+}
+
 function getActiveLists() {
   return state.lists.filter((l) => !l.archived);
 }
@@ -3269,6 +3320,15 @@ function renderList(list, options = {}) {
       editListBtn.remove();
     }
   }
+
+  const copyListBtn = menu.querySelector('[data-action="copy-list"]');
+  copyListBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    menu.classList.add('hidden');
+    copyTextToClipboard(buildListShareText(list))
+      .then(() => showToast('Copied — paste it in WhatsApp or anywhere'))
+      .catch(() => showToast('Could not copy to clipboard'));
+  });
 
   // sections
   const sectionsWrap = node.querySelector('.sections');
