@@ -69,6 +69,61 @@ function showToast(message, undoFn) {
   toastTimer = setTimeout(() => toastEl.classList.remove('show'), 6000);
 }
 
+function fireConfetti() {
+  const colors = ['#3b7bf7', '#16a34a', '#f5a623', '#e04858', '#34d399', '#a855f7'];
+  const canvas = document.createElement('canvas');
+  canvas.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:9999;';
+  canvas.width = window.innerWidth;
+  canvas.height = window.innerHeight;
+  document.body.appendChild(canvas);
+  const ctx = canvas.getContext('2d');
+
+  const count = 140;
+  const particles = Array.from({ length: count }, () => ({
+    x: Math.random() * canvas.width,
+    y: -20 - Math.random() * canvas.height * 0.3,
+    size: 5 + Math.random() * 5,
+    color: colors[Math.floor(Math.random() * colors.length)],
+    vx: (Math.random() - 0.5) * 3,
+    vy: 2 + Math.random() * 3,
+    rotation: Math.random() * Math.PI * 2,
+    vr: (Math.random() - 0.5) * 0.3,
+    shape: Math.random() < 0.5 ? 'rect' : 'circle',
+  }));
+
+  const duration = 3200;
+  const start = performance.now();
+
+  function frame(now) {
+    const elapsed = now - start;
+    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    particles.forEach((p) => {
+      p.x += p.vx;
+      p.y += p.vy;
+      p.vy += 0.03;
+      p.rotation += p.vr;
+      ctx.save();
+      ctx.translate(p.x, p.y);
+      ctx.rotate(p.rotation);
+      ctx.fillStyle = p.color;
+      if (p.shape === 'rect') {
+        ctx.fillRect(-p.size / 2, -p.size / 2, p.size, p.size * 0.6);
+      } else {
+        ctx.beginPath();
+        ctx.arc(0, 0, p.size / 2, 0, Math.PI * 2);
+        ctx.fill();
+      }
+      ctx.restore();
+    });
+    if (elapsed < duration) {
+      requestAnimationFrame(frame);
+    } else {
+      canvas.remove();
+    }
+  }
+  requestAnimationFrame(frame);
+}
+
 function showFatal(message, err) {
   console.error(message, err);
   toastEl.innerHTML = '';
@@ -1086,13 +1141,21 @@ function openExitPopup() {
 
   const bin = state.bin || [];
   if (bin.length) {
-    const binHeading = document.createElement('div');
-    binHeading.style.cssText = 'font-weight:600;font-size:13px;margin-bottom:8px;border-top:1px solid #eee;padding-top:12px;';
-    binHeading.textContent = `Exited employees (${bin.length})`;
-    popup.appendChild(binHeading);
+    const binToggle = document.createElement('button');
+    binToggle.type = 'button';
+    binToggle.style.cssText = 'width:100%;display:flex;align-items:center;justify-content:space-between;background:none;border:none;border-top:1px solid #eee;padding:12px 0 0;font-weight:600;font-size:13px;cursor:pointer;color:inherit;';
+    binToggle.innerHTML = `<span>Exited employees (${bin.length})</span><span class="bin-toggle-arrow" style="transition:transform 150ms ease;">&#9662;</span>`;
+    popup.appendChild(binToggle);
 
     const binList = document.createElement('div');
-    binList.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
+    binList.style.cssText = 'display:none;flex-direction:column;gap:8px;margin-top:8px;';
+    let binExpanded = false;
+    const arrowEl = binToggle.querySelector('.bin-toggle-arrow');
+    binToggle.addEventListener('click', () => {
+      binExpanded = !binExpanded;
+      binList.style.display = binExpanded ? 'flex' : 'none';
+      arrowEl.style.transform = binExpanded ? 'rotate(180deg)' : 'rotate(0deg)';
+    });
     bin.slice().sort((a, b) => b.exitedAt - a.exitedAt).forEach((entry) => {
       const row = document.createElement('div');
       row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid #eee;border-radius:8px;';
@@ -1958,7 +2021,7 @@ function renderActivitySection() {
 
   const list = document.createElement('div');
   list.className = 'activity-list';
-  activity.slice(0, 50).forEach((entry) => {
+  activity.slice(0, 10).forEach((entry) => {
     const row = document.createElement('div');
     row.className = `activity-row activity-${entry.type}`;
 
@@ -2136,7 +2199,6 @@ function renderProjectRow(project) {
   const progress = PROGRESS_STEPS.includes(project.progress) ? project.progress : 0;
   node.querySelectorAll('.task-progress-btn').forEach((btn) => {
     const val = Number(btn.dataset.progress);
-    btn.textContent = val;
     btn.title = `${val}%`;
     btn.classList.toggle('current', val === progress);
     btn.addEventListener('click', (e) => {
@@ -2144,6 +2206,9 @@ function renderProjectRow(project) {
       setProjectProgress(project, val);
     });
   });
+  const fillEl = node.querySelector('.task-progress-fill');
+  fillEl.style.height = `${progress}%`;
+  fillEl.className = `task-progress-fill${progress ? ` fill-${progress}` : ''}`;
 
   const projectOverdue = !project.done && project.dueDate && project.dueDate < todayStr();
   if (projectOverdue) {
@@ -2224,7 +2289,7 @@ function renderProjectRow(project) {
   return node;
 }
 
-function openItemPopup(existingItem = null, existingIsProject = false) {
+function openItemPopup(existingItem = null, existingIsProject = false, presetAssignee = '') {
   document.querySelectorAll('.item-popup-overlay').forEach((m) => m.remove());
   const isEdit = Boolean(existingItem);
   const isProjectItem = isEdit ? existingIsProject : false;
@@ -2349,7 +2414,7 @@ function openItemPopup(existingItem = null, existingIsProject = false) {
   // ---- Assigned To: multi-select chip combobox with typeahead ----
   let selectedAssignees = isEdit
     ? (isProjectItem ? [...(existingItem.owners || [])] : (existingItem.assignedTo ? [existingItem.assignedTo] : []))
-    : [];
+    : (presetAssignee ? [presetAssignee] : []);
 
   const assignedToBox = popup.querySelector('#assignedToBox');
   const assignedToInput = popup.querySelector('#assignedToInput');
@@ -2459,7 +2524,8 @@ function openItemPopup(existingItem = null, existingIsProject = false) {
     if (!assignedToBox.contains(e.target) && !assignedToSuggestions.contains(e.target)) assignedToSuggestions.style.display = 'none';
     if (!categoryInput.parentElement.contains(e.target) && !categorySuggestions.contains(e.target)) categorySuggestions.style.display = 'none';
   };
-  const hideSuggestionsOnScroll = () => {
+  const hideSuggestionsOnScroll = (e) => {
+    if (e.target === assignedToSuggestions || e.target === categorySuggestions) return;
     assignedToSuggestions.style.display = 'none';
     categorySuggestions.style.display = 'none';
   };
@@ -2792,7 +2858,7 @@ function renderRegularGridView() {
   });
   dates.forEach((date, index) => {
     const th = document.createElement('th');
-    th.className = isWeekend(date) ? 'weekend' : '';
+    th.className = [isWeekend(date) ? 'weekend' : '', dateKey(date) === todayStr() ? 'today-col' : ''].filter(Boolean).join(' ');
     th.draggable = true;
     th.dataset.columnIndex = String(index);
     th.innerHTML = `<span>${date.getDate()}</span><small>${WEEKDAYS[date.getDay()].slice(0, 1)}</small>`;
@@ -2856,7 +2922,7 @@ function renderRegularGridView() {
 
       dates.forEach((date) => {
         const td = document.createElement('td');
-        td.className = isWeekend(date) ? 'weekend' : '';
+        td.className = [isWeekend(date) ? 'weekend' : '', dateKey(date) === todayStr() ? 'today-col' : ''].filter(Boolean).join(' ');
         const checkbox = renderRegularCheckbox(task, date);
         if (!isRegularTaskExpected(task, date)) checkbox.classList.add('inactive');
         td.appendChild(checkbox);
@@ -3099,6 +3165,17 @@ function renderList(list, options = {}) {
   // Attendance time badge + mood button (one per list) shown beside the
   // menu — only on the main task-board lists, not project cards.
   if (options.container !== 'projects') {
+    const quickAddBtn = document.createElement('button');
+    quickAddBtn.type = 'button';
+    quickAddBtn.className = 'list-quick-add-btn';
+    quickAddBtn.textContent = '+';
+    quickAddBtn.title = `Add task for ${list.name}`;
+    quickAddBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openItemPopup(null, false, list.name);
+    });
+    nameEl.after(quickAddBtn);
+
     const attendance = getEmployeeAttendanceLabel(list.name);
     if (attendance) {
       const att = document.createElement('span');
@@ -3275,7 +3352,6 @@ function renderTask(list, task) {
   const progress = PROGRESS_STEPS.includes(task.progress) ? task.progress : 0;
   node.querySelectorAll('.task-progress-btn').forEach((btn) => {
     const val = Number(btn.dataset.progress);
-    btn.textContent = val;
     btn.title = `${val}%`;
     btn.classList.toggle('current', val === progress);
     btn.addEventListener('click', (e) => {
@@ -3283,6 +3359,9 @@ function renderTask(list, task) {
       setTaskProgress(list, task, val);
     });
   });
+  const fillEl = node.querySelector('.task-progress-fill');
+  fillEl.style.height = `${progress}%`;
+  fillEl.className = `task-progress-fill${progress ? ` fill-${progress}` : ''}`;
 
   const isOverdue = !task.done && dueLabel(task.due).cls === 'overdue';
   if (isOverdue) {
@@ -3718,25 +3797,31 @@ function addTask(list, sectionId, taskData) {
 }
 
 function toggleDone(list, task) {
+  const wasDone = task.done;
   task.done = !task.done;
   task.completedAt = task.done ? Date.now() : null;
   task.progress = task.done ? 100 : (task.progress === 100 ? 0 : task.progress);
+  if (task.done && !wasDone) fireConfetti();
   persist();
   render();
 }
 
 function setTaskProgress(list, task, value) {
+  const wasDone = task.done;
   task.progress = value;
   task.done = value === 100;
   task.completedAt = task.done ? Date.now() : null;
+  if (task.done && !wasDone) fireConfetti();
   persist();
   render();
 }
 
 function setProjectProgress(project, value) {
+  const wasDone = project.done;
   project.progress = value;
   project.done = value === 100;
   project.completedAt = project.done ? Date.now() : null;
+  if (project.done && !wasDone) fireConfetti();
   persist();
   render();
 }
