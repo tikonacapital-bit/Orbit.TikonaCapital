@@ -164,6 +164,24 @@ function nextStatus(current) {
 function statusSlug(status) {
   return `status-${normalizeStatusValue(status).toLowerCase().replace(/\s+/g, '-')}`;
 }
+
+// The progress gauge and the Status dropdown are two separate fields that
+// can each be set independently (clicking the gauge, or editing Status in
+// the popup) — without this, setting Status to "Done"/"In Progress" alone
+// left the gauge visually empty since it only reflected the click-driven
+// `progress` field. Take whichever of the two implies more progress.
+function statusToProgress(status) {
+  const normalized = normalizeStatusValue(status);
+  if (normalized === 'Done') return 100;
+  if (normalized === 'In Progress') return 50;
+  return 0;
+}
+
+function itemDisplayProgress(item) {
+  if (item.done) return 100;
+  const fieldProgress = PROGRESS_STEPS.includes(item.progress) ? item.progress : 0;
+  return Math.max(fieldProgress, statusToProgress(item.status));
+}
 const LIST_COLORS = ['#6fd5c8', '#f0b95a', '#8b8cf6', '#ff7d7d', '#5ac8fa', '#34d399', '#f472b6', '#facc15'];
 const VIEW_META = {
   board: { label: 'Horizontal', icon: '<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><rect x="1" y="3" width="5" height="14" rx="1.5"/><rect x="7.5" y="3" width="5" height="14" rx="1.5"/><rect x="14" y="3" width="5" height="14" rx="1.5"/></svg>' },
@@ -2299,7 +2317,7 @@ function renderProjectRow(project) {
     render();
   });
 
-  const progress = PROGRESS_STEPS.includes(project.progress) ? project.progress : 0;
+  const progress = itemDisplayProgress(project);
   node.querySelectorAll('.task-progress-btn').forEach((btn) => {
     const val = Number(btn.dataset.progress);
     btn.title = `${val}%`;
@@ -3464,7 +3482,7 @@ function renderTask(list, task) {
   checkBtn.title = task.done ? 'Restore task (undo)' : 'Mark done';
   checkBtn.addEventListener('click', () => toggleDone(list, task));
 
-  const progress = PROGRESS_STEPS.includes(task.progress) ? task.progress : 0;
+  const progress = itemDisplayProgress(task);
   node.querySelectorAll('.task-progress-btn').forEach((btn) => {
     const val = Number(btn.dataset.progress);
     btn.title = `${val}%`;
@@ -3916,6 +3934,7 @@ function toggleDone(list, task) {
   task.done = !task.done;
   task.completedAt = task.done ? Date.now() : null;
   task.progress = task.done ? 100 : (task.progress === 100 ? 0 : task.progress);
+  task.status = task.done ? 'Done' : (task.progress === 0 ? 'Pending' : task.status);
   if (task.done && !wasDone) fireConfetti();
   persist();
   render();
@@ -3926,6 +3945,7 @@ function setTaskProgress(list, task, value) {
   task.progress = value;
   task.done = value === 100;
   task.completedAt = task.done ? Date.now() : null;
+  task.status = value === 100 ? 'Done' : (value === 0 ? 'Pending' : 'In Progress');
   if (task.done && !wasDone) fireConfetti();
   persist();
   render();
@@ -3936,6 +3956,7 @@ function setProjectProgress(project, value) {
   project.progress = value;
   project.done = value === 100;
   project.completedAt = project.done ? Date.now() : null;
+  project.status = value === 100 ? 'Done' : (value === 0 ? 'Pending' : 'In Progress');
   if (project.done && !wasDone) fireConfetti();
   persist();
   render();
