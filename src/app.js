@@ -829,7 +829,7 @@ function logActivity(type, email, ip, device, name = '') {
 function openRegisterPopup() {
   const today = todayStr();
   const { overlay, popup, confirmBtn } = openRegularPopup('Register Employee', `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+    <div class="popup-2col" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
       <div>
         <label style="${FIELD_LABEL_STYLE}">Full name *</label>
         <input type="text" id="registerName" placeholder="Jane Doe" style="${FIELD_STYLE}">
@@ -839,7 +839,7 @@ function openRegisterPopup() {
         <input type="email" id="registerEmail" placeholder="you@company.com" style="${FIELD_STYLE}">
       </div>
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="popup-2col" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
       <div>
         <label style="${FIELD_LABEL_STYLE}">Joining date *</label>
         <input type="date" id="registerJoiningDate" value="${today}" style="${FIELD_STYLE}">
@@ -1263,7 +1263,7 @@ function openAddRegularRowPopup() {
       <label style="${FIELD_LABEL_STYLE}">Task Title *</label>
       <input type="text" id="regRowTitle" placeholder="Enter task title" style="${FIELD_STYLE}">
     </div>
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="popup-2col" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
       <div>
         <label style="${FIELD_LABEL_STYLE}">Employee</label>
         <select id="regRowOwner" style="${FIELD_STYLE}"><option value="Unassigned">Unassigned</option>${employeeOptions}</select>
@@ -1321,7 +1321,7 @@ function openAddRegularColumnPopup() {
   const afterOptions = ['<option value="">At the end</option>'].concat(cols.map((c) => `<option value="${c}">After ${c}</option>`)).join('');
 
   const { overlay, popup, confirmBtn } = openRegularPopup('Add Column', `
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="popup-2col" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
       <div>
         <label style="${FIELD_LABEL_STYLE}">Insert after</label>
         <select id="regColAfter" style="${FIELD_STYLE}">${afterOptions}</select>
@@ -2379,7 +2379,7 @@ function openItemPopup(existingItem = null, existingIsProject = false, presetAss
   popup.innerHTML = `
     <h2 style="margin: 0 0 12px 0; font-size: 17px; font-weight: 600;">${titleText}</h2>
 
-    <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 10px; margin-bottom: 10px;">
+    <div class="popup-2col" style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 10px; margin-bottom: 10px;">
       <div>
         <label style="${FIELD_LABEL_STYLE}">Assigned To</label>
         <div id="assignedToBox">
@@ -2414,7 +2414,7 @@ function openItemPopup(existingItem = null, existingIsProject = false, presetAss
       <textarea id="itemDescription" placeholder="Optional details" style="${FIELD_STYLE} min-height: 36px; font-family: inherit;"></textarea>
     </div>
 
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
+    <div class="popup-2col" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
       <div>
         <label style="${FIELD_LABEL_STYLE}">Start Date</label>
         <input type="date" id="itemStartDate" style="${FIELD_STYLE}">
@@ -2425,7 +2425,7 @@ function openItemPopup(existingItem = null, existingIsProject = false, presetAss
       </div>
     </div>
 
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px;">
+    <div class="popup-2col" style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px;">
       <div>
         <label style="${FIELD_LABEL_STYLE}">Category</label>
         <input type="text" id="itemCategory" placeholder="Type or select…" autocomplete="off" style="${FIELD_STYLE}">

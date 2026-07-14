@@ -2179,6 +2179,66 @@ button.stat-card:hover::before { opacity: 1; }
   }
 }
 
+@media (max-width: 560px) {
+  .topbar {
+    padding: 6px 10px;
+    flex-wrap: wrap;
+  }
+
+  .brand-logo-img { height: 24px; }
+  .brand-sub { font-size: 10px; }
+
+  .viewbar {
+    padding: 6px 10px 4px;
+    flex-direction: column;
+    flex-wrap: nowrap;
+    align-items: stretch;
+  }
+
+  .list-nav.horizontal {
+    width: 100%;
+    flex: 1 1 100%;
+  }
+
+  .dashboard-title-compact {
+    font-size: 14px;
+  }
+
+  .board {
+    padding: 4px 10px 16px;
+  }
+
+  .board-top {
+    flex-direction: column;
+    align-items: stretch;
+    overflow-x: hidden;
+  }
+
+  .list-column,
+  .project-person-card,
+  .chart-card {
+    width: 100% !important;
+    max-width: 100% !important;
+    min-width: 0;
+    resize: none;
+  }
+
+  .charts-grid {
+    flex-direction: column;
+  }
+
+  .popup-2col {
+    grid-template-columns: 1fr !important;
+  }
+
+  .item-popup,
+  .regular-popup-overlay > div {
+    width: 94% !important;
+    max-width: 94% !important;
+    padding: 14px !important;
+  }
+}
+
 /* Task status: click to cycle Pending -> In Progress -> Done */
 .task-status {
   border-radius: 999px;
