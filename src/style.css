@@ -1876,11 +1876,6 @@ button.stat-card:hover::before { opacity: 1; }
   cursor: pointer;
 }
 
-.regular-check.inactive {
-  opacity: 0.35;
-  filter: grayscale(60%);
-}
-
 .regular-checkbox-wrap.locked {
   cursor: not-allowed;
   position: relative;

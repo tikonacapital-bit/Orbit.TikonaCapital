@@ -880,11 +880,9 @@ function getTodayActivity(email, type) {
 
 function fmtTimeOnly(ts) {
   const d = new Date(ts);
-  const hours = d.getHours();
-  const h12 = ((hours + 11) % 12) + 1;
-  const ampm = hours >= 12 ? 'PM' : 'AM';
+  const hours = String(d.getHours()).padStart(2, '0');
   const mins = String(d.getMinutes()).padStart(2, '0');
-  return `${h12}:${mins} ${ampm}`;
+  return `${hours}:${mins}`;
 }
 
 function openAttendancePopup() {
@@ -1521,18 +1519,13 @@ function renameRegularEmployee(oldName, newName) {
 
 function updateRegularTask(task, field, value) {
   const clean = String(value).trim();
-  if (field === 'weekday') {
-    const idx = WEEKDAYS.findIndex((day) => day.toLowerCase() === clean.slice(0, 3).toLowerCase());
-    if (idx >= 0) task.weekday = idx;
-  } else if (field === 'dayOfMonth') {
-    task.dayOfMonth = Math.max(1, Math.min(31, Number.parseInt(clean, 10) || task.dayOfMonth || 1));
-  } else if (field === 'cadence') {
+  if (field === 'cadence') {
     const normalized = clean.toLowerCase();
     if (normalized.startsWith('d')) task.cadence = 'daily';
     else if (normalized.startsWith('w')) task.cadence = 'weekly';
     else if (normalized.startsWith('m')) task.cadence = 'monthly';
     else return;
-  } else if (field === 'time' || field === 'group') {
+  } else if (field === 'group') {
     task[field] = clean;
   } else {
     if (!clean) return;
@@ -1541,6 +1534,50 @@ function updateRegularTask(task, field, value) {
   refreshRegularEmployees();
   persist();
   render();
+}
+
+// The Time/Schedule column doubles as the input for when a task recurs,
+// read according to its cadence: a weekday name for weekly, a day-of-month
+// number for monthly, and "day month" (e.g. "15 Jan") for cadences that
+// also need a reference month (quarterly/half-yearly/yearly).
+function updateRegularSchedule(task, value) {
+  const clean = String(value).trim();
+  if (task.cadence === 'daily') {
+    task.time = clean;
+  } else if (task.cadence === 'weekly') {
+    const idx = WEEKDAYS.findIndex((day) => day.toLowerCase().startsWith(clean.slice(0, 3).toLowerCase()));
+    if (idx >= 0) task.weekday = idx;
+  } else if (task.cadence === 'monthly') {
+    const day = Number.parseInt(clean, 10);
+    if (day) task.dayOfMonth = Math.max(1, Math.min(31, day));
+  } else {
+    const dayMatch = clean.match(/\d{1,2}/);
+    if (dayMatch) task.dayOfMonth = Math.max(1, Math.min(31, Number.parseInt(dayMatch[0], 10)));
+    const monthMatch = clean.match(/[A-Za-z]{3,}/);
+    if (monthMatch) {
+      const idx = MONTHS.findIndex((m) => m.toLowerCase() === monthMatch[0].slice(0, 3).toLowerCase());
+      if (idx >= 0) task.month = idx;
+    } else {
+      const parts = clean.split(/[\/\-\s]+/).filter(Boolean);
+      if (parts.length >= 2) {
+        const m = Number.parseInt(parts[1], 10);
+        if (m >= 1 && m <= 12) task.month = m - 1;
+      }
+    }
+  }
+  persist();
+  render();
+}
+
+function regularScheduleValue(task) {
+  return task.cadence === 'daily' ? (task.time || '') : regularScheduleLabel(task);
+}
+
+function regularSchedulePlaceholder(cadence) {
+  if (cadence === 'weekly') return 'e.g. Monday';
+  if (cadence === 'monthly') return 'Day of month, e.g. 15';
+  if (cadence === 'quarterly' || cadence === 'half-yearly' || cadence === 'yearly') return 'e.g. 15 Jan';
+  return 'Enter time';
 }
 
 function editableText(value, onCommit, className = 'editable-cell', placeholder = '') {
@@ -2962,7 +2999,7 @@ function renderRegularGridView() {
       tr.appendChild(titleCell);
 
       const timeCell = document.createElement('td');
-      timeCell.appendChild(editableText(task.time || '', (value) => updateRegularTask(task, 'time', value), 'regular-editable', 'Enter time'));
+      timeCell.appendChild(editableText(regularScheduleValue(task), (value) => updateRegularSchedule(task, value), 'regular-editable', regularSchedulePlaceholder(task.cadence)));
       tr.appendChild(timeCell);
 
       const statusCell = document.createElement('td');
@@ -2972,9 +3009,9 @@ function renderRegularGridView() {
       dates.forEach((date) => {
         const td = document.createElement('td');
         td.className = [isWeekend(date) ? 'weekend' : '', dateKey(date) === todayStr() ? 'today-col' : ''].filter(Boolean).join(' ');
-        const checkbox = renderRegularCheckbox(task, date);
-        if (!isRegularTaskExpected(task, date)) checkbox.classList.add('inactive');
-        td.appendChild(checkbox);
+        if (isRegularTaskExpected(task, date)) {
+          td.appendChild(renderRegularCheckbox(task, date));
+        }
         tr.appendChild(td);
       });
       tbody.appendChild(tr);
@@ -3028,7 +3065,7 @@ function renderRegularTableView() {
     tr.appendChild(titleTd);
 
     const scheduleTd = document.createElement('td');
-    scheduleTd.appendChild(editableText(task.time || '', (value) => updateRegularTask(task, 'time', value), 'regular-editable', 'Enter time'));
+    scheduleTd.appendChild(editableText(regularScheduleValue(task), (value) => updateRegularSchedule(task, value), 'regular-editable', regularSchedulePlaceholder(task.cadence)));
     tr.appendChild(scheduleTd);
 
     tr.appendChild(textCell(`${progress.done}/${progress.total}`));
@@ -3080,7 +3117,7 @@ function renderRegularStackView() {
     ownerChip.appendChild(editableText(task.owner, (value) => updateRegularTask(task, 'owner', value), 'regular-editable owner-edit'));
     meta.appendChild(ownerChip);
     const timeChip = document.createElement('span');
-    timeChip.appendChild(editableText(task.time || '', (value) => updateRegularTask(task, 'time', value), 'regular-editable'));
+    timeChip.appendChild(editableText(regularScheduleValue(task), (value) => updateRegularSchedule(task, value), 'regular-editable', regularSchedulePlaceholder(task.cadence)));
     meta.appendChild(timeChip);
     const groupChip = document.createElement('span');
     groupChip.appendChild(editableText(task.group || '', (value) => updateRegularTask(task, 'group', value), 'regular-editable'));
