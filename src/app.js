@@ -1606,6 +1606,17 @@ function render() {
   const scrollTarget = preserveScroll ? boardEl.querySelector(SCROLL_PANEL_SELECTOR) : null;
   const savedScroll = scrollTarget ? { top: scrollTarget.scrollTop, left: scrollTarget.scrollLeft } : null;
 
+  // Every render() fully rebuilds the board, which would otherwise snap
+  // every per-card task list back to scrollTop 0 on every single click
+  // anywhere in the app — that constant jump is what reads as "flicker".
+  // Save/restore scroll position for each of those by a stable key instead.
+  const savedCardScrolls = new Map();
+  if (preserveScroll) {
+    boardEl.querySelectorAll('[data-scroll-key]').forEach((el) => {
+      if (el.scrollTop > 0) savedCardScrolls.set(el.dataset.scrollKey, el.scrollTop);
+    });
+  }
+
   try {
     // Build all new content off-screen first. Only swap it into the live
     // board once everything below has succeeded, so a mid-render error can
@@ -1660,6 +1671,12 @@ function render() {
         next.scrollTop = savedScroll.top;
         next.scrollLeft = savedScroll.left;
       }
+    }
+    if (savedCardScrolls.size) {
+      boardEl.querySelectorAll('[data-scroll-key]').forEach((el) => {
+        const top = savedCardScrolls.get(el.dataset.scrollKey);
+        if (top) el.scrollTop = top;
+      });
     }
   } catch (err) {
     console.error('Tikona Tasklist render failed, keeping previous view visible', err);
@@ -3373,12 +3390,14 @@ function renderList(list, options = {}) {
 
   // unsectioned tasks
   const unsectioned = node.querySelector('.unsectioned');
+  unsectioned.dataset.scrollKey = `${list.id}:unsectioned`;
   const topTasks = visibleTasks.filter((t) => !t.done && !t.sectionId);
   topTasks.forEach((task) => unsectioned.appendChild(renderTask(list, task)));
 
   // completed
   const completed = visibleTasks.filter((t) => t.done);
   const completedList = node.querySelector('.completed-list');
+  completedList.dataset.scrollKey = `${list.id}:completed`;
   const completedCount = node.querySelector('.completed-count');
   completedCount.textContent = completed.length;
   completed
@@ -3412,6 +3431,7 @@ function renderSection(list, section) {
 
   const collapseBtn = node.querySelector('.section-collapse');
   const tasksWrap = node.querySelector('.section-tasks');
+  tasksWrap.dataset.scrollKey = `${list.id}:section:${section.id}`;
   if (section.collapsed) tasksWrap.classList.add('collapsed');
   collapseBtn.textContent = section.collapsed ? '>' : 'v';
   collapseBtn.addEventListener('click', () => {

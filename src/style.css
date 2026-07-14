@@ -2440,5 +2440,11 @@ button.stat-card:hover::before { opacity: 1; }
 * {
   scrollbar-width: thin;
   scrollbar-color: rgba(18, 44, 86, 0.12) transparent;
+  /* Reserves the scrollbar's space up front so a container whose content
+     hovers right at the overflow threshold doesn't flip between
+     needing/not-needing a scrollbar on every re-render — that flip is what
+     reads as flicker, since each flip reflows the content and can retrigger
+     the opposite state. */
+  scrollbar-gutter: stable;
 }
 
