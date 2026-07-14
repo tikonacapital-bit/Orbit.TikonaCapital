@@ -11,7 +11,7 @@ const tplSection = document.getElementById('tpl-section');
 const tplTask = document.getElementById('tpl-task');
 const toastEl = document.getElementById('toast');
 
-let state = { lists: [], projects: [], employees: [], activity: [], bin: [] };
+let state = { lists: [], projects: [], employees: [], activity: [], bin: [], categories: [] };
 let toastTimer = null;
 let activeListId = 'all';
 let activeWorkspace = 'tasks';
@@ -120,6 +120,48 @@ function listAccentColor(id) {
   let hash = 0;
   for (let i = 0; i < id.length; i++) hash = (hash * 31 + id.charCodeAt(i)) >>> 0;
   return LIST_COLORS[hash % LIST_COLORS.length];
+}
+
+// Per-device card sizing (not synced to Supabase — this is a local display
+// preference, not shared data) so a manually resized card keeps its size
+// across reloads and re-renders instead of snapping back to the default.
+const CARD_SIZE_KEY = 'tikona_card_sizes_v1';
+
+function loadCardSizes() {
+  try {
+    return JSON.parse(localStorage.getItem(CARD_SIZE_KEY) || '{}');
+  } catch (err) {
+    return {};
+  }
+}
+
+function saveCardSizes() {
+  try {
+    localStorage.setItem(CARD_SIZE_KEY, JSON.stringify(cardSizes));
+  } catch (err) {
+    // If localStorage is unavailable, sizes just won't persist — non-fatal.
+  }
+}
+
+const cardSizes = loadCardSizes();
+
+function makeResizable(el, key) {
+  const saved = cardSizes[key];
+  if (saved) {
+    el.style.width = saved.width;
+    el.style.height = saved.height;
+  }
+  let skippedInitial = false;
+  const observer = new ResizeObserver(() => {
+    if (!skippedInitial) { skippedInitial = true; return; }
+    // A card removed from the DOM (every render() rebuilds the board from
+    // scratch) fires one last callback reporting a collapsed 0-size box —
+    // ignore that instead of overwriting the real saved size with garbage.
+    if (el.offsetWidth < 20 || el.offsetHeight < 20) return;
+    cardSizes[key] = { width: `${el.offsetWidth}px`, height: `${el.offsetHeight}px` };
+    saveCardSizes();
+  });
+  observer.observe(el);
 }
 const DEFAULT_REGULAR_TASKS = [
   { id: 'reg_daily_news', cadence: 'daily', owner: 'Ayush/Intern', title: 'Daily News', time: '09:00', group: 'Daily' },
@@ -259,8 +301,23 @@ function normalizeState(value) {
     employees: normalizeRegisteredEmployees(value?.employees),
     activity: normalizeActivity(value?.activity),
     bin: normalizeBin(value?.bin),
+    categories: normalizeCategories(value?.categories),
     chartsOrder: value?.chartsOrder || {},
   };
+}
+
+function normalizeCategories(categories) {
+  if (!Array.isArray(categories)) return [];
+  const seen = new Set();
+  const result = [];
+  categories.forEach((c) => {
+    const val = typeof c === 'string' ? c.trim() : '';
+    if (val && !seen.has(val.toLowerCase())) {
+      seen.add(val.toLowerCase());
+      result.push(val);
+    }
+  });
+  return result;
 }
 
 function normalizeBin(bin) {
@@ -280,6 +337,40 @@ function normalizeBin(bin) {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const ACTIVITY_RETENTION = 200;
+
+// Real Google Sign-In for check-in/out, so only the actual employee behind
+// that Google account can clock themselves in — not anyone clicking a name
+// in a list. To turn this on:
+//   1. Go to https://console.cloud.google.com/apis/credentials
+//   2. Create an OAuth 2.0 Client ID of type "Web application".
+//   3. Under "Authorized JavaScript origins" add the exact URL(s) this app
+//      is served from (e.g. http://localhost:9080 while testing, and your
+//      Vercel domain once deployed — https://your-app.vercel.app).
+//   4. Paste the Client ID below.
+// Until this is set, the Attendance popup falls back to the old
+// no-verification flow so the app still works during setup/testing.
+const GOOGLE_CLIENT_ID = '980610211732-8qtkobem4tg6phpv7ub8hv1stk4k2pqu.apps.googleusercontent.com';
+
+function isGoogleSignInConfigured() {
+  return Boolean(GOOGLE_CLIENT_ID) && typeof google !== 'undefined' && google.accounts?.id;
+}
+
+// Verifies the ID token with Google's own servers (not just decoding it
+// locally) so a forged/tampered token can't be used to check in as someone
+// else. Returns the verified, Google-confirmed email, or null if invalid.
+async function verifyGoogleIdToken(idToken) {
+  try {
+    const res = await fetch(`https://oauth2.googleapis.com/tokeninfo?id_token=${encodeURIComponent(idToken)}`);
+    if (!res.ok) return null;
+    const payload = await res.json();
+    if (payload.aud !== GOOGLE_CLIENT_ID) return null;
+    if (payload.email_verified !== 'true' && payload.email_verified !== true) return null;
+    if (!payload.email) return null;
+    return payload.email.toLowerCase();
+  } catch (err) {
+    return null;
+  }
+}
 
 function normalizeRegisteredEmployees(list) {
   if (!Array.isArray(list)) return [];
@@ -334,6 +425,7 @@ function normalizeProjects(projects) {
       done: Boolean(project.done),
       completedAt: Number.isFinite(project.completedAt) ? project.completedAt : null,
       progress: PROGRESS_STEPS.includes(project.progress) ? project.progress : 0,
+      category: typeof project.category === 'string' ? project.category : '',
     };
   });
 }
@@ -408,6 +500,7 @@ function normalizeTasks(tasks) {
     mood: typeof task.mood === 'string' ? task.mood : 'neutral',
     description: typeof task.description === 'string' ? task.description : '',
     progress: PROGRESS_STEPS.includes(task.progress) ? task.progress : 0,
+    category: typeof task.category === 'string' ? task.category : '',
   }));
 }
 
@@ -424,12 +517,6 @@ function getVisibleLists() {
   if (activeListId === 'all') return active;
   const selected = findList(activeListId);
   return selected && !selected.archived ? [selected] : active;
-}
-
-function getVisibleProjects() {
-  const projects = (state.projects || []).filter((p) => !p.archived);
-  if (activeProjectEmployee === 'all') return projects;
-  return projects.filter((project) => (project.owners || []).some((o) => sameEmployee(o, activeProjectEmployee)));
 }
 
 function getArchivedProjects() {
@@ -516,11 +603,16 @@ function getRegularTasks() {
 
 function getRegularDates() {
   const columnKeys = state.regular?.columns || [];
-  if (columnKeys.length) return columnKeys.map((key) => {
-    const [year, month, day] = key.split('-').map(Number);
-    return new Date(year, month - 1, day);
-  });
-  return Array.from({ length: daysInMonth(regularStartDate) }, (_, index) => addDays(regularStartDate, index));
+  if (columnKeys.length) {
+    return columnKeys
+      .map((key) => {
+        const [year, month, day] = key.split('-').map(Number);
+        return new Date(year, month - 1, day);
+      })
+      .filter((date) => !isWeekend(date));
+  }
+  return Array.from({ length: daysInMonth(regularStartDate) }, (_, index) => addDays(regularStartDate, index))
+    .filter((date) => !isWeekend(date));
 }
 
 function addRegularTask() {
@@ -704,9 +796,27 @@ function openAttendancePopup() {
   popup.style.cssText = 'background:white;border-radius:12px;padding:18px;width:90%;max-width:420px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);';
 
   const heading = document.createElement('h2');
-  heading.style.cssText = 'margin:0 0 12px 0;font-size:17px;font-weight:600;';
+  heading.style.cssText = 'margin:0 0 4px 0;font-size:17px;font-weight:600;';
   heading.textContent = 'Attendance';
   popup.appendChild(heading);
+
+  const configured = isGoogleSignInConfigured();
+  let verifiedEmail = null;
+
+  const subtext = document.createElement('p');
+  subtext.style.cssText = 'margin:0 0 12px 0;font-size:12px;color:#8a94a6;';
+  subtext.textContent = configured
+    ? 'Sign in with the Google account matching your registered email to check yourself in or out.'
+    : 'Google Sign-In isn’t configured yet (see GOOGLE_CLIENT_ID in app.js) — anyone can check in for now.';
+  popup.appendChild(subtext);
+
+  const signInWrap = document.createElement('div');
+  signInWrap.style.cssText = 'margin-bottom:12px;';
+  popup.appendChild(signInWrap);
+
+  const verifiedBanner = document.createElement('div');
+  verifiedBanner.style.cssText = 'display:none;margin-bottom:12px;padding:8px 10px;border-radius:8px;background:rgba(52,211,153,0.14);color:#16a34a;font-size:12.5px;font-weight:600;';
+  popup.appendChild(verifiedBanner);
 
   const list = document.createElement('div');
   list.style.cssText = 'display:flex;flex-direction:column;gap:8px;';
@@ -715,8 +825,9 @@ function openAttendancePopup() {
   function renderRows() {
     list.innerHTML = '';
     employees.forEach((emp) => {
+      const isSelf = verifiedEmail && emp.email === verifiedEmail;
       const row = document.createElement('div');
-      row.style.cssText = 'display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid #eee;border-radius:8px;';
+      row.style.cssText = `display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid ${isSelf ? '#3b7bf7' : '#eee'};border-radius:8px;${isSelf ? '' : 'opacity:0.6;'}`;
 
       const nameEl = document.createElement('span');
       nameEl.style.cssText = 'font-weight:600;font-size:13px;';
@@ -728,13 +839,17 @@ function openAttendancePopup() {
 
       const checkin = getTodayActivity(emp.email, 'checkin');
       const checkout = getTodayActivity(emp.email, 'checkout');
+      const canAct = !configured || isSelf;
 
       if (!checkin) {
         const btn = document.createElement('button');
         btn.type = 'button';
         btn.textContent = 'Check In';
-        btn.style.cssText = 'padding:6px 12px;border:none;border-radius:6px;background:#3b7bf7;color:#fff;font-size:12px;font-weight:600;cursor:pointer;';
+        btn.disabled = !canAct;
+        btn.title = canAct ? '' : 'Sign in with this person’s Google account to check them in';
+        btn.style.cssText = `padding:6px 12px;border:none;border-radius:6px;background:${canAct ? '#3b7bf7' : '#c7ccd6'};color:#fff;font-size:12px;font-weight:600;cursor:${canAct ? 'pointer' : 'not-allowed'};`;
         btn.addEventListener('click', async () => {
+          if (!canAct) return;
           btn.disabled = true;
           btn.textContent = '…';
           const ip = await fetchClientIp();
@@ -752,8 +867,11 @@ function openAttendancePopup() {
           const btn = document.createElement('button');
           btn.type = 'button';
           btn.textContent = 'Check Out';
-          btn.style.cssText = 'padding:6px 12px;border:none;border-radius:6px;background:#e04858;color:#fff;font-size:12px;font-weight:600;cursor:pointer;';
+          btn.disabled = !canAct;
+          btn.title = canAct ? '' : 'Sign in with this person’s Google account to check them out';
+          btn.style.cssText = `padding:6px 12px;border:none;border-radius:6px;background:${canAct ? '#e04858' : '#c7ccd6'};color:#fff;font-size:12px;font-weight:600;cursor:${canAct ? 'pointer' : 'not-allowed'};`;
           btn.addEventListener('click', async () => {
+            if (!canAct) return;
             btn.disabled = true;
             btn.textContent = '…';
             const ip = await fetchClientIp();
@@ -774,6 +892,40 @@ function openAttendancePopup() {
     });
   }
   renderRows();
+
+  if (configured) {
+    google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: async (response) => {
+        signInWrap.innerHTML = '<span style="font-size:12.5px;color:#8a94a6;">Verifying with Google…</span>';
+        const email = await verifyGoogleIdToken(response.credential);
+        if (!email) {
+          signInWrap.innerHTML = '';
+          google.accounts.id.renderButton(signInWrap, { theme: 'outline', size: 'medium', width: 240 });
+          verifiedBanner.style.display = 'block';
+          verifiedBanner.style.background = 'rgba(224,72,88,0.12)';
+          verifiedBanner.style.color = '#e04858';
+          verifiedBanner.textContent = 'Could not verify that Google sign-in. Please try again.';
+          return;
+        }
+        const match = employees.find((e) => e.email === email);
+        signInWrap.innerHTML = '';
+        verifiedBanner.style.display = 'block';
+        if (match) {
+          verifiedEmail = email;
+          verifiedBanner.style.background = 'rgba(52,211,153,0.14)';
+          verifiedBanner.style.color = '#16a34a';
+          verifiedBanner.textContent = `Signed in as ${match.name || email} — you can check yourself in/out below.`;
+        } else {
+          verifiedBanner.style.background = 'rgba(224,72,88,0.12)';
+          verifiedBanner.style.color = '#e04858';
+          verifiedBanner.textContent = `${email} isn’t registered as an employee, so it can’t check in.`;
+        }
+        renderRows();
+      },
+    });
+    google.accounts.id.renderButton(signInWrap, { theme: 'outline', size: 'medium', width: 240 });
+  }
 
   const closeRow = document.createElement('div');
   closeRow.style.cssText = 'display:flex;justify-content:flex-end;margin-top:14px;';
@@ -1644,7 +1796,8 @@ function renderRegularSection() {
 }
 
 function getAttendanceDates() {
-  return Array.from({ length: daysInMonth(attendanceMonth) }, (_, i) => addDays(attendanceMonth, i));
+  return Array.from({ length: daysInMonth(attendanceMonth) }, (_, i) => addDays(attendanceMonth, i))
+    .filter((date) => !isWeekend(date));
 }
 
 function getAttendanceRecord(email, dateKeyStr) {
@@ -1845,205 +1998,239 @@ function renderProjectSection() {
   const header = document.createElement('div');
   header.className = 'section-header';
   const title = document.createElement('h2');
-  title.textContent = activeProjectEmployee !== 'all' ? `${activeProjectEmployee}'s Projects` : 'Project';
+  title.textContent = 'Projects';
   header.appendChild(title);
-
   section.appendChild(header);
-  section.appendChild(renderProjectEmployeeSelector());
-  section.appendChild(renderProjectBoard());
+
+  section.appendChild(renderProjectPersonBoard());
   return section;
 }
 
-function renderProjectEmployeeSelector() {
-  const wrap = document.createElement('div');
-  wrap.className = 'project-employee-selector';
-
-  const employees = ['all', ...getProjectEmployees()];
-  employees.forEach((employee) => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    const isActive = employee === 'all' ? activeProjectEmployee === 'all' : sameEmployee(activeProjectEmployee, employee);
-    btn.className = `employee-pill${isActive ? ' active' : ''}`;
-    btn.textContent = employee === 'all' ? 'All employees' : employee;
-    btn.addEventListener('click', () => {
-      activeProjectEmployee = employee;
-      render();
-    });
-    wrap.appendChild(btn);
-  });
-
-  return wrap;
+function getProjectCardNames() {
+  const names = getActiveLists().map((l) => l.name);
+  const hasUnassigned = (state.projects || []).some((p) => !p.archived && (!p.owners || !p.owners.length));
+  return hasUnassigned ? [...names, 'Unassigned'] : names;
 }
 
-function renderProjectCard(project) {
-  const card = renderList(project, { container: 'projects' });
-  card.classList.add('project-list-card');
-  if (project.done) {
-    card.classList.add('done');
-    const completedWrap = card.querySelector('.completed-wrap');
-    if (completedWrap) completedWrap.remove();
+function getProjectsForPerson(name) {
+  const visible = (state.projects || []).filter((p) => !p.archived);
+  if (name === 'Unassigned') {
+    return visible.filter((p) => !p.owners || !p.owners.length);
+  }
+  return visible.filter((p) => (p.owners || []).some((o) => sameEmployee(o, name)));
+}
+
+function renderProjectPersonBoard() {
+  const panel = document.createElement('div');
+  panel.className = 'project-board';
+  const names = getProjectCardNames();
+
+  if (!names.length) {
+    panel.appendChild(renderEmptyState('No employees yet. Register someone or add a list to get started.'));
+    return panel;
   }
 
-  const header = card.querySelector('.list-header');
-  if (header) {
-    const doneBtn = document.createElement('button');
-    doneBtn.type = 'button';
-    doneBtn.className = 'task-check project-done-check';
-    doneBtn.title = project.done ? 'Restore project (undo)' : 'Mark project done';
-    doneBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      project.done = !project.done;
-      project.completedAt = project.done ? Date.now() : null;
-      project.progress = project.done ? 100 : (project.progress === 100 ? 0 : project.progress);
-      persist();
-      render();
-    });
+  names.forEach((name) => panel.appendChild(renderProjectPersonCard(name)));
+  return panel;
+}
 
-    const checkCol = document.createElement('div');
-    checkCol.className = 'task-check-col project-check-col';
-    checkCol.appendChild(doneBtn);
+function renderProjectPersonCard(name) {
+  const card = document.createElement('section');
+  card.className = 'list-column project-person-card';
+  card.style.setProperty('--list-accent', listAccentColor(name));
+  makeResizable(card, `project-person:${name}`);
 
-    const projectProgress = PROGRESS_STEPS.includes(project.progress) ? project.progress : 0;
-    const progressBar = document.createElement('div');
-    progressBar.className = 'task-progress-bar';
-    progressBar.title = 'Set progress';
-    PROGRESS_STEPS.forEach((val) => {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.className = 'task-progress-btn';
-      btn.dataset.progress = val;
-      btn.textContent = val;
-      btn.title = `${val}%`;
-      if (val === projectProgress) btn.classList.add('current');
-      btn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        setProjectProgress(project, val);
-      });
-      progressBar.appendChild(btn);
-    });
-    checkCol.appendChild(progressBar);
-    header.insertBefore(checkCol, header.firstChild);
+  const header = document.createElement('header');
+  header.className = 'list-header';
+  const nameEl = document.createElement('h2');
+  nameEl.className = 'list-name';
+  nameEl.textContent = name;
+  header.appendChild(nameEl);
 
-    const projectOverdue = !project.done && project.dueDate && project.dueDate < todayStr();
-    if (projectOverdue) {
-      card.classList.add('overdue-bar');
-    } else if (!project.done) {
-      card.classList.add(`progress-${projectProgress}`);
-    }
+  const projects = getProjectsForPerson(name);
+  const activeProjects = projects.filter((p) => !p.done);
+  const doneProjects = projects.filter((p) => p.done);
 
-    const metaWrap = document.createElement('div');
-    metaWrap.className = 'project-meta';
+  const countEl = document.createElement('span');
+  countEl.className = 'list-count';
+  countEl.textContent = activeProjects.length || '';
+  header.appendChild(countEl);
 
-    const ownersLine = document.createElement('div');
-    ownersLine.className = 'project-owner';
-    const ownersList = project.owners && project.owners.length ? project.owners.join(', ') : (project.owner || 'Unassigned');
-    ownersLine.textContent = `Owner: ${ownersList}`;
-    metaWrap.appendChild(ownersLine);
+  card.appendChild(header);
 
-    if (project.done && project.completedAt) {
-      const completedLine = document.createElement('div');
-      completedLine.className = 'project-completed-date';
-      completedLine.textContent = formatCompletedDate(project.completedAt);
-      metaWrap.appendChild(completedLine);
-    }
-
-    if (project.description) {
-      const descLine = document.createElement('div');
-      descLine.className = 'project-description';
-      descLine.textContent = project.description;
-      metaWrap.appendChild(descLine);
-    }
-
-    const chipsRow = document.createElement('div');
-    chipsRow.className = 'project-chips';
-    if (project.priority && project.priority !== 'none') {
-      const chip = document.createElement('span');
-      chip.className = `project-chip priority-${project.priority}`;
-      chip.textContent = project.priority.charAt(0).toUpperCase() + project.priority.slice(1);
-      chipsRow.appendChild(chip);
-    }
-    const statusChip = document.createElement('span');
-    statusChip.className = `project-chip project-status-chip ${statusSlug(project.status)}`;
-    statusChip.textContent = normalizeStatusValue(project.status);
-    statusChip.title = 'Click to change status';
-    statusChip.addEventListener('click', (e) => {
-      e.stopPropagation();
-      project.status = nextStatus(project.status);
-      persist();
-      render();
-    });
-    chipsRow.appendChild(statusChip);
-    if (project.startDate) {
-      const chip = document.createElement('span');
-      chip.className = 'project-chip';
-      chip.textContent = `Start ${fmtShort(new Date(`${project.startDate}T00:00:00`).getTime())}`;
-      chipsRow.appendChild(chip);
-    }
-    if (project.dueDate) {
-      const chip = document.createElement('span');
-      chip.className = 'project-chip';
-      chip.textContent = `Due ${fmtShort(new Date(`${project.dueDate}T00:00:00`).getTime())}`;
-      chipsRow.appendChild(chip);
-    }
-    if (chipsRow.children.length) metaWrap.appendChild(chipsRow);
-
-    header.after(metaWrap);
+  const body = document.createElement('div');
+  body.className = 'tasks-list unsectioned';
+  if (!activeProjects.length) {
+    body.appendChild(renderEmptyState('No projects yet.'));
+  } else {
+    activeProjects.forEach((project) => body.appendChild(renderProjectRow(project)));
   }
+  card.appendChild(body);
+
+  const wrap = document.createElement('div');
+  wrap.className = 'completed-wrap';
+  const toggle = document.createElement('button');
+  toggle.type = 'button';
+  toggle.className = 'completed-toggle';
+  toggle.innerHTML = `Completed (<span class="completed-count">${doneProjects.length}</span>)`;
+  wrap.appendChild(toggle);
+  const list = document.createElement('div');
+  list.className = 'completed-list tasks-list hidden';
+  doneProjects
+    .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0))
+    .forEach((project) => list.appendChild(renderProjectRow(project)));
+  wrap.appendChild(list);
+  toggle.addEventListener('click', () => list.classList.toggle('hidden'));
+  card.appendChild(wrap);
 
   return card;
 }
 
-function renderProjectBoard() {
-  const panel = document.createElement('div');
-  panel.className = 'project-board';
-  const allVisible = getVisibleProjects();
-
-  if (!allVisible.length) {
-    panel.appendChild(renderEmptyState('No projects yet. Add one to get started.'));
-    return panel;
-  }
-
-  const activeProjects = allVisible.filter((p) => !p.done);
-  const doneProjects = allVisible.filter((p) => p.done);
-
-  if (!activeProjects.length) {
-    panel.appendChild(renderEmptyState('No active projects. Add one to get started.'));
-  } else {
-    activeProjects.forEach((project) => panel.appendChild(renderProjectCard(project)));
-  }
-
-  if (doneProjects.length) {
-    const wrap = document.createElement('div');
-    wrap.className = 'project-completed-wrap';
-
-    const toggle = document.createElement('button');
-    toggle.type = 'button';
-    toggle.className = 'completed-toggle';
-    toggle.innerHTML = `Completed projects (<span>${doneProjects.length}</span>)`;
-    wrap.appendChild(toggle);
-
-    const list = document.createElement('div');
-    list.className = 'project-board project-completed-list hidden';
-    doneProjects
-      .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0))
-      .forEach((project) => list.appendChild(renderProjectCard(project)));
-    wrap.appendChild(list);
-
-    toggle.addEventListener('click', () => list.classList.toggle('hidden'));
-
-    panel.appendChild(wrap);
-  }
-
-  return panel;
+function deleteProject(project) {
+  const idx = state.projects.findIndex((p) => p.id === project.id);
+  if (idx === -1) return;
+  const removed = state.projects.splice(idx, 1)[0];
+  persist();
+  render();
+  showToast(`Deleted "${removed.name}"`, () => {
+    state.projects.splice(idx, 0, removed);
+    persist();
+    render();
+  });
 }
 
-function openProjectPopup(existingProject = null) {
-  const existing = document.querySelector('.project-popup-overlay');
-  if (existing) existing.remove();
-  const isEdit = Boolean(existingProject);
+function openProjectDatePicker(project, dueEl) {
+  const input = document.createElement('input');
+  input.type = 'date';
+  input.value = project.dueDate || '';
+  input.style.position = 'absolute';
+  input.style.opacity = '0';
+  input.style.pointerEvents = 'none';
+  document.body.appendChild(input);
+  input.addEventListener('change', () => {
+    project.dueDate = input.value || null;
+    persist();
+    render();
+    input.remove();
+  });
+  input.addEventListener('blur', () => setTimeout(() => input.remove(), 200));
+  if (input.showPicker) input.showPicker(); else input.click();
+}
+
+function renderProjectRow(project) {
+  const node = tplTask.content.firstElementChild.cloneNode(true);
+  node.classList.add('project-row');
+  if (project.done) node.classList.add('done');
+
+  const checkBtn = node.querySelector('.task-check');
+  checkBtn.title = project.done ? 'Restore project (undo)' : 'Mark project done';
+  checkBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    project.done = !project.done;
+    project.completedAt = project.done ? Date.now() : null;
+    project.progress = project.done ? 100 : (project.progress === 100 ? 0 : project.progress);
+    persist();
+    render();
+  });
+
+  const progress = PROGRESS_STEPS.includes(project.progress) ? project.progress : 0;
+  node.querySelectorAll('.task-progress-btn').forEach((btn) => {
+    const val = Number(btn.dataset.progress);
+    btn.textContent = val;
+    btn.title = `${val}%`;
+    btn.classList.toggle('current', val === progress);
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      setProjectProgress(project, val);
+    });
+  });
+
+  const projectOverdue = !project.done && project.dueDate && project.dueDate < todayStr();
+  if (projectOverdue) {
+    node.classList.add('overdue-bar');
+  } else if (!project.done) {
+    node.classList.add(`progress-${progress}`);
+  }
+
+  const priorityEl = node.querySelector('.task-priority');
+  priorityEl.classList.add(project.priority || 'none');
+  priorityEl.title = 'Click to cycle priority';
+  priorityEl.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const idx = PRIORITY_ORDER.indexOf(project.priority || 'none');
+    project.priority = PRIORITY_ORDER[(idx + 1) % PRIORITY_ORDER.length];
+    persist();
+    render();
+  });
+
+  const textEl = node.querySelector('.task-text');
+  textEl.textContent = project.name;
+  textEl.contentEditable = !project.done;
+  textEl.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); textEl.blur(); }
+    if (e.key === 'Escape') { e.preventDefault(); textEl.textContent = project.name; textEl.blur(); }
+  });
+  textEl.addEventListener('blur', () => {
+    const val = textEl.textContent.trim();
+    if (!val) { textEl.textContent = project.name; return; }
+    if (val !== project.name) { project.name = val; persist(); }
+  });
+
+  if (project.description) {
+    const descEl = document.createElement('div');
+    descEl.className = 'task-description';
+    descEl.textContent = project.description;
+    node.querySelector('.task-body').insertBefore(descEl, node.querySelector('.task-meta'));
+  }
+
+  const deleteBtn = node.querySelector('.task-delete');
+  deleteBtn.addEventListener('click', () => deleteProject(project));
+
+  const dueEl = node.querySelector('.task-due');
+  const { text: dueText, cls: dueCls } = dueLabel(project.dueDate);
+  dueEl.textContent = dueText;
+  dueEl.className = `task-due ${dueCls}`;
+  dueEl.addEventListener('click', () => openProjectDatePicker(project, dueEl));
+
+  const createdEl = node.querySelector('.task-created');
+  createdEl.textContent = project.done && project.completedAt
+    ? formatCompletedDate(project.completedAt)
+    : (project.startDate ? `Start ${fmtShort(new Date(`${project.startDate}T00:00:00`).getTime())}` : '');
+
+  const statusEl = node.querySelector('.task-status');
+  statusEl.className = `task-status ${statusSlug(project.status)}`;
+  statusEl.textContent = normalizeStatusValue(project.status);
+  statusEl.title = 'Click to change status';
+  statusEl.addEventListener('click', (e) => {
+    e.stopPropagation();
+    project.status = nextStatus(project.status);
+    persist();
+    render();
+  });
+
+  if (project.category) {
+    const catEl = document.createElement('span');
+    catEl.className = 'project-chip category-chip';
+    catEl.textContent = project.category;
+    node.querySelector('.task-meta').appendChild(catEl);
+  }
+
+  const editBtn = node.querySelector('.task-edit');
+  editBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openItemPopup(project, true);
+  });
+
+  return node;
+}
+
+function openItemPopup(existingItem = null, existingIsProject = false) {
+  document.querySelectorAll('.item-popup-overlay').forEach((m) => m.remove());
+  const isEdit = Boolean(existingItem);
+  const isProjectItem = isEdit ? existingIsProject : false;
 
   const overlay = document.createElement('div');
-  overlay.className = 'project-popup-overlay';
+  overlay.className = 'item-popup-overlay';
   overlay.style.cssText = `
     position: fixed;
     top: 0;
@@ -2058,7 +2245,7 @@ function openProjectPopup(existingProject = null) {
   `;
 
   const popup = document.createElement('div');
-  popup.className = 'project-popup';
+  popup.className = 'item-popup';
   popup.style.cssText = `
     background: white;
     border-radius: 12px;
@@ -2071,85 +2258,85 @@ function openProjectPopup(existingProject = null) {
   `;
 
   const employees = getAllEmployees();
-  const existingOwners = existingProject?.owners || [];
-  const employeeChecklist = employees.length
-    ? employees.map((emp) => `
-        <label style="display:flex; align-items:center; gap:6px; padding:3px 0; font-size:13px; cursor:pointer;">
-          <input type="checkbox" class="project-owner-check" value="${escapeHtml(emp)}" ${existingOwners.includes(emp) ? 'checked' : ''} style="width:14px; height:14px;" />
-          ${escapeHtml(emp)}
-        </label>
-      `).join('')
-    : '<div style="color:#888; font-size:12.5px;">No employees yet — add one below.</div>';
+  const titleText = isEdit ? `Edit ${isProjectItem ? 'Project' : 'Task'}` : 'Add New';
 
   popup.innerHTML = `
-    <h2 style="margin: 0 0 12px 0; font-size: 17px; font-weight: 600;">${isEdit ? 'Edit Project' : 'Create Project'}</h2>
+    <h2 style="margin: 0 0 12px 0; font-size: 17px; font-weight: 600;">${titleText}</h2>
 
-    <div style="margin-bottom: 10px;">
-      <label style="${FIELD_LABEL_STYLE}">Project Name *</label>
-      <input type="text" id="projectName" placeholder="Enter project name" style="${FIELD_STYLE}">
+    <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 10px; margin-bottom: 10px;">
+      <div>
+        <label style="${FIELD_LABEL_STYLE}">Assigned To</label>
+        <div id="assignedToBox">
+          <div id="assignedToChips" style="display: flex; flex-wrap: wrap; align-items: center; gap: 4px; min-height: 34px; padding: 4px 6px; border: 1px solid #ddd; border-radius: 6px; box-sizing: border-box;">
+            <input type="text" id="assignedToInput" placeholder="Type a name…" autocomplete="off" style="flex: 1; min-width: 70px; border: none; outline: none; font-size: 13px; padding: 3px;">
+          </div>
+        </div>
+      </div>
+      <div>
+        <label style="${FIELD_LABEL_STYLE}">Priority</label>
+        <div style="display: flex; gap: 5px;">
+          <button type="button" class="item-priority-btn" data-priority="low" title="Low" style="flex: 1; padding: 7px; border: 2px solid #ddd; border-radius: 6px; background: white; cursor: pointer;">
+            <span style="display: inline-block; width: 10px; height: 10px; background: #5ac8fa; border-radius: 50%;"></span>
+          </button>
+          <button type="button" class="item-priority-btn" data-priority="medium" title="Medium" style="flex: 1; padding: 7px; border: 2px solid #ddd; border-radius: 6px; background: white; cursor: pointer;">
+            <span style="display: inline-block; width: 10px; height: 10px; background: #f5a623; border-radius: 50%;"></span>
+          </button>
+          <button type="button" class="item-priority-btn" data-priority="high" title="High" style="flex: 1; padding: 7px; border: 2px solid #ddd; border-radius: 6px; background: white; cursor: pointer;">
+            <span style="display: inline-block; width: 10px; height: 10px; background: #e04858; border-radius: 50%;"></span>
+          </button>
+        </div>
+      </div>
     </div>
 
     <div style="margin-bottom: 10px;">
-      <label style="${FIELD_LABEL_STYLE}">Assigned To (select one or more)</label>
-      <div id="ownerChecklist" style="max-height: 84px; overflow-y: auto; border: 1px solid #ddd; border-radius: 6px; padding: 4px 10px;">${employeeChecklist}</div>
+      <label style="${FIELD_LABEL_STYLE}">Name *</label>
+      <input type="text" id="itemName" placeholder="Enter a name" style="${FIELD_STYLE}">
     </div>
 
     <div style="margin-bottom: 10px;">
       <label style="${FIELD_LABEL_STYLE}">Description</label>
-      <textarea id="projectDescription" placeholder="Optional details about this project" style="${FIELD_STYLE} min-height: 36px; font-family: inherit;"></textarea>
+      <textarea id="itemDescription" placeholder="Optional details" style="${FIELD_STYLE} min-height: 36px; font-family: inherit;"></textarea>
     </div>
 
     <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
       <div>
         <label style="${FIELD_LABEL_STYLE}">Start Date</label>
-        <input type="date" id="projectStartDate" style="${FIELD_STYLE}">
+        <input type="date" id="itemStartDate" style="${FIELD_STYLE}">
       </div>
       <div>
         <label style="${FIELD_LABEL_STYLE}">Due Date</label>
-        <input type="date" id="projectDueDate" style="${FIELD_STYLE}">
+        <input type="date" id="itemDueDate" style="${FIELD_STYLE}">
       </div>
     </div>
 
-    <div style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 10px; margin-bottom: 14px;">
+    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 14px;">
       <div>
-        <label style="${FIELD_LABEL_STYLE}">Priority</label>
-        <div style="display: flex; gap: 5px;">
-          <button type="button" class="project-priority-btn" data-priority="low" title="Low" style="flex: 1; padding: 7px; border: 2px solid #ddd; border-radius: 6px; background: white; cursor: pointer;">
-            <span style="display: inline-block; width: 10px; height: 10px; background: #5ac8fa; border-radius: 50%;"></span>
-          </button>
-          <button type="button" class="project-priority-btn" data-priority="medium" title="Medium" style="flex: 1; padding: 7px; border: 2px solid #ddd; border-radius: 6px; background: white; cursor: pointer;">
-            <span style="display: inline-block; width: 10px; height: 10px; background: #f5a623; border-radius: 50%;"></span>
-          </button>
-          <button type="button" class="project-priority-btn" data-priority="high" title="High" style="flex: 1; padding: 7px; border: 2px solid #ddd; border-radius: 6px; background: white; cursor: pointer;">
-            <span style="display: inline-block; width: 10px; height: 10px; background: #e04858; border-radius: 50%;"></span>
-          </button>
-        </div>
+        <label style="${FIELD_LABEL_STYLE}">Category</label>
+        <input type="text" id="itemCategory" placeholder="Type or select…" autocomplete="off" style="${FIELD_STYLE}">
       </div>
       <div>
         <label style="${FIELD_LABEL_STYLE}">Status</label>
-        <select id="projectStatus" style="${FIELD_STYLE}">${STATUS_OPTIONS.map((opt) => `<option value="${opt}">${opt}</option>`).join('')}</select>
+        <select id="itemStatus" style="${FIELD_STYLE}">${STATUS_OPTIONS.map((opt) => `<option value="${opt}">${opt}</option>`).join('')}</select>
       </div>
     </div>
 
-    <div style="display: flex; gap: 10px; justify-content: flex-end;">
-      <button type="button" id="cancelProjectBtn" style="padding: 8px 20px; border: 1px solid #ddd; border-radius: 6px; background: white; cursor: pointer; font-size: 13.5px; font-weight: 500;">Cancel</button>
-      <button type="button" id="saveProjectBtn" style="padding: 8px 20px; border: none; border-radius: 6px; background: #3b7bf7; color: white; cursor: pointer; font-size: 13.5px; font-weight: 500;">${isEdit ? 'Save Changes' : 'Done'}</button>
+    <div style="display: flex; align-items: center; justify-content: space-between;">
+      <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text); ${isEdit ? 'visibility: hidden;' : 'cursor: pointer;'}">
+        <input type="checkbox" id="itemIsProject" style="width: 16px; height: 16px;" ${isEdit ? 'disabled' : ''}>
+        Project
+      </label>
+      <div style="display: flex; gap: 10px;">
+        <button type="button" id="cancelItemBtn" style="padding: 8px 20px; border: 1px solid #ddd; border-radius: 6px; background: white; cursor: pointer; font-size: 13.5px; font-weight: 500;">Cancel</button>
+        <button type="button" id="saveItemBtn" style="padding: 8px 20px; border: none; border-radius: 6px; background: #3b7bf7; color: white; cursor: pointer; font-size: 13.5px; font-weight: 500;">${isEdit ? 'Save Changes' : 'Add'}</button>
+      </div>
     </div>
   `;
 
   overlay.appendChild(popup);
   document.body.appendChild(overlay);
 
-  if (isEdit) {
-    popup.querySelector('#projectName').value = existingProject.name || '';
-    popup.querySelector('#projectDescription').value = existingProject.description || '';
-    popup.querySelector('#projectStartDate').value = existingProject.startDate || '';
-    popup.querySelector('#projectDueDate').value = existingProject.dueDate || '';
-    popup.querySelector('#projectStatus').value = normalizeStatusValue(existingProject.status);
-  }
-
-  let selectedPriority = existingProject?.priority || 'none';
-  const priorityBtns = popup.querySelectorAll('.project-priority-btn');
+  let selectedPriority = existingItem ? (existingItem.priority || 'none') : 'none';
+  const priorityBtns = popup.querySelectorAll('.item-priority-btn');
   priorityBtns.forEach((btn) => {
     if (btn.dataset.priority === selectedPriority) btn.style.borderColor = '#3b7bf7';
     btn.addEventListener('click', () => {
@@ -2159,52 +2346,244 @@ function openProjectPopup(existingProject = null) {
     });
   });
 
-  popup.querySelector('#cancelProjectBtn').addEventListener('click', () => overlay.remove());
+  // ---- Assigned To: multi-select chip combobox with typeahead ----
+  let selectedAssignees = isEdit
+    ? (isProjectItem ? [...(existingItem.owners || [])] : (existingItem.assignedTo ? [existingItem.assignedTo] : []))
+    : [];
 
-  popup.querySelector('#saveProjectBtn').addEventListener('click', () => {
-    const name = popup.querySelector('#projectName').value.trim();
+  const assignedToBox = popup.querySelector('#assignedToBox');
+  const assignedToInput = popup.querySelector('#assignedToInput');
+  const assignedToChips = popup.querySelector('#assignedToChips');
+
+  const assignedToSuggestions = document.createElement('div');
+  assignedToSuggestions.className = 'combo-suggestions';
+  assignedToSuggestions.style.cssText = 'position:fixed;background:white;border:1px solid #ddd;border-radius:6px;box-shadow:0 6px 16px rgba(0,0,0,0.15);max-height:140px;overflow-y:auto;z-index:1100;display:none;';
+  document.body.appendChild(assignedToSuggestions);
+
+  function positionSuggestions(box, dropdown) {
+    const rect = box.getBoundingClientRect();
+    dropdown.style.left = `${rect.left}px`;
+    dropdown.style.top = `${rect.bottom + 2}px`;
+    dropdown.style.width = `${rect.width}px`;
+  }
+
+  function renderAssigneeChips() {
+    assignedToChips.querySelectorAll('.assignee-chip').forEach((el) => el.remove());
+    selectedAssignees.forEach((name) => {
+      const chip = document.createElement('span');
+      chip.className = 'assignee-chip';
+      chip.style.cssText = 'display:inline-flex;align-items:center;gap:4px;background:rgba(59,123,247,0.12);color:#2460d4;padding:2px 6px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;';
+      chip.textContent = name;
+      const rm = document.createElement('button');
+      rm.type = 'button';
+      rm.textContent = '×';
+      rm.style.cssText = 'border:none;background:transparent;cursor:pointer;font-size:13px;line-height:1;color:inherit;padding:0;margin-left:2px;';
+      rm.addEventListener('click', () => {
+        selectedAssignees = selectedAssignees.filter((n) => n !== name);
+        renderAssigneeChips();
+      });
+      chip.appendChild(rm);
+      assignedToChips.insertBefore(chip, assignedToInput);
+    });
+  }
+  renderAssigneeChips();
+
+  function showAssigneeSuggestions() {
+    const q = assignedToInput.value.trim().toLowerCase();
+    const matches = employees.filter((e) => !selectedAssignees.includes(e) && (!q || e.toLowerCase().includes(q)));
+    if (!matches.length) { assignedToSuggestions.style.display = 'none'; return; }
+    assignedToSuggestions.innerHTML = matches.map((e) => `<div class="assignee-suggestion" data-name="${escapeHtml(e)}" style="padding:6px 10px;cursor:pointer;font-size:13px;">${escapeHtml(e)}</div>`).join('');
+    assignedToSuggestions.scrollTop = 0;
+    positionSuggestions(assignedToBox, assignedToSuggestions);
+    assignedToSuggestions.style.display = 'block';
+  }
+
+  function pickAssignee(name) {
+    if (!selectedAssignees.includes(name)) selectedAssignees.push(name);
+    assignedToInput.value = '';
+    renderAssigneeChips();
+    showAssigneeSuggestions();
+  }
+
+  assignedToInput.addEventListener('focus', showAssigneeSuggestions);
+  assignedToInput.addEventListener('input', showAssigneeSuggestions);
+  assignedToSuggestions.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    const target = e.target.closest('.assignee-suggestion');
+    if (target) pickAssignee(target.dataset.name);
+  });
+  assignedToInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const firstMatch = assignedToSuggestions.querySelector('.assignee-suggestion');
+      if (firstMatch) pickAssignee(firstMatch.dataset.name);
+    }
+    if (e.key === 'Backspace' && !assignedToInput.value && selectedAssignees.length) {
+      selectedAssignees.pop();
+      renderAssigneeChips();
+    }
+  });
+
+  // ---- Category: type-to-filter, type-to-create combobox (no separate popup) ----
+  const categoryInput = popup.querySelector('#itemCategory');
+
+  const categorySuggestions = document.createElement('div');
+  categorySuggestions.className = 'combo-suggestions';
+  categorySuggestions.style.cssText = 'position:fixed;background:white;border:1px solid #ddd;border-radius:6px;box-shadow:0 6px 16px rgba(0,0,0,0.15);max-height:140px;overflow-y:auto;z-index:1100;display:none;';
+  document.body.appendChild(categorySuggestions);
+
+  function showCategorySuggestions() {
+    const q = categoryInput.value.trim().toLowerCase();
+    const matches = state.categories.filter((c) => !q || c.toLowerCase().includes(q));
+    if (!matches.length) { categorySuggestions.style.display = 'none'; return; }
+    categorySuggestions.innerHTML = matches.map((c) => `<div class="category-suggestion" data-value="${escapeHtml(c)}" style="padding:6px 10px;cursor:pointer;font-size:13px;">${escapeHtml(c)}</div>`).join('');
+    categorySuggestions.scrollTop = 0;
+    positionSuggestions(categoryInput, categorySuggestions);
+    categorySuggestions.style.display = 'block';
+  }
+  categoryInput.addEventListener('focus', showCategorySuggestions);
+  categoryInput.addEventListener('input', showCategorySuggestions);
+  categorySuggestions.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    const target = e.target.closest('.category-suggestion');
+    if (target) {
+      categoryInput.value = target.dataset.value;
+      categorySuggestions.style.display = 'none';
+    }
+  });
+  categoryInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); categorySuggestions.style.display = 'none'; }
+  });
+
+  const closeSuggestionsOnOutsideClick = (e) => {
+    if (!assignedToBox.contains(e.target) && !assignedToSuggestions.contains(e.target)) assignedToSuggestions.style.display = 'none';
+    if (!categoryInput.parentElement.contains(e.target) && !categorySuggestions.contains(e.target)) categorySuggestions.style.display = 'none';
+  };
+  const hideSuggestionsOnScroll = () => {
+    assignedToSuggestions.style.display = 'none';
+    categorySuggestions.style.display = 'none';
+  };
+  document.addEventListener('mousedown', closeSuggestionsOnOutsideClick);
+  window.addEventListener('scroll', hideSuggestionsOnScroll, true);
+
+  if (isEdit) {
+    popup.querySelector('#itemName').value = isProjectItem ? existingItem.name : existingItem.text;
+    popup.querySelector('#itemDescription').value = existingItem.description || '';
+    popup.querySelector('#itemStartDate').value = existingItem.startDate || '';
+    popup.querySelector('#itemDueDate').value = isProjectItem ? (existingItem.dueDate || '') : (existingItem.due || '');
+    popup.querySelector('#itemStatus').value = normalizeStatusValue(existingItem.status);
+    categoryInput.value = existingItem.category || '';
+  }
+
+  function closePopup() {
+    document.removeEventListener('mousedown', closeSuggestionsOnOutsideClick);
+    window.removeEventListener('scroll', hideSuggestionsOnScroll, true);
+    assignedToSuggestions.remove();
+    categorySuggestions.remove();
+    overlay.remove();
+  }
+
+  popup.querySelector('#cancelItemBtn').addEventListener('click', () => closePopup());
+
+  popup.querySelector('#saveItemBtn').addEventListener('click', () => {
+    const name = popup.querySelector('#itemName').value.trim();
     if (!name) {
-      alert('Please enter a project name');
+      alert('Please enter a name');
       return;
     }
 
-    const owners = Array.from(popup.querySelectorAll('.project-owner-check:checked')).map((el) => el.value);
-    const fields = {
-      name,
-      owner: owners[0] || 'Unassigned',
-      owners,
-      description: popup.querySelector('#projectDescription').value.trim(),
-      startDate: popup.querySelector('#projectStartDate').value || null,
-      dueDate: popup.querySelector('#projectDueDate').value || null,
-      priority: selectedPriority,
-      status: popup.querySelector('#projectStatus').value.trim(),
-    };
-
-    if (isEdit) {
-      Object.assign(existingProject, fields);
-    } else {
-      state.projects.push({
-        id: uid('proj'),
-        ...fields,
-        sections: [],
-        tasks: [],
-        archived: false,
-        archivedAt: null,
-        mood: 'neutral',
-        done: false,
-        completedAt: null,
-        progress: 0,
-      });
-      activeProjectEmployee = 'all';
+    const startDate = popup.querySelector('#itemStartDate').value || null;
+    const dueDate = popup.querySelector('#itemDueDate').value || null;
+    const category = categoryInput.value.trim();
+    if (category && !state.categories.some((c) => c.toLowerCase() === category.toLowerCase())) {
+      state.categories.push(category);
     }
-    persist();
-    overlay.remove();
-    render();
+    const status = popup.querySelector('#itemStatus').value;
+    const description = popup.querySelector('#itemDescription').value.trim();
+    const saveAsProject = isEdit ? isProjectItem : popup.querySelector('#itemIsProject').checked;
+    const assignedTo = selectedAssignees[0] || '';
+
+    if (saveAsProject) {
+      const fields = {
+        name,
+        owner: selectedAssignees[0] || 'Unassigned',
+        owners: [...selectedAssignees],
+        description,
+        startDate,
+        dueDate,
+        priority: selectedPriority,
+        status,
+        category,
+      };
+      if (isEdit) {
+        Object.assign(existingItem, fields);
+      } else {
+        state.projects.push({
+          id: uid('proj'),
+          ...fields,
+          sections: [],
+          tasks: [],
+          archived: false,
+          archivedAt: null,
+          mood: 'neutral',
+          done: false,
+          completedAt: null,
+          progress: 0,
+        });
+      }
+      persist();
+      closePopup();
+      render();
+    } else {
+      const activeLists = getActiveLists();
+      if (!isEdit && !activeLists.length) {
+        alert('Please create a list first before adding tasks.');
+        return;
+      }
+      if (isEdit) {
+        const taskData = {
+          text: name,
+          description,
+          startDate,
+          due: dueDate,
+          priority: selectedPriority,
+          assignedTo,
+          status,
+          category,
+        };
+        Object.assign(existingItem, taskData);
+        persist();
+      } else {
+        const targetList = activeListId !== 'all' ? findList(activeListId) : activeLists[0];
+        // With multiple people selected, add a separate copy of this task to
+        // each person's own list (mirrors how a multi-owner project shows up
+        // in every owner's project card) — a task can only live in one list,
+        // so this is the closest equivalent to "appending" it to everyone.
+        const assignees = selectedAssignees.length ? selectedAssignees : [''];
+        assignees.forEach((who) => {
+          addTask(targetList, null, {
+            text: name,
+            description,
+            startDate,
+            due: dueDate,
+            priority: selectedPriority,
+            assignedTo: who,
+            status,
+            category,
+            mood: 'neutral',
+          });
+        });
+      }
+      closePopup();
+      render();
+    }
   });
 
   overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) overlay.remove();
+    if (e.target === overlay) closePopup();
   });
+
+  setTimeout(() => popup.querySelector('#itemName').focus(), 100);
 }
 
 function renderRegularEmployeeSelector() {
@@ -2697,6 +3076,7 @@ function renderList(list, options = {}) {
   const node = tplList.content.firstElementChild.cloneNode(true);
   node.dataset.listId = list.id;
   node.style.setProperty('--list-accent', listAccentColor(list.id));
+  makeResizable(node, `list:${list.id}`);
 
   const nameEl = node.querySelector('.list-name');
   nameEl.textContent = list.name;
@@ -2803,7 +3183,7 @@ function renderList(list, options = {}) {
   if (editListBtn) {
     if (isProject) {
       editListBtn.addEventListener('click', () => {
-        openProjectPopup(list);
+        openItemPopup(list, true);
         menu.classList.add('hidden');
       });
     } else {
@@ -2976,10 +3356,17 @@ function renderTask(list, task) {
     render();
   });
 
+  if (task.category) {
+    const catEl = document.createElement('span');
+    catEl.className = 'project-chip category-chip';
+    catEl.textContent = task.category;
+    node.querySelector('.task-meta').appendChild(catEl);
+  }
+
   const editBtn = node.querySelector('.task-edit');
   editBtn.addEventListener('click', (e) => {
     e.stopPropagation();
-    openTaskPopup(list, task.sectionId || null, task);
+    openItemPopup(task, false);
   });
 
   return node;
@@ -3102,7 +3489,7 @@ function renderTableView() {
     editBtn.className = 'icon-btn table-edit';
     editBtn.title = 'Edit task';
     editBtn.innerHTML = '&#9998;';
-    editBtn.addEventListener('click', () => openTaskPopup(list, task.sectionId || null, task));
+    editBtn.addEventListener('click', () => openItemPopup(task, false));
     actions.appendChild(editBtn);
     const del = document.createElement('button');
     del.className = 'icon-btn table-delete';
@@ -3190,7 +3577,7 @@ function renderStackView() {
     editBtn.className = 'icon-btn stack-edit';
     editBtn.title = 'Edit task';
     editBtn.innerHTML = '&#9998;';
-    editBtn.addEventListener('click', () => openTaskPopup(list, task.sectionId || null, task));
+    editBtn.addEventListener('click', () => openItemPopup(task, false));
     item.appendChild(editBtn);
 
     wrap.appendChild(item);
@@ -3289,172 +3676,6 @@ function getAllEmployees() {
   return Array.from(employees).sort();
 }
 
-function openTaskPopup(list, sectionId, existingTask = null) {
-  const existing = document.querySelector('.task-popup-overlay');
-  if (existing) existing.remove();
-  const isEdit = Boolean(existingTask);
-
-  const overlay = document.createElement('div');
-  overlay.className = 'task-popup-overlay';
-  overlay.style.cssText = `
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-  `;
-
-  const popup = document.createElement('div');
-  popup.className = 'task-popup';
-  popup.style.cssText = `
-    background: white;
-    border-radius: 12px;
-    padding: 18px;
-    width: 90%;
-    max-width: 480px;
-    max-height: 92vh;
-    overflow-y: auto;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  `;
-
-  // Get all existing employees
-  const employees = getAllEmployees();
-  const employeeOptions = employees.length > 0
-    ? employees.map(emp => `<option value="${emp}">${emp}</option>`).join('')
-    : '<option value="">No employees yet</option>';
-
-  popup.innerHTML = `
-    <h2 style="margin: 0 0 12px 0; font-size: 17px; font-weight: 600;">${isEdit ? 'Edit Task' : 'Add New Task'}</h2>
-
-    <div style="margin-bottom: 10px;">
-      <label style="${FIELD_LABEL_STYLE}">Task Name *</label>
-      <input type="text" id="taskName" placeholder="Enter task name" style="${FIELD_STYLE}">
-    </div>
-
-    <div style="margin-bottom: 10px;">
-      <label style="${FIELD_LABEL_STYLE}">Description</label>
-      <textarea id="taskDescription" placeholder="Optional details about this task" style="${FIELD_STYLE} min-height: 36px; font-family: inherit;"></textarea>
-    </div>
-
-    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 10px; margin-bottom: 10px;">
-      <div>
-        <label style="${FIELD_LABEL_STYLE}">Start Date</label>
-        <input type="date" id="startDate" style="${FIELD_STYLE}">
-      </div>
-      <div>
-        <label style="${FIELD_LABEL_STYLE}">Due Date</label>
-        <input type="date" id="dueDate" style="${FIELD_STYLE}">
-      </div>
-    </div>
-
-    <div style="display: grid; grid-template-columns: 1fr 1.2fr; gap: 10px; margin-bottom: 10px;">
-      <div>
-        <label style="${FIELD_LABEL_STYLE}">Priority</label>
-        <div style="display: flex; gap: 5px;">
-          <button type="button" class="priority-btn" data-priority="low" title="Low" style="flex: 1; padding: 7px; border: 2px solid #ddd; border-radius: 6px; background: white; cursor: pointer; transition: all 0.2s;">
-            <span style="display: inline-block; width: 10px; height: 10px; background: #5ac8fa; border-radius: 50%;"></span>
-          </button>
-          <button type="button" class="priority-btn" data-priority="medium" title="Medium" style="flex: 1; padding: 7px; border: 2px solid #ddd; border-radius: 6px; background: white; cursor: pointer; transition: all 0.2s;">
-            <span style="display: inline-block; width: 10px; height: 10px; background: #f5a623; border-radius: 50%;"></span>
-          </button>
-          <button type="button" class="priority-btn" data-priority="high" title="High" style="flex: 1; padding: 7px; border: 2px solid #ddd; border-radius: 6px; background: white; cursor: pointer; transition: all 0.2s;">
-            <span style="display: inline-block; width: 10px; height: 10px; background: #e04858; border-radius: 50%;"></span>
-          </button>
-        </div>
-      </div>
-      <div>
-        <label style="${FIELD_LABEL_STYLE}">Assigned To</label>
-        <select id="assignedTo" style="${FIELD_STYLE}">
-          <option value="">Unassigned</option>
-          ${employeeOptions}
-        </select>
-      </div>
-    </div>
-
-    <div style="margin-bottom: 14px;">
-      <label style="${FIELD_LABEL_STYLE}">Status</label>
-      <select id="status" style="${FIELD_STYLE}">${STATUS_OPTIONS.map((opt) => `<option value="${opt}">${opt}</option>`).join('')}</select>
-    </div>
-
-    <div style="display: flex; gap: 10px; justify-content: flex-end;">
-      <button type="button" id="cancelBtn" style="padding: 8px 20px; border: 1px solid #ddd; border-radius: 6px; background: white; cursor: pointer; font-size: 13.5px; font-weight: 500;">Cancel</button>
-      <button type="button" id="saveBtn" style="padding: 8px 20px; border: none; border-radius: 6px; background: #3b7bf7; color: white; cursor: pointer; font-size: 13.5px; font-weight: 500;">${isEdit ? 'Save Changes' : 'Add Task'}</button>
-    </div>
-  `;
-
-  overlay.appendChild(popup);
-  document.body.appendChild(overlay);
-
-  // Priority selection
-  let selectedPriority = existingTask ? (existingTask.priority || 'none') : 'none';
-  const priorityBtns = popup.querySelectorAll('.priority-btn');
-  priorityBtns.forEach(btn => {
-    if (btn.dataset.priority === selectedPriority) btn.style.borderColor = '#3b7bf7';
-    btn.addEventListener('click', () => {
-      priorityBtns.forEach(b => b.style.borderColor = '#ddd');
-      btn.style.borderColor = '#3b7bf7';
-      selectedPriority = btn.dataset.priority;
-    });
-  });
-
-  if (isEdit) {
-    popup.querySelector('#taskName').value = existingTask.text || '';
-    popup.querySelector('#taskDescription').value = existingTask.description || '';
-    popup.querySelector('#startDate').value = existingTask.startDate || '';
-    popup.querySelector('#dueDate').value = existingTask.due || '';
-    popup.querySelector('#assignedTo').value = existingTask.assignedTo || '';
-    popup.querySelector('#status').value = normalizeStatusValue(existingTask.status);
-  }
-
-  // Cancel button
-  document.getElementById('cancelBtn').addEventListener('click', () => {
-    overlay.remove();
-  });
-
-  // Save button
-  document.getElementById('saveBtn').addEventListener('click', () => {
-    const taskName = document.getElementById('taskName').value.trim();
-    if (!taskName) {
-      alert('Please enter a task name');
-      return;
-    }
-
-    const taskData = {
-      text: taskName,
-      description: document.getElementById('taskDescription').value.trim(),
-      startDate: document.getElementById('startDate').value || null,
-      due: document.getElementById('dueDate').value || null,
-      priority: selectedPriority,
-      assignedTo: document.getElementById('assignedTo').value.trim(),
-      status: document.getElementById('status').value.trim(),
-    };
-
-    if (isEdit) {
-      Object.assign(existingTask, taskData);
-      persist();
-    } else {
-      taskData.mood = 'neutral';
-      addTask(list, sectionId, taskData);
-    }
-    overlay.remove();
-    render();
-  });
-
-  // Close on overlay click
-  overlay.addEventListener('click', (e) => {
-    if (e.target === overlay) {
-      overlay.remove();
-    }
-  });
-
-  // Focus on task name
-  setTimeout(() => document.getElementById('taskName').focus(), 100);
-}
 
 function escapeHtml(str) {
   return String(str || '').replace(/[&<>"]/g, (s) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[s]));
@@ -3491,6 +3712,7 @@ function addTask(list, sectionId, taskData) {
     mood: taskData.mood || 'neutral',
     description: taskData.description || '',
     progress: 0,
+    category: taskData.category || '',
   });
   persist();
 }
@@ -3983,6 +4205,7 @@ function renderChartsWorkspace() {
   orderedCharts.forEach((chartDef, index) => {
     const card = renderChartCard(chartDef.title, chartDef.subtitle, chartDef.render());
     card.dataset.chartId = chartDef.id;
+    makeResizable(card, `chart:${chartDef.id}`);
     card.draggable = true;
     card.style.cursor = 'grab';
     
@@ -4078,62 +4301,8 @@ document.getElementById('archivedListsBtn').addEventListener('click', (e) => {
   openArchivedListsMenu(e.currentTarget);
 });
 
-function openAddTaskFlow() {
-  const activeLists = getActiveLists();
-  if (activeLists.length === 0) {
-    alert('Please create a list first before adding tasks.');
-    return;
-  }
-
-  // If a specific list is selected, use that; otherwise use the first list
-  const targetList = activeListId !== 'all' ? findList(activeListId) : activeLists[0];
-  if (targetList) {
-    openTaskPopup(targetList, null);
-  }
-}
-
-function openAddChoicePopup() {
-  document.querySelectorAll('.add-choice-overlay').forEach((m) => m.remove());
-
-  const overlay = document.createElement('div');
-  overlay.className = 'add-choice-overlay';
-  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:1000;';
-
-  const popup = document.createElement('div');
-  popup.style.cssText = 'background:white;border-radius:12px;padding:24px;width:90%;max-width:360px;box-shadow:0 20px 60px rgba(0,0,0,0.3);';
-  popup.innerHTML = `
-    <h2 style="margin:0 0 20px 0;font-size:20px;font-weight:600;">What would you like to add?</h2>
-    <div style="display:flex;flex-direction:column;gap:12px;">
-      <button type="button" id="addChoiceTask" style="padding:16px;border:1.5px solid #ddd;border-radius:10px;background:white;cursor:pointer;font-size:15px;font-weight:600;text-align:left;">
-        Task
-        <div style="font-weight:400;font-size:12.5px;color:#8a94a6;margin-top:4px;">Add a task to one of your lists</div>
-      </button>
-      <button type="button" id="addChoiceProject" style="padding:16px;border:1.5px solid #ddd;border-radius:10px;background:white;cursor:pointer;font-size:15px;font-weight:600;text-align:left;">
-        Project
-        <div style="font-weight:400;font-size:12.5px;color:#8a94a6;margin-top:4px;">Add a new project to the Project section</div>
-      </button>
-    </div>
-    <div style="display:flex;justify-content:flex-end;margin-top:20px;">
-      <button type="button" id="addChoiceCancel" style="padding:10px 24px;border:1px solid #ddd;border-radius:6px;background:white;cursor:pointer;font-size:14px;font-weight:500;">Cancel</button>
-    </div>
-  `;
-  overlay.appendChild(popup);
-  document.body.appendChild(overlay);
-  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
-  popup.querySelector('#addChoiceCancel').addEventListener('click', () => overlay.remove());
-
-  popup.querySelector('#addChoiceTask').addEventListener('click', () => {
-    overlay.remove();
-    openAddTaskFlow();
-  });
-  popup.querySelector('#addChoiceProject').addEventListener('click', () => {
-    overlay.remove();
-    openProjectPopup();
-  });
-}
-
 document.getElementById('globalAddTaskBtn').addEventListener('click', () => {
-  openAddChoicePopup();
+  openItemPopup();
 });
 
 document.getElementById('analyticsBtn').addEventListener('click', () => {

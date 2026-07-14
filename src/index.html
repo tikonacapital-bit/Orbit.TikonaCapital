@@ -10,6 +10,7 @@
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
 <link rel="stylesheet" href="style.css" />
+<script src="https://accounts.google.com/gsi/client" async defer></script>
 </head>
 <body>
 <div id="toast"></div>
@@ -22,6 +23,11 @@
     </div>
   </div>
   <p class="topbar-quote">It&rsquo;s not about whether I can or not. I&rsquo;m gonna do it because I want to.</p>
+  <div class="dashboard-search">
+    <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true"><circle cx="8.5" cy="8.5" r="6" fill="none" stroke="currentColor" stroke-width="1.6"/><line x1="13" y1="13" x2="18" y2="18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    <input id="searchInput" type="text" placeholder="Search tasks..." autocomplete="off" />
+    <button id="searchClearBtn" type="button" class="search-clear hidden" title="Clear search">&times;</button>
+  </div>
   <div class="topbar-actions">
     <div id="stats" class="stats"></div>
     <button id="analyticsBtn" class="analytics-btn" type="button" title="Analytics">
@@ -63,19 +69,8 @@
 
 <div class="dashboard-shell">
   <main class="dashboard-main">
-    <section class="dashboard-header">
-      <div>
-        <p class="eyebrow">Dashboard</p>
-        <h1 id="dashboardTitle">All tasks</h1>
-      </div>
-      <div class="dashboard-search">
-        <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true"><circle cx="8.5" cy="8.5" r="6" fill="none" stroke="currentColor" stroke-width="1.6"/><line x1="13" y1="13" x2="18" y2="18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-        <input id="searchInput" type="text" placeholder="Search tasks..." autocomplete="off" />
-        <button id="searchClearBtn" type="button" class="search-clear hidden" title="Clear search">&times;</button>
-      </div>
-    </section>
-
     <div class="viewbar">
+      <h1 id="dashboardTitle" class="dashboard-title-compact">All tasks</h1>
       <nav id="listNav" class="list-nav horizontal" aria-label="Task lists"></nav>
       <button id="archivedListsBtn" class="tab-add" type="button" title="View archived lists">Archived</button>
       <button id="globalAddTaskBtn" class="tab-add" type="button" title="Add new task or project">+ Add</button>

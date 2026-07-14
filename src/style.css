@@ -189,12 +189,13 @@ button {
 .list-column {
   background: var(--bg-elevated);
   border-radius: var(--radius-md);
-  min-width: 260px;
-  max-width: 280px;
+  min-width: 220px;
+  max-width: 640px;
+  min-height: 160px;
   flex: 0 0 auto;
   display: flex;
   flex-direction: column;
-  padding: 12px 12px 16px;
+  padding: 12px 12px 22px;
 }
 
 .list-header {
@@ -358,7 +359,7 @@ button {
   cursor: pointer;
   transition: all 120ms ease;
 }
-.task-progress-btn:hover { transform: scale(1.1); }
+.task-progress-btn:hover { box-shadow: 0 0 0 1px rgba(59, 123, 247, 0.45); }
 .task-progress-btn.current[data-progress="0"] { background: #fff; border-color: #94a3b8; color: #64748b; }
 .task-progress-btn.current[data-progress="25"] { background: var(--medium); border-color: var(--medium); color: #fff; }
 .task-progress-btn.current[data-progress="50"] { background: var(--accent); border-color: var(--accent); color: #fff; }
@@ -606,50 +607,37 @@ html, body {
 
 .dashboard-main {
   display: grid;
-  grid-template-rows: auto auto auto;
+  grid-template-rows: auto auto;
   min-width: 0;
 }
 
-.dashboard-header {
-  display: flex;
-  align-items: end;
-  justify-content: space-between;
-  gap: 20px;
-  padding: 6px 24px 2px;
-  position: relative;
-  z-index: 5;
-}
-
-.eyebrow {
-  margin: 0 0 2px;
-  color: var(--accent);
-  font-size: 10px;
-  font-weight: 700;
-  letter-spacing: 1.2px;
-  text-transform: uppercase;
-}
-
-.dashboard-header h1 {
+.dashboard-title-compact {
   margin: 0;
-  font-size: 20px;
+  padding: 0 14px 0 0;
+  font-size: 16px;
   font-weight: 800;
-  line-height: 1.1;
+  line-height: 1;
   letter-spacing: -0.3px;
   color: var(--text);
+  white-space: nowrap;
+  flex: 0 0 auto;
 }
 
 .dashboard-search {
   display: flex;
   align-items: center;
   gap: 6px;
-  width: min(360px, 40vw);
-  height: 34px;
+  width: 220px;
+  min-width: 120px;
+  flex: 0 1 220px;
+  height: 32px;
   padding: 0 10px;
   border: 1px solid rgba(18, 44, 86, 0.1);
   border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.85);
   color: var(--text-muted);
   transition: border-color 140ms ease, box-shadow 140ms ease;
+  margin: 0 10px;
 }
 
 .dashboard-search:focus-within {
@@ -860,10 +848,10 @@ button.stat-card:hover::before { opacity: 1; }
 
 .viewbar {
   display: flex;
-  align-items: flex-start;
+  align-items: center;
   flex-wrap: wrap;
   gap: 8px;
-  padding: 0 24px 6px;
+  padding: 8px 24px 6px;
 }
 
 .list-nav.horizontal {
@@ -1043,12 +1031,13 @@ button.stat-card:hover::before { opacity: 1; }
   border: 1px solid rgba(18, 44, 86, 0.06);
   border-top: 3px solid var(--list-accent, var(--accent-strong));
   border-radius: var(--radius-md);
-  max-width: 300px;
   box-shadow: 0 4px 20px rgba(18, 44, 86, 0.06);
   animation: riseIn 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
   max-height: none;
   height: auto;
-  transition: transform 200ms ease, box-shadow 200ms ease;
+  transition: box-shadow 200ms ease;
+  resize: both;
+  overflow: hidden;
 }
 
 .list-column:hover {
@@ -1498,6 +1487,11 @@ button.stat-card:hover::before { opacity: 1; }
 .project-chip.priority-medium { background: rgba(245, 166, 35, 0.16); color: var(--medium); }
 .project-chip.priority-high { background: rgba(224, 72, 88, 0.14); color: var(--high); }
 .project-chip.project-status-chip { background: rgba(59, 123, 247, 0.1); color: var(--accent-strong); }
+.project-chip.category-chip { background: rgba(139, 140, 246, 0.14); color: #6f5fd8; }
+
+.project-row.done .task-text { color: var(--text-muted); text-decoration: line-through; }
+
+.combo-suggestions div:hover { background: rgba(59, 123, 247, 0.08); }
 
 .project-list-card.done .list-name {
   color: var(--text-muted);
@@ -1903,8 +1897,9 @@ button.stat-card:hover::before { opacity: 1; }
 }
 
 .charts-grid {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(320px, 1fr));
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
   gap: 16px;
   padding-bottom: 12px;
 }
@@ -1917,6 +1912,12 @@ button.stat-card:hover::before { opacity: 1; }
   padding: 20px;
   animation: riseIn 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
   transition: transform 200ms ease, box-shadow 200ms ease;
+  flex: 0 1 380px;
+  min-width: 280px;
+  max-width: 800px;
+  min-height: 200px;
+  resize: both;
+  overflow: auto;
 }
 
 .chart-card:hover {
@@ -2090,9 +2091,11 @@ button.stat-card:hover::before { opacity: 1; }
     display: none;
   }
 
-  .dashboard-header {
-    align-items: stretch;
-    flex-direction: column;
+  .dashboard-search {
+    order: 1;
+    width: 100%;
+    flex-basis: 100%;
+    margin: 6px 0 0;
   }
 
   .stats {

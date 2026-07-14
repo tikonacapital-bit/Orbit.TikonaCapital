@@ -10,9 +10,9 @@
     "service_worker": "background.js"
   },
   "permissions": ["storage"],
-  "host_permissions": ["https://*.supabase.co/*", "https://api.ipify.org/*"],
+  "host_permissions": ["https://*.supabase.co/*", "https://api.ipify.org/*", "https://oauth2.googleapis.com/*"],
   "content_security_policy": {
-    "extension_pages": "script-src 'self'; object-src 'self'"
+    "extension_pages": "script-src 'self' https://accounts.google.com; object-src 'self'; frame-src https://accounts.google.com; connect-src 'self' https://*.supabase.co https://api.ipify.org https://oauth2.googleapis.com"
   },
   "icons": {
     "16": "icons/icon16.png",
