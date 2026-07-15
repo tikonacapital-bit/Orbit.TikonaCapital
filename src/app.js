@@ -3069,9 +3069,7 @@ function renderRegularGridView() {
       timeCell.appendChild(editableText(regularScheduleValue(task), (value) => updateRegularSchedule(task, value), 'regular-editable', regularSchedulePlaceholder(task.cadence)));
       tr.appendChild(timeCell);
 
-      const statusCell = document.createElement('td');
-      statusCell.appendChild(textCell(`${regularTaskProgress(task, dates).pct}%`));
-      tr.appendChild(statusCell);
+      tr.appendChild(textCell(`${regularTaskProgress(task, dates).pct}%`));
 
       dates.forEach((date) => {
         const td = document.createElement('td');
