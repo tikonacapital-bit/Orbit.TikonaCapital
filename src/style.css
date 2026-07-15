@@ -137,7 +137,9 @@ button {
   transition: all 160ms ease;
 }
 
-.analytics-btn svg { flex: 0 0 auto; fill: var(--accent); }
+.analytics-btn svg { flex: 0 0 auto; }
+.analytics-btn svg[fill="none"] { stroke: var(--accent); }
+.analytics-btn svg:not([fill="none"]) { fill: var(--accent); }
 
 .analytics-btn:hover {
   background: rgba(59, 123, 247, 0.14);
@@ -152,7 +154,8 @@ button {
   box-shadow: 0 4px 14px rgba(36, 96, 212, 0.3);
 }
 
-.analytics-btn.active svg { fill: #fff; }
+.analytics-btn.active svg[fill="none"] { stroke: #fff; }
+.analytics-btn.active svg:not([fill="none"]) { fill: #fff; }
 
 .exit-btn {
   color: var(--danger);
@@ -379,7 +382,8 @@ button {
   display: flex;
   flex-direction: column;
   width: 16px;
-  height: 52px;
+  flex: 1 1 auto;
+  min-height: 40px;
   border-radius: 7px;
   border: 1px solid #c0cde0;
   background: #eef1f6;
@@ -509,6 +513,10 @@ button {
 }
 .completed-toggle:hover { color: var(--text); background: rgba(18, 44, 86, 0.04); }
 .completed-list .task-row .task-check { visibility: visible; }
+.completed-list {
+  overflow-y: auto;
+  max-height: 250px;
+}
 
 #toast {
   position: fixed;
@@ -1017,7 +1025,9 @@ button.stat-card:hover::before { opacity: 1; }
 }
 
 .view-menu-btn:hover { background: rgba(47, 111, 237, 0.16); }
-.view-menu-btn svg { flex: 0 0 auto; fill: var(--accent); }
+.view-menu-btn svg { flex: 0 0 auto; }
+.view-menu-btn svg[fill="none"] { stroke: var(--accent); }
+.view-menu-btn svg:not([fill="none"]) { fill: var(--accent); }
 .view-menu-label { text-align: left; white-space: nowrap; }
 
 .view-dropdown {
@@ -1120,6 +1130,8 @@ button.stat-card:hover::before { opacity: 1; }
   overflow: auto;
   background: rgba(255, 255, 255, 0.92);
   box-shadow: var(--shadow);
+  margin: 0 auto;
+  max-width: 1200px;
 }
 
 .task-table {
@@ -1132,8 +1144,18 @@ button.stat-card:hover::before { opacity: 1; }
 .task-table td {
   padding: 12px 14px;
   border-bottom: 1px solid var(--border);
-  text-align: left;
+  text-align: center;
   vertical-align: middle;
+}
+
+.task-table th:first-child,
+.task-table td:first-child {
+  text-align: left;
+}
+
+.task-table td:has(.task-due),
+.task-table td:has(.priority-pill) {
+  text-align: center;
 }
 
 .task-table th {
@@ -1159,7 +1181,12 @@ button.stat-card:hover::before { opacity: 1; }
   border-color: var(--done);
 }
 .task-table tr.done .table-task-text { text-decoration: line-through; }
-.table-check { margin-top: 0; }
+.table-check { 
+  margin: 0 auto;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
 
 .table-task-text {
   display: inline-block;
@@ -1180,6 +1207,8 @@ button.stat-card:hover::before { opacity: 1; }
   color: var(--text);
   padding: 4px 9px;
   font-size: 12px;
+  margin: 0 auto;
+  display: inline-block;
 }
 
 .priority-pill.low { border-color: rgba(79,142,247,0.5); color: var(--low); }
@@ -1584,6 +1613,8 @@ button.stat-card:hover::before { opacity: 1; }
 
 .project-completed-list {
   margin-top: 12px;
+  max-height: 250px;
+  overflow-y: auto;
 }
 .project-completed-list.hidden { display: none; }
 
@@ -1669,6 +1700,8 @@ button.stat-card:hover::before { opacity: 1; }
   box-shadow: var(--shadow);
   animation: fadeIn 180ms ease both;
   scrollbar-gutter: stable both-edges;
+  margin: 0 auto;
+  max-width: 1400px;
 }
 
 .regular-grid-panel::after {
@@ -1712,7 +1745,6 @@ button.stat-card:hover::before { opacity: 1; }
   left: 0;
   z-index: 2;
   width: 84px;
-  text-align: left;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
@@ -1723,7 +1755,6 @@ button.stat-card:hover::before { opacity: 1; }
   left: 84px;
   z-index: 2;
   width: 120px;
-  text-align: left;
   white-space: nowrap;
   text-overflow: ellipsis;
 }
@@ -1786,11 +1817,17 @@ button.stat-card:hover::before { opacity: 1; }
   color: #0a2540;
 }
 
+.attendance-grid {
+  margin: 0 auto;
+  max-width: 1400px;
+}
+
 .attendance-grid th:nth-child(3),
 .attendance-grid td:nth-child(3),
 .attendance-grid th:nth-child(4),
 .attendance-grid td:nth-child(4) {
   width: auto;
+  text-align: center;
 }
 
 .attendance-inout-label {
@@ -1798,7 +1835,7 @@ button.stat-card:hover::before { opacity: 1; }
   line-height: 1.3;
   color: var(--text-muted);
   font-weight: 600;
-  text-align: left;
+  text-align: center;
 }
 
 .attendance-cell {
@@ -1807,6 +1844,8 @@ button.stat-card:hover::before { opacity: 1; }
   gap: 1px;
   font-size: 9px;
   line-height: 1.15;
+  align-items: center;
+  justify-content: center;
 }
 
 .attendance-time.in { color: var(--accent); font-weight: 600; }
@@ -1827,11 +1866,12 @@ button.stat-card:hover::before { opacity: 1; }
 
 .regular-checkbox-wrap {
   position: relative;
-  display: inline-flex;
+  display: flex;
   align-items: center;
   justify-content: center;
   width: 16px;
   height: 16px;
+  margin: 0 auto;
 }
 
 .regular-checkbox {
@@ -1910,6 +1950,13 @@ button.stat-card:hover::before { opacity: 1; }
 
 .regular-summary-table {
   table-layout: fixed;
+  margin: 0 auto;
+  max-width: 1200px;
+}
+
+.regular-summary-table th,
+.regular-summary-table td {
+  text-align: center;
 }
 
 .regular-summary-table th:nth-child(1),
@@ -2252,7 +2299,7 @@ button.stat-card:hover::before { opacity: 1; }
   .task-check { width: 24px; height: 24px; }
   .task-priority { width: 13px; height: 13px; margin-top: 6px; }
 
-  .task-progress-bar { width: 22px; height: 62px; }
+  .task-progress-bar { width: 22px; min-height: 50px; }
 
   .icon-btn { width: 32px; height: 32px; }
   .list-mood-btn { font-size: 22px; }

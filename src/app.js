@@ -2507,10 +2507,16 @@ function openItemPopup(existingItem = null, existingIsProject = false, presetAss
     </div>
 
     <div style="display: flex; align-items: center; justify-content: space-between;">
-      <label style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text); ${isEdit ? 'visibility: hidden;' : 'cursor: pointer;'}">
-        <input type="checkbox" id="itemIsProject" style="width: 16px; height: 16px;" ${isEdit ? 'disabled' : ''}>
-        Project
-      </label>
+      <div style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text); ${isEdit ? 'visibility: hidden;' : ''}">
+        <label style="display: flex; align-items: center; gap: 6px;">
+          Add to:
+        </label>
+        <select id="itemProjectSelect" style="padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; background: white; cursor: pointer;">
+          <option value="">Main List</option>
+          <option value="__new__">+ New Project</option>
+          ${(state.projects || []).map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
+        </select>
+      </div>
       <div style="display: flex; gap: 10px;">
         <button type="button" id="cancelItemBtn" style="padding: 8px 20px; border: 1px solid #ddd; border-radius: 6px; background: white; cursor: pointer; font-size: 13.5px; font-weight: 500;">Cancel</button>
         <button type="button" id="saveItemBtn" style="padding: 8px 20px; border: none; border-radius: 6px; background: #3b7bf7; color: white; cursor: pointer; font-size: 13.5px; font-weight: 500;">${isEdit ? 'Save Changes' : 'Add'}</button>
@@ -2687,12 +2693,15 @@ function openItemPopup(existingItem = null, existingIsProject = false, presetAss
     }
     const status = popup.querySelector('#itemStatus').value;
     const description = popup.querySelector('#itemDescription').value.trim();
-    const saveAsProject = isEdit ? isProjectItem : popup.querySelector('#itemIsProject').checked;
+    const projectSelect = popup.querySelector('#itemProjectSelect').value;
     const assignedTo = selectedAssignees[0] || '';
 
-    if (saveAsProject) {
-      const fields = {
-        name,
+    // Handle project selection
+    if (projectSelect === '__new__') {
+      // Create new project and add task to it
+      const newProject = {
+        id: uid('proj'),
+        name: name,
         owner: selectedAssignees[0] || 'Unassigned',
         owners: [...selectedAssignees],
         description,
@@ -2701,66 +2710,89 @@ function openItemPopup(existingItem = null, existingIsProject = false, presetAss
         priority: selectedPriority,
         status,
         category,
+        sections: [],
+        tasks: [],
+        archived: false,
+        archivedAt: null,
+        mood: 'neutral',
+        done: false,
+        completedAt: null,
+        progress: 0,
       };
-      if (isEdit) {
-        Object.assign(existingItem, fields);
-      } else {
-        state.projects.push({
-          id: uid('proj'),
-          ...fields,
-          sections: [],
-          tasks: [],
-          archived: false,
-          archivedAt: null,
-          mood: 'neutral',
-          done: false,
-          completedAt: null,
-          progress: 0,
-        });
-      }
+      state.projects.push(newProject);
       persist();
       closePopup();
       render();
-    } else {
-      const activeLists = getActiveLists();
-      if (!isEdit && !activeLists.length) {
-        alert('Please create a list first before adding tasks.');
-        return;
-      }
-      if (isEdit) {
-        const taskData = {
+      return;
+    } else if (projectSelect) {
+      // Add task to existing project
+      const project = state.projects.find(p => p.id === projectSelect);
+      if (project) {
+        const newTask = {
+          id: uid('task'),
           text: name,
           description,
           startDate,
           due: dueDate,
           priority: selectedPriority,
-          assignedTo,
           status,
           category,
+          assignedTo,
+          mood: 'neutral',
+          done: false,
+          completedAt: null,
+          sectionId: null,
+          dueChangeCount: 0,
         };
-        Object.assign(existingItem, taskData);
+        project.tasks.push(newTask);
         persist();
-      } else {
-        const targetList = activeListId !== 'all' ? findList(activeListId) : activeLists[0];
-        // With multiple people selected, add a separate copy of this task to
-        // each person's own list (mirrors how a multi-owner project shows up
-        // in every owner's project card) — a task can only live in one list,
-        // so this is the closest equivalent to "appending" it to everyone.
-        const assignees = selectedAssignees.length ? selectedAssignees : [''];
-        assignees.forEach((who) => {
-          addTask(targetList, null, {
-            text: name,
-            description,
-            startDate,
-            due: dueDate,
-            priority: selectedPriority,
-            assignedTo: who,
-            status,
-            category,
-            mood: 'neutral',
-          });
-        });
+        closePopup();
+        render();
+        return;
       }
+    }
+
+    // Default: add to main list as regular task (when projectSelect is empty string)
+    const activeLists = getActiveLists();
+    if (!isEdit && !activeLists.length) {
+      alert('Please create a list first before adding tasks.');
+      return;
+    }
+    if (isEdit) {
+      const taskData = {
+        text: name,
+        description,
+        startDate,
+        due: dueDate,
+        priority: selectedPriority,
+        assignedTo,
+        status,
+        category,
+      };
+      Object.assign(existingItem, taskData);
+      persist();
+      closePopup();
+      render();
+    } else {
+      const targetList = activeListId !== 'all' ? findList(activeListId) : activeLists[0];
+      // With multiple people selected, add a separate copy of this task to
+      // each person's own list (mirrors how a multi-owner project shows up
+      // in every owner's project card) — a task can only live in one list,
+      // so this is the closest equivalent to "appending" it to everyone.
+      const assignees = selectedAssignees.length ? selectedAssignees : [''];
+      assignees.forEach((who) => {
+        addTask(targetList, null, {
+          text: name,
+          description,
+          startDate,
+          due: dueDate,
+          priority: selectedPriority,
+          assignedTo: who,
+          status,
+          category,
+        });
+      });
+      persist();
       closePopup();
       render();
     }
