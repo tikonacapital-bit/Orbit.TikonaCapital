@@ -389,33 +389,32 @@ button {
   background: #eef1f6;
   box-shadow: inset 0 1px 3px rgba(18, 44, 86, 0.1);
   overflow: hidden;
+  transition: background 260ms ease;
 }
-
-.task-progress-fill {
-  position: absolute;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 0%;
-  background: #94a3b8;
-  transition: height 260ms ease, background 220ms ease;
-  pointer-events: none;
+/* The colored fill is painted as a background-gradient on this element
+   itself, not as a height-percentage on an absolutely-positioned child —
+   percentage heights on abspos descendants of a flex-grow-sized item are
+   unreliable on mobile WebKit (the fill silently failed to render on
+   phones even though the same markup worked on desktop Chrome). A
+   gradient always resolves against the element's own already-computed
+   box, so it isn't affected by that bug. Each stop pair carves out a
+   thin lighter "water surface" line at the top of the filled portion. */
+.task-progress-bar.fill-25 {
+  background:
+    linear-gradient(to top, var(--medium) 0%, var(--medium) 22%, rgba(255, 255, 255, 0.65) 22%, rgba(255, 255, 255, 0.65) 25%, transparent 25%),
+    #eef1f6;
 }
-.task-progress-fill::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: rgba(255, 255, 255, 0.6);
-  border-radius: 50%;
+.task-progress-bar.fill-50 {
+  background:
+    linear-gradient(to top, var(--accent) 0%, var(--accent) 47%, rgba(255, 255, 255, 0.65) 47%, rgba(255, 255, 255, 0.65) 50%, transparent 50%),
+    #eef1f6;
 }
-.task-progress-fill.fill-25 { background: var(--medium); }
-.task-progress-fill.fill-50 { background: var(--accent); }
-.task-progress-fill.fill-75 { background: #34d399; }
-.task-progress-fill.fill-100 { background: #16a34a; }
-.task-progress-fill.fill-100::before { display: none; }
+.task-progress-bar.fill-75 {
+  background:
+    linear-gradient(to top, #34d399 0%, #34d399 72%, rgba(255, 255, 255, 0.65) 72%, rgba(255, 255, 255, 0.65) 75%, transparent 75%),
+    #eef1f6;
+}
+.task-progress-bar.fill-100 { background: #16a34a; }
 
 .task-progress-btn {
   position: relative;

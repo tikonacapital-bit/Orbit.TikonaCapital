@@ -2327,9 +2327,8 @@ function renderProjectRow(project) {
       setProjectProgress(project, val);
     });
   });
-  const fillEl = node.querySelector('.task-progress-fill');
-  fillEl.style.height = `${progress}%`;
-  fillEl.className = `task-progress-fill${progress ? ` fill-${progress}` : ''}`;
+  const barEl = node.querySelector('.task-progress-bar');
+  barEl.classList.toggle(`fill-${progress}`, Boolean(progress));
 
   const projectOverdue = !project.done && project.dueDate && project.dueDate < todayStr();
   if (projectOverdue) {
@@ -3522,9 +3521,8 @@ function renderTask(list, task) {
       setTaskProgress(list, task, val);
     });
   });
-  const fillEl = node.querySelector('.task-progress-fill');
-  fillEl.style.height = `${progress}%`;
-  fillEl.className = `task-progress-fill${progress ? ` fill-${progress}` : ''}`;
+  const barEl = node.querySelector('.task-progress-bar');
+  barEl.classList.toggle(`fill-${progress}`, Boolean(progress));
 
   const isOverdue = !task.done && dueLabel(task.due).cls === 'overdue';
   if (isOverdue) {
