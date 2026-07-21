@@ -22,8 +22,9 @@ let activeRegularEmployee = 'all';
 let activeProjectEmployee = 'all';
 let regularStartDate = firstDayOfMonth(new Date());
 let attendanceMonth = firstDayOfMonth(new Date());
+let calendarMonth = firstDayOfMonth(new Date());
 let viewMode = loadViewMode();
-const VIEW_MODES = new Set(['board', 'table', 'stack']);
+const VIEW_MODES = new Set(['board', 'table', 'stack', 'calendar']);
 
 function loadViewMode() {
   try {
@@ -187,6 +188,7 @@ const VIEW_META = {
   board: { label: 'Horizontal', icon: '<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><rect x="1" y="3" width="5" height="14" rx="1.5"/><rect x="7.5" y="3" width="5" height="14" rx="1.5"/><rect x="14" y="3" width="5" height="14" rx="1.5"/></svg>' },
   table: { label: 'Table', icon: '<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><rect x="1" y="2" width="18" height="16" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><line x1="1" y1="8" x2="19" y2="8" stroke="currentColor" stroke-width="1.6"/><line x1="1" y1="13" x2="19" y2="13" stroke="currentColor" stroke-width="1.6"/></svg>' },
   stack: { label: 'Stack', icon: '<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><rect x="2" y="2" width="16" height="4.5" rx="1.3"/><rect x="2" y="8" width="16" height="4.5" rx="1.3"/><rect x="2" y="14" width="16" height="4.5" rx="1.3"/></svg>' },
+  calendar: { label: 'Calendar', icon: '<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><rect x="1.5" y="3" width="17" height="15" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><line x1="1.5" y1="7.5" x2="18.5" y2="7.5" stroke="currentColor" stroke-width="1.6"/></svg>' },
 };
 
 function listAccentColor(id) {
@@ -1660,8 +1662,17 @@ function render() {
       boardTop.appendChild(renderTableView());
     } else if (viewMode === 'stack') {
       boardTop.appendChild(renderStackView());
+    } else if (viewMode === 'calendar') {
+      boardTop.appendChild(renderCalendarView());
     } else {
       getVisibleLists().forEach((list) => boardTop.appendChild(renderList(list)));
+      // A single employee is selected (not "All tasks") — show their due
+      // dates as a mini calendar beside their task card, same idea as the
+      // full Calendar view but scoped to just this person.
+      if (activeListId !== 'all') {
+        const selectedList = findList(activeListId);
+        if (selectedList) boardTop.appendChild(renderEmployeeMiniCalendar(selectedList));
+      }
     }
 
     const projectSection = renderProjectSection();
@@ -2469,7 +2480,7 @@ function renderProjectSubtaskRow(project, task) {
   return row;
 }
 
-function openItemPopup(existingItem = null, existingIsProject = false, presetAssignee = '') {
+function openItemPopup(existingItem = null, existingIsProject = false, presetAssignee = '', presetDueDate = '') {
   document.querySelectorAll('.item-popup-overlay').forEach((m) => m.remove());
   const isEdit = Boolean(existingItem);
   const isProjectItem = isEdit ? existingIsProject : false;
@@ -2705,6 +2716,8 @@ function openItemPopup(existingItem = null, existingIsProject = false, presetAss
     popup.querySelector('#itemDueDate').value = isProjectItem ? (existingItem.dueDate || '') : (existingItem.due || '');
     popup.querySelector('#itemStatus').value = normalizeStatusValue(existingItem.status);
     categoryInput.value = existingItem.category || '';
+  } else if (presetDueDate) {
+    popup.querySelector('#itemDueDate').value = presetDueDate;
   }
 
   function closePopup() {
@@ -3864,6 +3877,186 @@ function renderStackView() {
   });
 
   return wrap;
+}
+
+// Tasks/projects with a due date, scoped to the given lists — shared by the
+// full Calendar view and the per-employee mini calendar. Projects live in
+// state.projects (not on a list), so they're matched by owner name instead.
+function getCalendarItems(lists) {
+  const items = [];
+  lists.forEach((list) => {
+    filterTasks(list.tasks).forEach((task) => {
+      if (task.due) items.push({ kind: 'task', list, task });
+    });
+  });
+  if (activeListId === 'all') {
+    (state.projects || []).forEach((project) => {
+      if (!project.archived && project.dueDate) items.push({ kind: 'project', project });
+    });
+  } else {
+    const seen = new Set();
+    lists.forEach((list) => {
+      getProjectsForPerson(list.name).forEach((project) => {
+        if (project.dueDate && !seen.has(project.id)) {
+          seen.add(project.id);
+          items.push({ kind: 'project', project });
+        }
+      });
+    });
+  }
+  return items;
+}
+
+function groupCalendarItemsByDate(items) {
+  const map = new Map();
+  items.forEach((item) => {
+    const due = item.kind === 'task' ? item.task.due : item.project.dueDate;
+    if (!due) return;
+    if (!map.has(due)) map.set(due, []);
+    map.get(due).push(item);
+  });
+  return map;
+}
+
+function renderCalendarToolbar(month, onChange) {
+  const bar = document.createElement('div');
+  bar.className = 'calendar-toolbar';
+
+  const label = document.createElement('div');
+  label.className = 'calendar-month-label';
+  label.textContent = `${MONTHS[month.getMonth()]} ${month.getFullYear()}`;
+  bar.appendChild(label);
+
+  const nav = document.createElement('div');
+  nav.className = 'calendar-nav';
+  const mkNavBtn = (text, title, onClick) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'btn calendar-nav-btn';
+    btn.textContent = text;
+    btn.title = title;
+    btn.addEventListener('click', onClick);
+    return btn;
+  };
+  nav.appendChild(mkNavBtn('‹', 'Previous month', () => onChange(addMonths(month, -1))));
+  nav.appendChild(mkNavBtn('Today', 'Jump to current month', () => onChange(firstDayOfMonth(new Date()))));
+  nav.appendChild(mkNavBtn('›', 'Next month', () => onChange(addMonths(month, 1))));
+  bar.appendChild(nav);
+
+  return bar;
+}
+
+function renderCalendarGrid(month, itemsByDate, { maxPerDay = 3, onAddDay } = {}) {
+  const grid = document.createElement('div');
+  grid.className = 'calendar-grid';
+
+  const weekdayRow = document.createElement('div');
+  weekdayRow.className = 'calendar-weekdays';
+  WEEKDAYS.forEach((w) => {
+    const cell = document.createElement('div');
+    cell.textContent = w;
+    weekdayRow.appendChild(cell);
+  });
+  grid.appendChild(weekdayRow);
+
+  const days = document.createElement('div');
+  days.className = 'calendar-days';
+
+  const startOfGrid = addDays(month, -month.getDay());
+  const today = todayStr();
+
+  for (let i = 0; i < 42; i++) {
+    const date = addDays(startOfGrid, i);
+    const key = dateKey(date);
+    const inMonth = date.getMonth() === month.getMonth();
+
+    const cell = document.createElement('div');
+    cell.className = `calendar-cell${inMonth ? '' : ' outside'}${key === today ? ' today' : ''}`;
+
+    const dayNum = document.createElement('div');
+    dayNum.className = 'calendar-day-num';
+    dayNum.textContent = date.getDate();
+    cell.appendChild(dayNum);
+
+    const dayItems = (itemsByDate.get(key) || []).slice().sort((a, b) => {
+      const aDone = (a.kind === 'task' ? a.task.done : a.project.done) ? 1 : 0;
+      const bDone = (b.kind === 'task' ? b.task.done : b.project.done) ? 1 : 0;
+      return aDone - bDone;
+    });
+
+    dayItems.slice(0, maxPerDay).forEach((item) => {
+      const isTask = item.kind === 'task';
+      const record = isTask ? item.task : item.project;
+      const pill = document.createElement('button');
+      pill.type = 'button';
+      pill.className = `calendar-pill priority-${record.priority || 'none'}${record.done ? ' done' : ''}`;
+      pill.textContent = isTask ? record.text : record.name;
+      pill.title = pill.textContent;
+      pill.addEventListener('click', (e) => {
+        e.stopPropagation();
+        openItemPopup(record, !isTask);
+      });
+      cell.appendChild(pill);
+    });
+
+    if (dayItems.length > maxPerDay) {
+      const more = document.createElement('div');
+      more.className = 'calendar-more';
+      more.textContent = `+${dayItems.length - maxPerDay} more`;
+      cell.appendChild(more);
+    }
+
+    if (onAddDay) {
+      cell.title = 'Click to add a task due this day';
+      cell.addEventListener('click', () => onAddDay(key));
+    }
+
+    days.appendChild(cell);
+  }
+
+  grid.appendChild(days);
+  return grid;
+}
+
+function renderCalendarView() {
+  const wrap = document.createElement('div');
+  wrap.className = 'calendar-view-panel';
+
+  wrap.appendChild(renderCalendarToolbar(calendarMonth, (next) => {
+    calendarMonth = next;
+    render();
+  }));
+
+  const items = getCalendarItems(getVisibleLists());
+  const byDate = groupCalendarItemsByDate(items);
+  wrap.appendChild(renderCalendarGrid(calendarMonth, byDate, {
+    maxPerDay: 4,
+    onAddDay: (dateStr) => {
+      const preset = activeListId !== 'all' ? (findList(activeListId)?.name || '') : '';
+      openItemPopup(null, false, preset, dateStr);
+    },
+  }));
+
+  return wrap;
+}
+
+function renderEmployeeMiniCalendar(list) {
+  const panel = document.createElement('section');
+  panel.className = 'list-column calendar-mini-panel';
+
+  panel.appendChild(renderCalendarToolbar(calendarMonth, (next) => {
+    calendarMonth = next;
+    render();
+  }));
+
+  const items = getCalendarItems([list]);
+  const byDate = groupCalendarItemsByDate(items);
+  panel.appendChild(renderCalendarGrid(calendarMonth, byDate, {
+    maxPerDay: 2,
+    onAddDay: (dateStr) => openItemPopup(null, false, list.name, dateStr),
+  }));
+
+  return panel;
 }
 
 function renderEmptyState(text) {
