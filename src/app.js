@@ -70,7 +70,7 @@ function showToast(message, undoFn) {
 }
 
 function fireConfetti() {
-  const colors = ['#3b7bf7', '#16a34a', '#f5a623', '#e04858', '#34d399', '#a855f7'];
+  const colors = ['#3B82F6', '#16a34a', '#f5a623', '#e04858', '#34d399', '#a855f7'];
   const canvas = document.createElement('canvas');
   canvas.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:9999;';
   canvas.width = window.innerWidth;
@@ -791,16 +791,14 @@ function openRegularPopup(title, bodyHtml, { confirmLabel = 'Save', danger = fal
 
   const overlay = document.createElement('div');
   overlay.className = 'regular-popup-overlay';
-  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:1000;';
 
   const popup = document.createElement('div');
-  popup.style.cssText = 'background:white;border-radius:12px;padding:18px;width:90%;max-width:420px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);';
   popup.innerHTML = `
     <h2 style="margin:0 0 12px 0;font-size:17px;font-weight:600;">${title}</h2>
     ${bodyHtml}
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px;">
       <button type="button" id="regPopupCancel" style="padding:8px 20px;border:1px solid #ddd;border-radius:6px;background:white;cursor:pointer;font-size:13.5px;font-weight:500;">Cancel</button>
-      <button type="button" id="regPopupConfirm" style="padding:8px 20px;border:none;border-radius:6px;background:${danger ? '#e04858' : '#3b7bf7'};color:white;cursor:pointer;font-size:13.5px;font-weight:500;">${confirmLabel}</button>
+      <button type="button" id="regPopupConfirm" style="padding:8px 20px;border:none;border-radius:6px;background:${danger ? '#e04858' : '#3B82F6'};color:white;cursor:pointer;font-size:13.5px;font-weight:500;">${confirmLabel}</button>
     </div>
   `;
   overlay.appendChild(popup);
@@ -910,10 +908,8 @@ function openAttendancePopup() {
 
   const overlay = document.createElement('div');
   overlay.className = 'regular-popup-overlay';
-  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:1000;';
 
   const popup = document.createElement('div');
-  popup.style.cssText = 'background:white;border-radius:12px;padding:18px;width:90%;max-width:420px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);';
 
   const heading = document.createElement('h2');
   heading.style.cssText = 'margin:0 0 4px 0;font-size:17px;font-weight:600;';
@@ -947,7 +943,7 @@ function openAttendancePopup() {
     employees.forEach((emp) => {
       const isSelf = verifiedEmail && emp.email === verifiedEmail;
       const row = document.createElement('div');
-      row.style.cssText = `display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid ${isSelf ? '#3b7bf7' : '#eee'};border-radius:8px;${isSelf ? '' : 'opacity:0.6;'}`;
+      row.style.cssText = `display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid ${isSelf ? '#3B82F6' : '#eee'};border-radius:8px;${isSelf ? '' : 'opacity:0.6;'}`;
 
       const nameEl = document.createElement('span');
       nameEl.style.cssText = 'font-weight:600;font-size:13px;';
@@ -967,7 +963,7 @@ function openAttendancePopup() {
         btn.textContent = 'Check In';
         btn.disabled = !canAct;
         btn.title = canAct ? '' : 'Sign in with this person’s Google account to check them in';
-        btn.style.cssText = `padding:6px 12px;border:none;border-radius:6px;background:${canAct ? '#3b7bf7' : '#c7ccd6'};color:#fff;font-size:12px;font-weight:600;cursor:${canAct ? 'pointer' : 'not-allowed'};`;
+        btn.style.cssText = `padding:6px 12px;border:none;border-radius:6px;background:${canAct ? '#3B82F6' : '#c7ccd6'};color:#fff;font-size:12px;font-weight:600;cursor:${canAct ? 'pointer' : 'not-allowed'};`;
         btn.addEventListener('click', async () => {
           if (!canAct) return;
           btn.disabled = true;
@@ -979,7 +975,7 @@ function openAttendancePopup() {
         actionsWrap.appendChild(btn);
       } else {
         const inTime = document.createElement('span');
-        inTime.style.cssText = 'font-size:11.5px;color:#3b7bf7;font-weight:600;';
+        inTime.style.cssText = 'font-size:11.5px;color:#3B82F6;font-weight:600;';
         inTime.textContent = `In ${fmtTimeOnly(checkin.timestamp)}`;
         actionsWrap.appendChild(inTime);
 
@@ -1152,10 +1148,9 @@ function openExitPopup() {
 
   const overlay = document.createElement('div');
   overlay.className = 'regular-popup-overlay';
-  overlay.style.cssText = 'position:fixed;top:0;left:0;right:0;bottom:0;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;z-index:1000;';
 
   const popup = document.createElement('div');
-  popup.style.cssText = 'background:white;border-radius:12px;padding:18px;width:90%;max-width:440px;max-height:90vh;overflow-y:auto;box-shadow:0 20px 60px rgba(0,0,0,0.3);';
+  popup.style.maxWidth = '440px';
 
   const heading = document.createElement('h2');
   heading.style.cssText = 'margin:0 0 4px 0;font-size:17px;font-weight:600;';
@@ -1239,7 +1234,7 @@ function openExitPopup() {
       const restoreBtn = document.createElement('button');
       restoreBtn.type = 'button';
       restoreBtn.textContent = 'Restore';
-      restoreBtn.style.cssText = 'padding:6px 12px;border:none;border-radius:6px;background:#3b7bf7;color:#fff;font-size:12px;font-weight:600;cursor:pointer;';
+      restoreBtn.style.cssText = 'padding:6px 12px;border:none;border-radius:6px;background:#3B82F6;color:#fff;font-size:12px;font-weight:600;cursor:pointer;';
       restoreBtn.addEventListener('click', () => {
         restoreEmployee(entry.id);
         overlay.remove();
@@ -2481,31 +2476,11 @@ function openItemPopup(existingItem = null, existingIsProject = false, presetAss
 
   const overlay = document.createElement('div');
   overlay.className = 'item-popup-overlay';
-  overlay.style.cssText = `
-    position: fixed;
-    top: 0;
-    left: 0;
-    right: 0;
-    bottom: 0;
-    background: rgba(0, 0, 0, 0.5);
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    z-index: 1000;
-  `;
 
   const popup = document.createElement('div');
   popup.className = 'item-popup';
-  popup.style.cssText = `
-    background: white;
-    border-radius: 12px;
-    padding: 18px;
-    width: 90%;
-    max-width: 480px;
-    max-height: 92vh;
-    overflow-y: auto;
-    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.3);
-  `;
+  popup.style.maxWidth = '480px';
+  popup.style.maxHeight = '92vh';
 
   const employees = getAllEmployees();
   const titleText = isEdit ? `Edit ${isProjectItem ? 'Project' : 'Task'}` : 'Add New';
@@ -2583,7 +2558,7 @@ function openItemPopup(existingItem = null, existingIsProject = false, presetAss
       </div>
       <div style="display: flex; gap: 10px;">
         <button type="button" id="cancelItemBtn" style="padding: 8px 20px; border: 1px solid #ddd; border-radius: 6px; background: white; cursor: pointer; font-size: 13.5px; font-weight: 500;">Cancel</button>
-        <button type="button" id="saveItemBtn" style="padding: 8px 20px; border: none; border-radius: 6px; background: #3b7bf7; color: white; cursor: pointer; font-size: 13.5px; font-weight: 500;">${isEdit ? 'Save Changes' : 'Add'}</button>
+        <button type="button" id="saveItemBtn" style="padding: 8px 20px; border: none; border-radius: 6px; background: #3B82F6; color: white; cursor: pointer; font-size: 13.5px; font-weight: 500;">${isEdit ? 'Save Changes' : 'Add'}</button>
       </div>
     </div>
   `;
@@ -2594,10 +2569,10 @@ function openItemPopup(existingItem = null, existingIsProject = false, presetAss
   let selectedPriority = existingItem ? (existingItem.priority || 'none') : 'none';
   const priorityBtns = popup.querySelectorAll('.item-priority-btn');
   priorityBtns.forEach((btn) => {
-    if (btn.dataset.priority === selectedPriority) btn.style.borderColor = '#3b7bf7';
+    if (btn.dataset.priority === selectedPriority) btn.style.borderColor = '#3B82F6';
     btn.addEventListener('click', () => {
       priorityBtns.forEach((b) => (b.style.borderColor = '#ddd'));
-      btn.style.borderColor = '#3b7bf7';
+      btn.style.borderColor = '#3B82F6';
       selectedPriority = btn.dataset.priority;
     });
   });
@@ -2613,7 +2588,7 @@ function openItemPopup(existingItem = null, existingIsProject = false, presetAss
 
   const assignedToSuggestions = document.createElement('div');
   assignedToSuggestions.className = 'combo-suggestions';
-  assignedToSuggestions.style.cssText = 'position:fixed;background:white;border:1px solid #ddd;border-radius:6px;box-shadow:0 6px 16px rgba(0,0,0,0.15);max-height:140px;overflow-y:auto;z-index:1100;display:none;';
+  assignedToSuggestions.style.cssText = 'position:fixed;max-height:140px;z-index:1100;display:none;';
   document.body.appendChild(assignedToSuggestions);
 
   function positionSuggestions(box, dropdown) {
@@ -2628,7 +2603,7 @@ function openItemPopup(existingItem = null, existingIsProject = false, presetAss
     selectedAssignees.forEach((name) => {
       const chip = document.createElement('span');
       chip.className = 'assignee-chip';
-      chip.style.cssText = 'display:inline-flex;align-items:center;gap:4px;background:rgba(59,123,247,0.12);color:#2460d4;padding:2px 6px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;';
+      chip.style.cssText = 'display:inline-flex;align-items:center;gap:4px;background:rgba(59,123,247,0.12);color:#2563EB;padding:2px 6px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;';
       chip.textContent = name;
       const rm = document.createElement('button');
       rm.type = 'button';
@@ -2685,7 +2660,7 @@ function openItemPopup(existingItem = null, existingIsProject = false, presetAss
 
   const categorySuggestions = document.createElement('div');
   categorySuggestions.className = 'combo-suggestions';
-  categorySuggestions.style.cssText = 'position:fixed;background:white;border:1px solid #ddd;border-radius:6px;box-shadow:0 6px 16px rgba(0,0,0,0.15);max-height:140px;overflow-y:auto;z-index:1100;display:none;';
+  categorySuggestions.style.cssText = 'position:fixed;max-height:140px;z-index:1100;display:none;';
   document.body.appendChild(categorySuggestions);
 
   function showCategorySuggestions() {
