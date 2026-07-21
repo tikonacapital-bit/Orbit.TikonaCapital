@@ -2406,7 +2406,72 @@ function renderProjectRow(project) {
     openItemPopup(project, true);
   });
 
-  return node;
+  const fragment = document.createDocumentFragment();
+  fragment.appendChild(node);
+  if ((project.tasks || []).length) {
+    const subtaskList = document.createElement('div');
+    subtaskList.className = 'project-subtask-list';
+    project.tasks.forEach((task) => subtaskList.appendChild(renderProjectSubtaskRow(project, task)));
+    fragment.appendChild(subtaskList);
+  }
+  return fragment;
+}
+
+function renderProjectSubtaskRow(project, task) {
+  const row = document.createElement('div');
+  row.className = 'project-subtask-row';
+  if (task.done) row.classList.add('done');
+
+  const check = document.createElement('button');
+  check.type = 'button';
+  check.className = 'project-subtask-check';
+  check.title = task.done ? 'Restore task (undo)' : 'Mark done';
+  check.addEventListener('click', (e) => {
+    e.stopPropagation();
+    task.done = !task.done;
+    task.completedAt = task.done ? Date.now() : null;
+    persist();
+    render();
+  });
+  row.appendChild(check);
+
+  const text = document.createElement('span');
+  text.className = 'project-subtask-text';
+  text.textContent = task.text;
+  text.contentEditable = !task.done;
+  text.spellcheck = false;
+  text.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); text.blur(); }
+    if (e.key === 'Escape') { e.preventDefault(); text.textContent = task.text; text.blur(); }
+  });
+  text.addEventListener('blur', () => {
+    const val = text.textContent.trim();
+    if (!val) { text.textContent = task.text; return; }
+    if (val !== task.text) { task.text = val; persist(); }
+  });
+  row.appendChild(text);
+
+  if (task.assignedTo) {
+    const who = document.createElement('span');
+    who.className = 'project-subtask-assignee';
+    who.textContent = task.assignedTo;
+    row.appendChild(who);
+  }
+
+  const delBtn = document.createElement('button');
+  delBtn.type = 'button';
+  delBtn.className = 'project-subtask-delete';
+  delBtn.innerHTML = '&times;';
+  delBtn.title = 'Delete task';
+  delBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    project.tasks = project.tasks.filter((t) => t.id !== task.id);
+    persist();
+    render();
+  });
+  row.appendChild(delBtn);
+
+  return row;
 }
 
 function openItemPopup(existingItem = null, existingIsProject = false, presetAssignee = '') {

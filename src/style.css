@@ -507,6 +507,83 @@ button {
 .task-due.due-today { color: var(--medium); font-weight: 600; background: rgba(245, 166, 35, 0.08); }
 .task-due:empty::before { content: "+ due date"; opacity: 0.5; }
 
+.project-subtask-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  margin: 0 4px 8px 34px;
+  padding-left: 10px;
+  border-left: 2px solid rgba(18, 44, 86, 0.1);
+}
+
+.project-subtask-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  border-radius: 6px;
+  transition: background 120ms ease;
+}
+.project-subtask-row:hover { background: rgba(18, 44, 86, 0.04); }
+.project-subtask-row:hover .project-subtask-delete { visibility: visible; }
+
+.project-subtask-check {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid #c0cde0;
+  background: transparent;
+  padding: 0;
+  flex: 0 0 auto;
+  cursor: pointer;
+  transition: all 160ms ease;
+}
+.project-subtask-check:hover { border-color: var(--accent); }
+.project-subtask-row.done .project-subtask-check {
+  background: linear-gradient(135deg, #8fa3be, #a8b8cc);
+  border-color: transparent;
+}
+
+.project-subtask-text {
+  flex: 1;
+  min-width: 0;
+  font-size: 13px;
+  color: var(--text);
+  outline: none;
+  border-radius: 4px;
+  padding: 1px 4px;
+}
+.project-subtask-text:focus { background: var(--bg-hover); }
+.project-subtask-row.done .project-subtask-text {
+  color: var(--text-muted);
+  text-decoration: line-through;
+}
+
+.project-subtask-assignee {
+  flex: 0 0 auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--text-muted);
+  background: rgba(18, 44, 86, 0.06);
+  border-radius: 6px;
+  padding: 2px 6px;
+}
+
+.project-subtask-delete {
+  flex: 0 0 auto;
+  visibility: hidden;
+  width: 20px;
+  height: 20px;
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+}
+.project-subtask-delete:hover { background: rgba(224, 72, 88, 0.12); color: var(--danger); }
+
 .completed-wrap {
   margin-top: 10px;
   border-top: 1px dashed rgba(18, 44, 86, 0.08);
@@ -2335,14 +2412,16 @@ button.stat-card:hover::before { opacity: 1; }
   /* Edit/delete are hover-only, which touchscreens can't reliably trigger —
      keep them always visible on narrow/touch layouts. */
   .task-delete,
-  .task-edit {
+  .task-edit,
+  .project-subtask-delete {
     visibility: visible;
   }
 }
 
 @media (hover: none) and (pointer: coarse) {
   .task-delete,
-  .task-edit {
+  .task-edit,
+  .project-subtask-delete {
     visibility: visible;
   }
 }
