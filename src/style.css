@@ -314,6 +314,7 @@ button {
 
 .tasks-list, .sections {
   overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .section-block { margin-bottom: 6px; }
@@ -604,6 +605,7 @@ button {
 .completed-list {
   overflow-y: auto;
   max-height: 250px;
+  scrollbar-gutter: stable;
 }
 
 #toast {
@@ -1703,6 +1705,7 @@ button.stat-card:hover::before { opacity: 1; }
   margin-top: 12px;
   max-height: 250px;
   overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 .project-completed-list.hidden { display: none; }
 
@@ -2574,14 +2577,14 @@ button.stat-card:hover::before { opacity: 1; }
   background: rgba(18, 44, 86, 0.22);
 }
 
+/* scrollbar-gutter: stable is intentionally NOT set globally here — applying
+   it to every element (including plain overflow:hidden ones used only for
+   clipping, like table cells and rounded cards) reserves phantom scrollbar
+   space on boxes that never actually scroll, silently shrinking their
+   content area and throwing off centered content. It's opted in per-element
+   below, only on the containers that actually scroll and were flickering. */
 * {
   scrollbar-width: thin;
   scrollbar-color: rgba(18, 44, 86, 0.12) transparent;
-  /* Reserves the scrollbar's space up front so a container whose content
-     hovers right at the overflow threshold doesn't flip between
-     needing/not-needing a scrollbar on every re-render — that flip is what
-     reads as flicker, since each flip reflows the content and can retrigger
-     the opposite state. */
-  scrollbar-gutter: stable;
 }
 
