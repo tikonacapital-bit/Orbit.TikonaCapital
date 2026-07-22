@@ -71,7 +71,7 @@ function showToast(message, undoFn) {
 }
 
 function fireConfetti() {
-  const colors = ['#3B82F6', '#16a34a', '#f5a623', '#e04858', '#34d399', '#a855f7'];
+  const colors = ['#1F4690', '#16a34a', '#FFA500', '#e04858', '#34d399', '#a855f7'];
   const canvas = document.createElement('canvas');
   canvas.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:9999;';
   canvas.width = window.innerWidth;
@@ -800,7 +800,7 @@ function openRegularPopup(title, bodyHtml, { confirmLabel = 'Save', danger = fal
     ${bodyHtml}
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px;">
       <button type="button" id="regPopupCancel" style="padding:8px 20px;border:1px solid #ddd;border-radius:6px;background:white;cursor:pointer;font-size:13.5px;font-weight:500;">Cancel</button>
-      <button type="button" id="regPopupConfirm" style="padding:8px 20px;border:none;border-radius:6px;background:${danger ? '#e04858' : '#3B82F6'};color:white;cursor:pointer;font-size:13.5px;font-weight:500;">${confirmLabel}</button>
+      <button type="button" id="regPopupConfirm" style="padding:8px 20px;border:none;border-radius:6px;background:${danger ? '#e04858' : '#FFA500'};color:white;cursor:pointer;font-size:13.5px;font-weight:500;">${confirmLabel}</button>
     </div>
   `;
   overlay.appendChild(popup);
@@ -945,7 +945,7 @@ function openAttendancePopup() {
     employees.forEach((emp) => {
       const isSelf = verifiedEmail && emp.email === verifiedEmail;
       const row = document.createElement('div');
-      row.style.cssText = `display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid ${isSelf ? '#3B82F6' : '#eee'};border-radius:8px;${isSelf ? '' : 'opacity:0.6;'}`;
+      row.style.cssText = `display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid ${isSelf ? '#1F4690' : '#eee'};border-radius:8px;${isSelf ? '' : 'opacity:0.6;'}`;
 
       const nameEl = document.createElement('span');
       nameEl.style.cssText = 'font-weight:600;font-size:13px;';
@@ -965,7 +965,7 @@ function openAttendancePopup() {
         btn.textContent = 'Check In';
         btn.disabled = !canAct;
         btn.title = canAct ? '' : 'Sign in with this person’s Google account to check them in';
-        btn.style.cssText = `padding:6px 12px;border:none;border-radius:6px;background:${canAct ? '#3B82F6' : '#c7ccd6'};color:#fff;font-size:12px;font-weight:600;cursor:${canAct ? 'pointer' : 'not-allowed'};`;
+        btn.style.cssText = `padding:6px 12px;border:none;border-radius:6px;background:${canAct ? '#FFA500' : '#c7ccd6'};color:#fff;font-size:12px;font-weight:600;cursor:${canAct ? 'pointer' : 'not-allowed'};`;
         btn.addEventListener('click', async () => {
           if (!canAct) return;
           btn.disabled = true;
@@ -977,7 +977,7 @@ function openAttendancePopup() {
         actionsWrap.appendChild(btn);
       } else {
         const inTime = document.createElement('span');
-        inTime.style.cssText = 'font-size:11.5px;color:#3B82F6;font-weight:600;';
+        inTime.style.cssText = 'font-size:11.5px;color:#3A5BA0;font-weight:600;';
         inTime.textContent = `In ${fmtTimeOnly(checkin.timestamp)}`;
         actionsWrap.appendChild(inTime);
 
@@ -1236,7 +1236,7 @@ function openExitPopup() {
       const restoreBtn = document.createElement('button');
       restoreBtn.type = 'button';
       restoreBtn.textContent = 'Restore';
-      restoreBtn.style.cssText = 'padding:6px 12px;border:none;border-radius:6px;background:#3B82F6;color:#fff;font-size:12px;font-weight:600;cursor:pointer;';
+      restoreBtn.style.cssText = 'padding:6px 12px;border:none;border-radius:6px;background:#1F4690;color:#fff;font-size:12px;font-weight:600;cursor:pointer;';
       restoreBtn.addEventListener('click', () => {
         restoreEmployee(entry.id);
         overlay.remove();
@@ -2569,7 +2569,7 @@ function openItemPopup(existingItem = null, existingIsProject = false, presetAss
       </div>
       <div style="display: flex; gap: 10px;">
         <button type="button" id="cancelItemBtn" style="padding: 8px 20px; border: 1px solid #ddd; border-radius: 6px; background: white; cursor: pointer; font-size: 13.5px; font-weight: 500;">Cancel</button>
-        <button type="button" id="saveItemBtn" style="padding: 8px 20px; border: none; border-radius: 6px; background: #3B82F6; color: white; cursor: pointer; font-size: 13.5px; font-weight: 500;">${isEdit ? 'Save Changes' : 'Add'}</button>
+        <button type="button" id="saveItemBtn" style="padding: 8px 20px; border: none; border-radius: 8px; background: #FFA500; color: white; cursor: pointer; font-size: 13.5px; font-weight: 600; box-shadow: 0 2px 8px rgba(255, 165, 0, 0.35);">${isEdit ? 'Save Changes' : 'Add'}</button>
       </div>
     </div>
   `;
@@ -2580,10 +2580,10 @@ function openItemPopup(existingItem = null, existingIsProject = false, presetAss
   let selectedPriority = existingItem ? (existingItem.priority || 'none') : 'none';
   const priorityBtns = popup.querySelectorAll('.item-priority-btn');
   priorityBtns.forEach((btn) => {
-    if (btn.dataset.priority === selectedPriority) btn.style.borderColor = '#3B82F6';
+    if (btn.dataset.priority === selectedPriority) btn.style.borderColor = '#1F4690';
     btn.addEventListener('click', () => {
       priorityBtns.forEach((b) => (b.style.borderColor = '#ddd'));
-      btn.style.borderColor = '#3B82F6';
+      btn.style.borderColor = '#1F4690';
       selectedPriority = btn.dataset.priority;
     });
   });
@@ -2614,7 +2614,7 @@ function openItemPopup(existingItem = null, existingIsProject = false, presetAss
     selectedAssignees.forEach((name) => {
       const chip = document.createElement('span');
       chip.className = 'assignee-chip';
-      chip.style.cssText = 'display:inline-flex;align-items:center;gap:4px;background:rgba(59,123,247,0.12);color:#2563EB;padding:2px 6px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;';
+      chip.style.cssText = 'display:inline-flex;align-items:center;gap:4px;background:rgba(31,70,144,0.1);color:#1F4690;padding:2px 6px;border-radius:999px;font-size:12px;font-weight:600;white-space:nowrap;';
       chip.textContent = name;
       const rm = document.createElement('button');
       rm.type = 'button';

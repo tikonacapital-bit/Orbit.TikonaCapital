@@ -1,44 +1,54 @@
 :root {
-  /* Brand neutrals (Tailwind-slate family) */
+  /* Brand neutrals — white dominates, black is text-only */
   --bg: #F8FAFC;
   --bg-elevated: #ffffff;
   --bg-panel: #ffffff;
   --bg-hover: #F1F5F9;
-  --border: #E2E8F0;
+  --border: #E5E7EB;
   --border-strong: #CBD5E1;
-  --text: #0F172A;
+  --text: #111827;
   --text-secondary: #334155;
   --text-muted: #64748B;
 
-  /* Brand accent blues — used as an accent, not a background wash */
-  --accent-strong: #2563EB;
-  --accent: #3B82F6;
-  --accent-soft: #60A5FA;
-  --accent-tint: #DBEAFE;
+  /* Brand identity — navy defines identity, orange highlights only the
+     single most important action on a screen (never a background wash). */
+  --primary: #1F4690;
+  --secondary: #3A5BA0;
+  --accent-orange: #FFA500;
+  --accent-orange-strong: #E68A00;
+  --accent-orange-tint: #FFE5B4;
 
-  /* Status colors (semantic, not brand blues) */
+  /* Kept as aliases so every existing var(--accent...) reference below
+     picks up the new brand colors automatically. */
+  --accent-strong: var(--primary);
+  --accent: var(--secondary);
+  --accent-soft: #6C8BC4;
+  --accent-tint: #E4EAF6;
+
+  /* Status colors (semantic, not brand colors — priority/danger/success
+     stay legible and distinct from the navy/orange brand system) */
   --accent-warm: #f5a623;
   --danger: #e04858;
   --danger-strong: #dc2626;
   --success: #16a34a;
-  --low: #60A5FA;
+  --low: var(--accent-soft);
   --medium: #f5a623;
   --high: #e04858;
   --done: #94A3B8;
 
   /* Elevation */
-  --shadow-xs: 0 1px 2px rgba(15, 23, 42, 0.04);
-  --shadow-sm: 0 2px 8px rgba(15, 23, 42, 0.06);
-  --shadow: 0 8px 32px rgba(15, 23, 42, 0.08);
-  --shadow-lg: 0 20px 50px rgba(15, 23, 42, 0.12);
-  --shadow-xl: 0 24px 64px -12px rgba(15, 23, 42, 0.28);
+  --shadow-xs: 0 1px 2px rgba(17, 24, 39, 0.04);
+  --shadow-sm: 0 2px 8px rgba(17, 24, 39, 0.06);
+  --shadow: 0 8px 32px rgba(17, 24, 39, 0.08);
+  --shadow-lg: 0 20px 50px rgba(17, 24, 39, 0.12);
+  --shadow-xl: 0 24px 64px -12px rgba(17, 24, 39, 0.28);
 
   /* Shape + motion */
   --radius-sm: 8px;
   --radius-btn: 10px;
   --radius-md: 12px;
-  --radius-lg: 18px;
-  --focus-ring: 0 0 0 3px rgba(59, 130, 246, 0.35);
+  --radius-lg: 16px;
+  --focus-ring: 0 0 0 3px rgba(58, 91, 160, 0.35);
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
   --duration-fast: 140ms;
   --duration: 200ms;
@@ -76,7 +86,7 @@ textarea:disabled {
 .item-popup-overlay {
   position: fixed;
   inset: 0;
-  background: rgba(15, 23, 42, 0.5);
+  background: rgba(17, 24, 39, 0.5);
   backdrop-filter: blur(4px);
   -webkit-backdrop-filter: blur(4px);
   display: flex;
@@ -132,7 +142,7 @@ button {
   align-items: center;
   justify-content: space-between;
   padding: 8px 24px 8px 14px;
-  border-bottom: 1px solid rgba(15, 23, 42, 0.06);
+  border-bottom: 1px solid rgba(17, 24, 39, 0.06);
 }
 
 .brand {
@@ -199,12 +209,12 @@ button {
   border-color: transparent;
   color: #fff;
   font-weight: 600;
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.25);
+  box-shadow: 0 4px 14px rgba(31, 70, 144, 0.25);
 }
 .btn-primary:hover {
   background: linear-gradient(135deg, var(--accent-strong), #5a9cf7);
   color: #fff;
-  box-shadow: 0 6px 20px rgba(37, 99, 235, 0.35);
+  box-shadow: 0 6px 20px rgba(31, 70, 144, 0.35);
   transform: translateY(-1px);
 }
 
@@ -216,8 +226,8 @@ button {
   height: 36px;
   padding: 0;
   border-radius: var(--radius-sm);
-  background: rgba(59, 130, 246, 0.08);
-  border: 1px solid rgba(59, 130, 246, 0.18);
+  background: rgba(58, 91, 160, 0.08);
+  border: 1px solid rgba(58, 91, 160, 0.18);
   color: var(--text);
   font-weight: 600;
   transition: all 160ms ease;
@@ -228,8 +238,8 @@ button {
 .analytics-btn svg:not([fill="none"]) { fill: var(--accent); }
 
 .analytics-btn:hover {
-  background: rgba(59, 130, 246, 0.14);
-  border-color: rgba(59, 130, 246, 0.3);
+  background: rgba(58, 91, 160, 0.14);
+  border-color: rgba(58, 91, 160, 0.3);
   transform: translateY(-1px);
 }
 
@@ -237,7 +247,7 @@ button {
   background: linear-gradient(135deg, var(--accent-strong), var(--accent));
   border-color: transparent;
   color: #fff;
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.3);
+  box-shadow: 0 4px 14px rgba(31, 70, 144, 0.3);
 }
 
 .analytics-btn.active svg[fill="none"] { stroke: #fff; }
@@ -313,7 +323,7 @@ button {
   font-weight: 600;
   min-width: 20px;
   text-align: center;
-  background: rgba(15, 23, 42, 0.06);
+  background: rgba(17, 24, 39, 0.06);
   border-radius: 6px;
   padding: 2px 6px;
 }
@@ -329,7 +339,7 @@ button {
   padding: 0;
   transition: all 120ms ease;
 }
-.icon-btn:hover { background: rgba(15, 23, 42, 0.06); color: var(--text); }
+.icon-btn:hover { background: rgba(17, 24, 39, 0.06); color: var(--text); }
 
 .list-mood-btn {
   background: none;
@@ -355,7 +365,7 @@ button {
   margin: 0 2px;
   border: none;
   border-radius: 50%;
-  background: rgba(59, 130, 246, 0.12);
+  background: rgba(58, 91, 160, 0.12);
   color: var(--accent);
   font-size: 13px;
   font-weight: 700;
@@ -370,7 +380,7 @@ button {
   font-size: 17px;
   font-weight: 600;
 }
-.quick-add-toggle:hover { background: rgba(59, 130, 246, 0.1); color: var(--accent-strong); border-radius: 6px; }
+.quick-add-toggle:hover { background: rgba(58, 91, 160, 0.1); color: var(--accent-strong); border-radius: 6px; }
 
 .list-menu-wrap { position: relative; }
 .list-menu {
@@ -380,7 +390,7 @@ button {
   background: #ffffff;
   border: 1px solid var(--border);
   border-radius: 8px;
-  box-shadow: 0 10px 26px rgba(15, 23, 42, 0.2);
+  box-shadow: 0 10px 26px rgba(17, 24, 39, 0.2);
   z-index: 20;
   min-width: 160px;
   overflow: hidden;
@@ -430,7 +440,7 @@ button {
   transition: all 140ms ease;
 }
 .task-row:hover {
-  background: rgba(59, 130, 246, 0.04);
+  background: rgba(58, 91, 160, 0.04);
   border-left-color: var(--accent);
 }
 .task-row:hover .task-delete,
@@ -449,7 +459,7 @@ button {
 }
 .task-check:hover {
   border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+  box-shadow: 0 0 0 3px rgba(58, 91, 160, 0.12);
 }
 .task-row.done .task-check {
   background: linear-gradient(135deg, #8fa3be, #a8b8cc);
@@ -474,7 +484,7 @@ button {
   border-radius: 4px;
   border: 1px solid #c0cde0;
   background: #eef1f6;
-  box-shadow: inset 0 1px 3px rgba(15, 23, 42, 0.1);
+  box-shadow: inset 0 1px 3px rgba(17, 24, 39, 0.1);
   overflow: hidden;
   transition: background 260ms ease;
 }
@@ -516,15 +526,15 @@ button {
   cursor: pointer;
   transition: background 120ms ease;
 }
-.task-progress-btn:hover { background: rgba(59, 130, 246, 0.16); }
+.task-progress-btn:hover { background: rgba(58, 91, 160, 0.16); }
 
 .task-row.progress-25 { background: rgba(245, 166, 35, 0.08); border-left-color: var(--medium); }
-.task-row.progress-50 { background: rgba(59, 130, 246, 0.07); border-left-color: var(--accent); }
+.task-row.progress-50 { background: rgba(58, 91, 160, 0.07); border-left-color: var(--accent); }
 .task-row.progress-75 { background: rgba(52, 211, 153, 0.12); border-left-color: #34d399; }
 .task-row.overdue-bar { background: rgba(224, 72, 88, 0.16); border-left-color: var(--danger); }
 
 .project-list-card.progress-25 { background: rgba(245, 166, 35, 0.06); border-color: var(--medium); }
-.project-list-card.progress-50 { background: rgba(59, 130, 246, 0.06); border-color: var(--accent); }
+.project-list-card.progress-50 { background: rgba(58, 91, 160, 0.06); border-color: var(--accent); }
 .project-list-card.progress-75 { background: rgba(52, 211, 153, 0.1); border-color: #34d399; }
 .project-list-card.overdue-bar { background: rgba(224, 72, 88, 0.14); border-color: var(--danger); }
 
@@ -589,7 +599,7 @@ button {
   padding: 2px 6px;
   transition: all 120ms ease;
 }
-.task-due:hover { background: rgba(15, 23, 42, 0.05); }
+.task-due:hover { background: rgba(17, 24, 39, 0.05); }
 .task-due.overdue { color: var(--danger); font-weight: 600; background: rgba(224, 72, 88, 0.06); }
 .task-due.due-today { color: var(--medium); font-weight: 600; background: rgba(245, 166, 35, 0.08); }
 .task-due:empty::before { content: "+ due date"; opacity: 0.5; }
@@ -600,7 +610,7 @@ button {
   gap: 2px;
   margin: 0 4px 8px 34px;
   padding-left: 10px;
-  border-left: 2px solid rgba(15, 23, 42, 0.1);
+  border-left: 2px solid rgba(17, 24, 39, 0.1);
 }
 
 .project-subtask-row {
@@ -611,7 +621,7 @@ button {
   border-radius: 6px;
   transition: background 120ms ease;
 }
-.project-subtask-row:hover { background: rgba(15, 23, 42, 0.04); }
+.project-subtask-row:hover { background: rgba(17, 24, 39, 0.04); }
 .project-subtask-row:hover .project-subtask-delete { visibility: visible; }
 
 .project-subtask-check {
@@ -651,7 +661,7 @@ button {
   font-size: 11px;
   font-weight: 600;
   color: var(--text-muted);
-  background: rgba(15, 23, 42, 0.06);
+  background: rgba(17, 24, 39, 0.06);
   border-radius: 6px;
   padding: 2px 6px;
 }
@@ -673,7 +683,7 @@ button {
 
 .completed-wrap {
   margin-top: 10px;
-  border-top: 1px dashed rgba(15, 23, 42, 0.08);
+  border-top: 1px dashed rgba(17, 24, 39, 0.08);
   padding-top: 8px;
 }
 .completed-toggle {
@@ -686,7 +696,7 @@ button {
   border-radius: 6px;
   transition: all 120ms ease;
 }
-.completed-toggle:hover { color: var(--text); background: rgba(15, 23, 42, 0.04); }
+.completed-toggle:hover { color: var(--text); background: rgba(17, 24, 39, 0.04); }
 .completed-list .task-row .task-check { visibility: visible; }
 .completed-list {
   overflow-y: auto;
@@ -698,22 +708,31 @@ button {
   position: fixed;
   bottom: 20px;
   left: 50%;
-  transform: translateX(-50%);
-  background: #142848;
+  background: #12305C;
   color: #eef3fb;
   padding: 10px 16px;
-  border-radius: 8px;
-  box-shadow: 0 12px 30px rgba(15, 32, 64, 0.35);
-  display: none;
+  border-radius: var(--radius-sm);
+  box-shadow: var(--shadow-lg);
+  display: flex;
   align-items: center;
   gap: 12px;
   z-index: 100;
+  visibility: hidden;
+  transform: translate(-50%, 12px);
+  opacity: 0;
+  transition: transform 220ms var(--ease), opacity 220ms var(--ease), visibility 220ms;
+  pointer-events: none;
 }
-#toast.show { display: flex; }
+#toast.show {
+  visibility: visible;
+  transform: translate(-50%, 0);
+  opacity: 1;
+  pointer-events: auto;
+}
 #toast button {
   background: none;
   border: none;
-  color: #7cb0ff;
+  color: #FFB84D;
   font-weight: 600;
 }
 
@@ -721,8 +740,8 @@ button {
 
 html, body {
   background:
-    radial-gradient(ellipse at 10% -5%, rgba(59, 130, 246, 0.07), transparent 40%),
-    radial-gradient(ellipse at 90% 100%, rgba(59, 130, 246, 0.04), transparent 35%),
+    radial-gradient(ellipse at 10% -5%, rgba(58, 91, 160, 0.07), transparent 40%),
+    radial-gradient(ellipse at 90% 100%, rgba(58, 91, 160, 0.04), transparent 35%),
     linear-gradient(168deg, #F8FAFC 0%, #F8FAFC 50%, #F1F5F9 100%);
 }
 
@@ -730,7 +749,7 @@ html, body {
   background: rgba(255, 255, 255, 0.75);
   backdrop-filter: blur(20px) saturate(1.6);
   -webkit-backdrop-filter: blur(20px) saturate(1.6);
-  box-shadow: 0 1px 0 rgba(15, 23, 42, 0.04), 0 4px 24px rgba(15, 23, 42, 0.03);
+  box-shadow: 0 1px 0 rgba(17, 24, 39, 0.04), 0 4px 24px rgba(17, 24, 39, 0.03);
   position: relative;
   z-index: 10;
 }
@@ -738,7 +757,7 @@ html, body {
 .btn-primary {
   background: linear-gradient(135deg, var(--accent-strong), var(--accent));
   border-color: transparent;
-  box-shadow: 0 4px 14px rgba(37, 99, 235, 0.25);
+  box-shadow: 0 4px 14px rgba(31, 70, 144, 0.25);
 }
 
 .dashboard-shell {
@@ -791,13 +810,13 @@ html, body {
 }
 
 .nav-item:hover {
-  background: rgba(15, 23, 42, 0.05);
+  background: rgba(17, 24, 39, 0.05);
   color: var(--text);
   transform: translateX(2px);
 }
 
 .nav-item.active {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--list-accent, var(--accent)) 20%, transparent), rgba(37, 99, 235, 0.1));
+  background: linear-gradient(135deg, color-mix(in srgb, var(--list-accent, var(--accent)) 20%, transparent), rgba(31, 70, 144, 0.1));
   border-color: color-mix(in srgb, var(--list-accent, var(--accent)) 45%, transparent);
   color: var(--text);
   box-shadow: 0 6px 18px -8px color-mix(in srgb, var(--list-accent, var(--accent)) 55%, transparent);
@@ -833,7 +852,7 @@ html, body {
   min-width: 24px;
   padding: 2px 7px;
   border-radius: 999px;
-  background: rgba(15, 23, 42, 0.07);
+  background: rgba(17, 24, 39, 0.07);
   color: var(--text);
   font-size: 12px;
   text-align: center;
@@ -866,7 +885,7 @@ html, body {
   flex: 0 1 220px;
   height: 32px;
   padding: 0 10px;
-  border: 1px solid rgba(15, 23, 42, 0.1);
+  border: 1px solid rgba(17, 24, 39, 0.1);
   border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.85);
   color: var(--text-muted);
@@ -875,8 +894,8 @@ html, body {
 }
 
 .dashboard-search:focus-within {
-  border-color: rgba(59, 130, 246, 0.4);
-  box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.12);
+  border-color: rgba(58, 91, 160, 0.4);
+  box-shadow: 0 0 0 3px rgba(58, 91, 160, 0.12);
 }
 
 .dashboard-search svg { flex: 0 0 auto; }
@@ -899,14 +918,14 @@ html, body {
   height: 18px;
   border: none;
   border-radius: 50%;
-  background: rgba(15, 23, 42, 0.08);
+  background: rgba(17, 24, 39, 0.08);
   color: var(--text-muted);
   font-size: 13px;
   line-height: 1;
   padding: 0;
   cursor: pointer;
 }
-.search-clear:hover { background: rgba(15, 23, 42, 0.14); color: var(--text); }
+.search-clear:hover { background: rgba(17, 24, 39, 0.14); color: var(--text); }
 
 .stats {
   display: flex;
@@ -921,7 +940,7 @@ html, body {
   width: auto;
   height: 36px;
   box-sizing: border-box;
-  border: 1px solid rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(17, 24, 39, 0.06);
   border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(8px);
@@ -947,14 +966,14 @@ html, body {
 
 button.stat-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 8px 28px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 8px 28px rgba(17, 24, 39, 0.12);
 }
 
 button.stat-card:hover::before { opacity: 1; }
 
 .stat-card.active {
-  border-color: rgba(59, 130, 246, 0.3);
-  box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15), 0 8px 24px rgba(15, 23, 42, 0.1);
+  border-color: rgba(58, 91, 160, 0.3);
+  box-shadow: 0 0 0 2px rgba(58, 91, 160, 0.15), 0 8px 24px rgba(17, 24, 39, 0.1);
 }
 
 .stat-card.active::before { opacity: 1; }
@@ -1004,7 +1023,7 @@ button.stat-card:hover::before { opacity: 1; }
 }
 
 .stat-card-caret:hover {
-  background: rgba(15, 23, 42, 0.06);
+  background: rgba(17, 24, 39, 0.06);
   color: var(--text);
 }
 
@@ -1015,7 +1034,7 @@ button.stat-card:hover::before { opacity: 1; }
   min-width: 160px;
   background: rgba(255, 255, 255, 0.98);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(17, 24, 39, 0.08);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   z-index: 40;
@@ -1048,11 +1067,11 @@ button.stat-card:hover::before { opacity: 1; }
 .stat-card-dropdown button strong { color: inherit; font-size: 12px; font-weight: 700; }
 
 .stat-card-dropdown button:hover {
-  background: rgba(15, 23, 42, 0.05);
+  background: rgba(17, 24, 39, 0.05);
 }
 
 .stat-card-dropdown button.active {
-  background: rgba(59, 130, 246, 0.1);
+  background: rgba(58, 91, 160, 0.1);
   font-weight: 700;
 }
 
@@ -1097,7 +1116,7 @@ button.stat-card:hover::before { opacity: 1; }
   min-width: 0;
   overflow: visible;
   padding: 3px;
-  background: rgba(15, 23, 42, 0.03);
+  background: rgba(17, 24, 39, 0.03);
   border-radius: 12px;
 }
 
@@ -1124,7 +1143,7 @@ button.stat-card:hover::before { opacity: 1; }
 }
 
 .list-nav.horizontal .nav-item:hover {
-  background: rgba(15, 23, 42, 0.04);
+  background: rgba(17, 24, 39, 0.04);
   color: var(--text);
   transform: none;
 }
@@ -1133,7 +1152,7 @@ button.stat-card:hover::before { opacity: 1; }
   background: #ffffff;
   color: var(--text);
   font-weight: 700;
-  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 2px 8px rgba(17, 24, 39, 0.08);
 }
 
 .list-attendance {
@@ -1144,7 +1163,7 @@ button.stat-card:hover::before { opacity: 1; }
   font-weight: 700;
   letter-spacing: 0.1px;
   white-space: nowrap;
-  background: rgba(59, 130, 246, 0.12);
+  background: rgba(58, 91, 160, 0.12);
   color: var(--accent-strong);
 }
 
@@ -1157,7 +1176,7 @@ button.stat-card:hover::before { opacity: 1; }
   min-width: 18px;
   padding: 1px 6px;
   border-radius: 999px;
-  background: rgba(15, 23, 42, 0.06);
+  background: rgba(17, 24, 39, 0.06);
   color: var(--text-muted);
   font-size: 11px;
   font-weight: 600;
@@ -1167,7 +1186,7 @@ button.stat-card:hover::before { opacity: 1; }
   flex: 0 0 auto;
   padding: 6px 14px;
   border-radius: 10px;
-  border: 1.5px dashed rgba(15, 23, 42, 0.12);
+  border: 1.5px dashed rgba(17, 24, 39, 0.12);
   background: transparent;
   color: var(--text-muted);
   font-weight: 600;
@@ -1177,9 +1196,9 @@ button.stat-card:hover::before { opacity: 1; }
 }
 
 .tab-add:hover {
-  background: rgba(59, 130, 246, 0.06);
+  background: rgba(58, 91, 160, 0.06);
   color: var(--accent);
-  border-color: rgba(59, 130, 246, 0.3);
+  border-color: rgba(58, 91, 160, 0.3);
 }
 
 .view-menu {
@@ -1194,13 +1213,13 @@ button.stat-card:hover::before { opacity: 1; }
   height: 36px;
   padding: 0;
   border-radius: 6px;
-  background: rgba(37, 99, 235, 0.1);
-  border: 1px solid rgba(37, 99, 235, 0.24);
+  background: rgba(31, 70, 144, 0.1);
+  border: 1px solid rgba(31, 70, 144, 0.24);
   color: var(--text);
   font-weight: 600;
 }
 
-.view-menu-btn:hover { background: rgba(37, 99, 235, 0.16); }
+.view-menu-btn:hover { background: rgba(31, 70, 144, 0.16); }
 .view-menu-btn svg { flex: 0 0 auto; }
 .view-menu-btn svg[fill="none"] { stroke: var(--accent); }
 .view-menu-btn svg:not([fill="none"]) { fill: var(--accent); }
@@ -1239,7 +1258,7 @@ button.stat-card:hover::before { opacity: 1; }
 
 .view-dropdown button:hover,
 .view-option.active {
-  background: rgba(37, 99, 235, 0.09);
+  background: rgba(31, 70, 144, 0.09);
 }
 
 .view-option.active {
@@ -1264,10 +1283,10 @@ button.stat-card:hover::before { opacity: 1; }
 .list-column {
   background: rgba(255, 255, 255, 0.85);
   backdrop-filter: blur(8px);
-  border: 1px solid rgba(15, 23, 42, 0.06);
+  border: 1px solid rgba(17, 24, 39, 0.06);
   border-top: 3px solid var(--list-accent, var(--accent-strong));
-  border-radius: var(--radius-md);
-  box-shadow: 0 4px 20px rgba(15, 23, 42, 0.06);
+  border-radius: var(--radius-lg);
+  box-shadow: 0 4px 20px rgba(17, 24, 39, 0.06);
   animation: riseIn 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
   max-height: none;
   height: auto;
@@ -1277,7 +1296,7 @@ button.stat-card:hover::before { opacity: 1; }
 }
 
 .list-column:hover {
-  box-shadow: 0 8px 30px rgba(15, 23, 42, 0.1);
+  box-shadow: 0 8px 30px rgba(17, 24, 39, 0.1);
 }
 
 .task-row {
@@ -1351,7 +1370,7 @@ button.stat-card:hover::before { opacity: 1; }
 }
 
 .task-table tbody tr:nth-child(even) { background: rgba(100, 116, 139, 0.035); }
-.task-table tbody tr:hover { background: rgba(37, 99, 235, 0.06); }
+.task-table tbody tr:hover { background: rgba(31, 70, 144, 0.06); }
 .task-table tr.done { color: var(--text-muted); }
 .task-table tr.done .task-check {
   background: var(--done);
@@ -1380,7 +1399,7 @@ button.stat-card:hover::before { opacity: 1; }
 .due-pill {
   border: 1px solid var(--border);
   border-radius: 999px;
-  background: rgba(15, 23, 42, 0.04);
+  background: rgba(17, 24, 39, 0.04);
   color: var(--text);
   padding: 4px 9px;
   font-size: 12px;
@@ -1417,7 +1436,7 @@ button.stat-card:hover::before { opacity: 1; }
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.92);
   padding: 14px;
-  box-shadow: 0 12px 26px rgba(15, 23, 42, 0.1);
+  box-shadow: 0 12px 26px rgba(17, 24, 39, 0.1);
   animation: riseIn 260ms ease both;
   transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
 }
@@ -1455,7 +1474,7 @@ button.stat-card:hover::before { opacity: 1; }
 }
 
 .empty-state {
-  border: 1.5px dashed rgba(15, 23, 42, 0.1);
+  border: 1.5px dashed rgba(17, 24, 39, 0.1);
   border-radius: var(--radius-md);
   padding: 32px;
   color: var(--text-muted);
@@ -1578,8 +1597,9 @@ button.stat-card:hover::before { opacity: 1; }
 .calendar-cell.outside .calendar-day-num { opacity: 0.5; }
 
 .calendar-cell.today {
-  border-color: var(--accent);
-  box-shadow: 0 0 0 1px var(--accent) inset;
+  border-color: var(--accent-orange);
+  background: var(--accent-orange-tint);
+  box-shadow: 0 0 0 1px var(--accent-orange) inset;
 }
 
 .calendar-day-num {
@@ -1589,7 +1609,7 @@ button.stat-card:hover::before { opacity: 1; }
 }
 
 .calendar-cell.today .calendar-day-num {
-  color: var(--accent-strong);
+  color: #6B3F00;
 }
 
 .calendar-pill {
@@ -1613,7 +1633,7 @@ button.stat-card:hover::before { opacity: 1; }
 
 .calendar-pill:hover {
   transform: translateY(-1px);
-  box-shadow: 0 2px 6px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 2px 6px rgba(17, 24, 39, 0.12);
 }
 
 .calendar-pill.priority-low { border-left-color: var(--low); background: rgba(96, 165, 250, 0.14); }
@@ -1678,7 +1698,7 @@ button.stat-card:hover::before { opacity: 1; }
   gap: 4px;
   flex: 0 0 auto;
   overflow-x: auto;
-  background: rgba(15, 23, 42, 0.04);
+  background: rgba(17, 24, 39, 0.04);
   padding: 4px;
   border-radius: 12px;
   border: 1px solid var(--border);
@@ -1710,7 +1730,7 @@ button.stat-card:hover::before { opacity: 1; }
 }
 
 .employee-item:hover {
-  background: rgba(15, 23, 42, 0.04);
+  background: rgba(17, 24, 39, 0.04);
   color: var(--text);
 }
 
@@ -1718,7 +1738,7 @@ button.stat-card:hover::before { opacity: 1; }
   background: #ffffff;
   color: var(--accent-strong);
   font-weight: 700;
-  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.08), 0 1px 2px rgba(15, 23, 42, 0.02);
+  box-shadow: 0 4px 12px rgba(17, 24, 39, 0.08), 0 1px 2px rgba(17, 24, 39, 0.02);
 }
 
 .employee-item span {
@@ -1763,7 +1783,7 @@ button.stat-card:hover::before { opacity: 1; }
   max-height: 300px;
   overflow-y: auto;
   padding: 12px;
-  background: rgba(15, 23, 42, 0.035);
+  background: rgba(17, 24, 39, 0.035);
   border-radius: 16px;
 }
 
@@ -1788,7 +1808,7 @@ button.stat-card:hover::before { opacity: 1; }
   line-height: 1;
   flex: 0 0 auto;
   background: #fff;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 1px 3px rgba(17, 24, 39, 0.12);
 }
 
 .activity-info {
@@ -1797,7 +1817,7 @@ button.stat-card:hover::before { opacity: 1; }
   border-radius: 14px;
   border-top-left-radius: 4px;
   padding: 7px 12px;
-  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
+  box-shadow: 0 1px 3px rgba(17, 24, 39, 0.08);
 }
 
 .activity-main {
@@ -1820,10 +1840,10 @@ button.stat-card:hover::before { opacity: 1; }
 }
 
 .section-header.secondary {
-  background: rgba(15, 23, 42, 0.03);
+  background: rgba(17, 24, 39, 0.03);
   padding: 12px 16px;
   border-radius: var(--radius-md);
-  border: 1px solid rgba(15, 23, 42, 0.05);
+  border: 1px solid rgba(17, 24, 39, 0.05);
 }
 
 .section-header h2 {
@@ -1881,7 +1901,7 @@ button.stat-card:hover::before { opacity: 1; }
 
 .project-list-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 12px 36px rgba(15, 23, 42, 0.12);
+  box-shadow: 0 12px 36px rgba(17, 24, 39, 0.12);
 }
 
 .project-list-card .list-header {
@@ -1919,14 +1939,14 @@ button.stat-card:hover::before { opacity: 1; }
   font-weight: 600;
   padding: 2px 8px;
   border-radius: 999px;
-  background: rgba(15, 23, 42, 0.06);
+  background: rgba(17, 24, 39, 0.06);
   color: var(--text-muted);
 }
 
 .project-chip.priority-low { background: rgba(90, 156, 247, 0.14); color: var(--low); }
 .project-chip.priority-medium { background: rgba(245, 166, 35, 0.16); color: var(--medium); }
 .project-chip.priority-high { background: rgba(224, 72, 88, 0.14); color: var(--high); }
-.project-chip.project-status-chip { background: rgba(59, 130, 246, 0.1); color: var(--accent-strong); }
+.project-chip.project-status-chip { background: rgba(58, 91, 160, 0.1); color: var(--accent-strong); }
 .project-chip.category-chip { background: rgba(139, 140, 246, 0.14); color: #6f5fd8; }
 
 .project-row.done .task-text { color: var(--text-muted); text-decoration: line-through; }
@@ -1940,7 +1960,7 @@ button.stat-card:hover::before { opacity: 1; }
   animation: modalPanelIn 140ms var(--ease) both;
 }
 .combo-suggestions div { transition: background 100ms ease; }
-.combo-suggestions div:hover { background: rgba(59, 130, 246, 0.08); }
+.combo-suggestions div:hover { background: rgba(58, 91, 160, 0.08); }
 
 .project-list-card.done .list-name {
   color: var(--text-muted);
@@ -1961,7 +1981,7 @@ button.stat-card:hover::before { opacity: 1; }
 .project-completed-wrap {
   flex-basis: 100%;
   width: 100%;
-  border-top: 1px dashed rgba(15, 23, 42, 0.1);
+  border-top: 1px dashed rgba(17, 24, 39, 0.1);
   padding-top: 12px;
   margin-top: 4px;
 }
@@ -1978,7 +1998,7 @@ button.stat-card:hover::before { opacity: 1; }
   padding: 8px 14px;
   border-radius: 999px;
   border: 1px solid var(--border);
-  background: rgba(15, 23, 42, 0.04);
+  background: rgba(17, 24, 39, 0.04);
   color: var(--text-muted);
   font-weight: 500;
   cursor: pointer;
@@ -1986,13 +2006,13 @@ button.stat-card:hover::before { opacity: 1; }
 }
 
 .employee-pill:hover {
-  background: rgba(15, 23, 42, 0.08);
+  background: rgba(17, 24, 39, 0.08);
   color: var(--text);
 }
 
 .employee-pill.active {
-  background: rgba(37, 99, 235, 0.16);
-  border-color: rgba(37, 99, 235, 0.5);
+  background: rgba(31, 70, 144, 0.16);
+  border-color: rgba(31, 70, 144, 0.5);
   color: var(--text);
   font-weight: 700;
 }
@@ -2003,7 +2023,7 @@ button.stat-card:hover::before { opacity: 1; }
   padding: 3px;
   border: 1px solid var(--border);
   border-radius: 8px;
-  background: rgba(15, 23, 42, 0.04);
+  background: rgba(17, 24, 39, 0.04);
   flex: 0 0 auto;
 }
 
@@ -2023,7 +2043,7 @@ button.stat-card:hover::before { opacity: 1; }
 .regular-view-switch button svg { fill: currentColor; }
 
 .regular-view-switch button:hover {
-  background: rgba(15, 23, 42, 0.07);
+  background: rgba(17, 24, 39, 0.07);
   color: var(--text);
 }
 
@@ -2044,7 +2064,7 @@ button.stat-card:hover::before { opacity: 1; }
   font-size: 12px;
   padding: 8px 10px;
   border-radius: 8px;
-  background: rgba(15, 23, 42, 0.06);
+  background: rgba(17, 24, 39, 0.06);
 }
 
 .regular-grid-panel {
@@ -2089,7 +2109,7 @@ button.stat-card:hover::before { opacity: 1; }
   position: sticky;
   top: 0;
   z-index: 3;
-  background: #2563EB;
+  background: #1F4690;
   color: #fff;
   font-weight: 700;
   cursor: move;
@@ -2158,19 +2178,21 @@ button.stat-card:hover::before { opacity: 1; }
 
 .regular-grid th.weekend,
 .regular-grid td.weekend {
-  background: #1D4ED8;
+  background: var(--secondary);
   color: #fff;
 }
 
+/* "Today" is the one cell in this grid worth calling out, so it gets the
+   brand's reserved-for-important-things orange instead of another blue. */
 .regular-grid th.today-col,
 .regular-grid td.today-col {
-  background: #93C5FD;
-  color: #0F172A;
+  background: var(--accent-orange-tint);
+  color: #6B3F00;
 }
 
 .regular-grid th.today-col span,
 .regular-grid th.today-col small {
-  color: #0F172A;
+  color: #6B3F00;
 }
 
 .attendance-grid {
@@ -2213,7 +2235,7 @@ button.stat-card:hover::before { opacity: 1; }
   position: sticky;
   left: 0;
   z-index: 2;
-  background: #2563EB !important;
+  background: #1F4690 !important;
   color: #fff;
   font-weight: 800;
   letter-spacing: 0.2px;
@@ -2382,7 +2404,7 @@ button.stat-card:hover::before { opacity: 1; }
   border: 1px solid var(--border);
   border-radius: 16px;
   background: #ffffff;
-  box-shadow: 0 10px 30px -5px rgba(15, 23, 42, 0.05), 0 1px 3px rgba(15, 23, 42, 0.02);
+  box-shadow: 0 10px 30px -5px rgba(17, 24, 39, 0.05), 0 1px 3px rgba(17, 24, 39, 0.02);
   padding: 20px;
   animation: riseIn 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
   transition: transform 200ms ease, box-shadow 200ms ease;
@@ -2396,13 +2418,13 @@ button.stat-card:hover::before { opacity: 1; }
 
 .chart-card:hover {
   transform: translateY(-2px);
-  box-shadow: 0 20px 40px -10px rgba(15, 23, 42, 0.1), 0 1px 4px rgba(15, 23, 42, 0.03);
+  box-shadow: 0 20px 40px -10px rgba(17, 24, 39, 0.1), 0 1px 4px rgba(17, 24, 39, 0.03);
 }
 
 .chart-card.dragging {
   opacity: 0.5;
   transform: scale(1.02);
-  box-shadow: 0 25px 50px -12px rgba(15, 23, 42, 0.25);
+  box-shadow: 0 25px 50px -12px rgba(17, 24, 39, 0.25);
 }
 
 .chart-card-head {
@@ -2455,7 +2477,7 @@ button.stat-card:hover::before { opacity: 1; }
   display: block;
   height: 12px;
   border-radius: 999px;
-  background: rgba(15, 23, 42, 0.05);
+  background: rgba(17, 24, 39, 0.05);
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.08);
   overflow: hidden;
   position: relative;
@@ -2466,7 +2488,7 @@ button.stat-card:hover::before { opacity: 1; }
   height: 100%;
   border-radius: 999px;
   background: linear-gradient(90deg, var(--accent), #578ffd);
-  box-shadow: 0 1px 2px rgba(37, 99, 235, 0.2);
+  box-shadow: 0 1px 2px rgba(31, 70, 144, 0.2);
   transition: width 500ms cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
   overflow: hidden;
@@ -2524,7 +2546,7 @@ button.stat-card:hover::before { opacity: 1; }
   gap: 8px;
   color: var(--text);
   font-size: 12px;
-  background: rgba(15, 23, 42, 0.03);
+  background: rgba(17, 24, 39, 0.03);
   padding: 6px 12px;
   border-radius: 8px;
   border: 1px solid var(--border);
@@ -2702,13 +2724,13 @@ button.stat-card:hover::before { opacity: 1; }
   font-size: 10px;
   letter-spacing: 0.2px;
   display: inline-block;
-  background: rgba(59, 130, 246, 0.1);
+  background: rgba(58, 91, 160, 0.1);
   color: var(--accent-strong);
   user-select: none;
   cursor: pointer;
   transition: transform 120ms ease, box-shadow 120ms ease;
 }
-.task-status:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12); }
+.task-status:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(17, 24, 39, 0.12); }
 
 .task-status.status-pending { background: rgba(148, 163, 184, 0.18); color: #64748b; }
 .task-status.status-in-progress { background: rgba(245, 166, 35, 0.16); color: var(--medium); }
@@ -2718,12 +2740,12 @@ button.stat-card:hover::before { opacity: 1; }
 .project-chip.project-status-chip.status-in-progress { background: rgba(245, 166, 35, 0.16); color: var(--medium); }
 .project-chip.project-status-chip.status-done { background: rgba(52, 211, 153, 0.16); color: #16a34a; }
 .project-chip.project-status-chip { cursor: pointer; transition: transform 120ms ease, box-shadow 120ms ease; }
-.project-chip.project-status-chip:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(15, 23, 42, 0.12); }
+.project-chip.project-status-chip:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(17, 24, 39, 0.12); }
 
 .status-dropdown-popup {
   background: rgba(255, 255, 255, 0.98);
   backdrop-filter: blur(12px);
-  border: 1px solid rgba(15, 23, 42, 0.08);
+  border: 1px solid rgba(17, 24, 39, 0.08);
   border-radius: var(--radius-md);
   box-shadow: var(--shadow-lg);
   padding: 6px;
@@ -2755,7 +2777,7 @@ button.stat-card:hover::before { opacity: 1; }
 
 .tab-add.has-archived {
   border-style: solid;
-  border-color: rgba(59, 130, 246, 0.35);
+  border-color: rgba(58, 91, 160, 0.35);
   color: var(--accent-strong);
   font-weight: 700;
 }
@@ -2784,7 +2806,7 @@ button.stat-card:hover::before { opacity: 1; }
 }
 
 .archived-row:hover {
-  background: rgba(15, 23, 42, 0.04);
+  background: rgba(17, 24, 39, 0.04);
 }
 
 .archived-info {
@@ -2812,15 +2834,15 @@ button.stat-card:hover::before { opacity: 1; }
   flex: 0 0 auto;
   padding: 5px 12px;
   border-radius: 999px;
-  border: 1px solid rgba(59, 130, 246, 0.35);
-  background: rgba(59, 130, 246, 0.08);
+  border: 1px solid rgba(58, 91, 160, 0.35);
+  background: rgba(58, 91, 160, 0.08);
   color: var(--accent-strong);
   font-size: 12px;
   font-weight: 700;
 }
 
 .archived-restore:hover {
-  background: rgba(59, 130, 246, 0.16);
+  background: rgba(58, 91, 160, 0.16);
 }
 
 /* Custom scrollbars */
@@ -2834,12 +2856,12 @@ button.stat-card:hover::before { opacity: 1; }
 }
 
 ::-webkit-scrollbar-thumb {
-  background: rgba(15, 23, 42, 0.12);
+  background: rgba(17, 24, 39, 0.12);
   border-radius: 999px;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(15, 23, 42, 0.22);
+  background: rgba(17, 24, 39, 0.22);
 }
 
 /* scrollbar-gutter: stable is intentionally NOT set globally here — applying
@@ -2850,6 +2872,18 @@ button.stat-card:hover::before { opacity: 1; }
    below, only on the containers that actually scroll and were flickering. */
 * {
   scrollbar-width: thin;
-  scrollbar-color: rgba(15, 23, 42, 0.12) transparent;
+  scrollbar-color: rgba(17, 24, 39, 0.12) transparent;
+}
+
+/* ==========================================================================
+   Micro-interactions — a tasteful press-down on every clickable control.
+   Placed last so its specificity-tied :active rule wins over the many
+   :hover transforms declared earlier (translateY/scale on hover), giving
+   a real press feel instead of the hover animation just holding steady.
+   (The toast's own slide/fade lives with its other rules, up near #toast.)
+   ========================================================================== */
+button:not(:disabled):active,
+.task-progress-btn:active {
+  transform: scale(0.96);
 }
 
