@@ -25,15 +25,18 @@
   --accent-soft: #6C8BC4;
   --accent-tint: #E4EAF6;
 
-  /* Status colors (semantic, not brand colors — priority/danger/success
-     stay legible and distinct from the navy/orange brand system) */
-  --accent-warm: #f5a623;
-  --danger: #e04858;
-  --danger-strong: #dc2626;
-  --success: #16a34a;
+  /* Status colors — no red/green/purple/teal here on purpose. Every
+     "semantic" color in this app (priority, overdue, done) is built from
+     the same navy/orange/black system as everything else: orange reads
+     as "needs attention" (medium → strong orange as urgency rises),
+     black reads as "serious/destructive", navy reads as "settled/done". */
+  --accent-warm: var(--accent-orange);
+  --danger: var(--accent-orange-strong);
+  --danger-strong: #111827;
+  --success: var(--primary);
   --low: var(--accent-soft);
-  --medium: #f5a623;
-  --high: #e04858;
+  --medium: var(--accent-orange);
+  --high: var(--accent-orange-strong);
   --done: #94A3B8;
 
   /* Elevation */
@@ -212,7 +215,7 @@ button {
   box-shadow: 0 4px 14px rgba(31, 70, 144, 0.25);
 }
 .btn-primary:hover {
-  background: linear-gradient(135deg, var(--accent-strong), #5a9cf7);
+  background: linear-gradient(135deg, var(--accent-strong), #6C8BC4);
   color: #fff;
   box-shadow: 0 6px 20px rgba(31, 70, 144, 0.35);
   transform: translateY(-1px);
@@ -255,12 +258,12 @@ button {
 
 .exit-btn {
   color: var(--danger);
-  background: rgba(224, 72, 88, 0.06);
-  border-color: rgba(224, 72, 88, 0.22);
+  background: rgba(230, 138, 0, 0.06);
+  border-color: rgba(230, 138, 0, 0.22);
 }
 .exit-btn:hover {
-  background: rgba(224, 72, 88, 0.13);
-  border-color: rgba(224, 72, 88, 0.4);
+  background: rgba(230, 138, 0, 0.13);
+  border-color: rgba(230, 138, 0, 0.4);
 }
 
 .board {
@@ -508,10 +511,10 @@ button {
 }
 .task-progress-bar.fill-75 {
   background:
-    linear-gradient(to top, #34d399 0%, #34d399 72%, rgba(255, 255, 255, 0.65) 72%, rgba(255, 255, 255, 0.65) 75%, transparent 75%),
+    linear-gradient(to top, #1F4690 0%, #1F4690 72%, rgba(255, 255, 255, 0.65) 72%, rgba(255, 255, 255, 0.65) 75%, transparent 75%),
     #eef1f6;
 }
-.task-progress-bar.fill-100 { background: #16a34a; }
+.task-progress-bar.fill-100 { background: #1F4690; }
 
 .task-progress-btn {
   position: relative;
@@ -528,15 +531,15 @@ button {
 }
 .task-progress-btn:hover { background: rgba(58, 91, 160, 0.16); }
 
-.task-row.progress-25 { background: rgba(245, 166, 35, 0.08); border-left-color: var(--medium); }
-.task-row.progress-50 { background: rgba(58, 91, 160, 0.07); border-left-color: var(--accent); }
-.task-row.progress-75 { background: rgba(52, 211, 153, 0.12); border-left-color: #34d399; }
-.task-row.overdue-bar { background: rgba(224, 72, 88, 0.16); border-left-color: var(--danger); }
+.task-row.progress-25 { border-left-color: var(--medium); }
+.task-row.progress-50 { border-left-color: var(--accent); }
+.task-row.progress-75 { border-left-color: #1F4690; }
+.task-row.overdue-bar { border-left-color: var(--danger); }
 
-.project-list-card.progress-25 { background: rgba(245, 166, 35, 0.06); border-color: var(--medium); }
-.project-list-card.progress-50 { background: rgba(58, 91, 160, 0.06); border-color: var(--accent); }
-.project-list-card.progress-75 { background: rgba(52, 211, 153, 0.1); border-color: #34d399; }
-.project-list-card.overdue-bar { background: rgba(224, 72, 88, 0.14); border-color: var(--danger); }
+.project-list-card.progress-25 { border-color: var(--medium); }
+.project-list-card.progress-50 { border-color: var(--accent); }
+.project-list-card.progress-75 { border-color: #1F4690; }
+.project-list-card.overdue-bar { border-color: var(--danger); }
 
 .task-body { flex: 1; min-width: 0; }
 .task-title-row { display: flex; align-items: flex-start; gap: 6px; }
@@ -551,9 +554,9 @@ button {
   background: transparent;
   transition: all 140ms ease;
 }
-.task-priority.low { background: var(--low); border-color: var(--low); box-shadow: 0 0 0 3px rgba(90, 156, 247, 0.15); }
-.task-priority.medium { background: var(--medium); border-color: var(--medium); box-shadow: 0 0 0 3px rgba(245, 166, 35, 0.15); }
-.task-priority.high { background: var(--high); border-color: var(--high); box-shadow: 0 0 0 3px rgba(224, 72, 88, 0.15); }
+.task-priority.low { background: var(--low); border-color: var(--low); box-shadow: 0 0 0 3px rgba(108, 139, 196, 0.15); }
+.task-priority.medium { background: var(--medium); border-color: var(--medium); box-shadow: 0 0 0 3px rgba(255, 165, 0, 0.15); }
+.task-priority.high { background: var(--high); border-color: var(--high); box-shadow: 0 0 0 3px rgba(230, 138, 0, 0.15); }
 
 .task-text {
   flex: 1;
@@ -600,8 +603,8 @@ button {
   transition: all 120ms ease;
 }
 .task-due:hover { background: rgba(17, 24, 39, 0.05); }
-.task-due.overdue { color: var(--danger); font-weight: 600; background: rgba(224, 72, 88, 0.06); }
-.task-due.due-today { color: var(--medium); font-weight: 600; background: rgba(245, 166, 35, 0.08); }
+.task-due.overdue { color: var(--danger); font-weight: 600; background: rgba(230, 138, 0, 0.06); }
+.task-due.due-today { color: var(--medium); font-weight: 600; background: rgba(255, 165, 0, 0.08); }
 .task-due:empty::before { content: "+ due date"; opacity: 0.5; }
 
 .project-subtask-list {
@@ -654,8 +657,8 @@ button {
   transition: all 140ms ease;
 }
 .project-subtask-priority.low { background: var(--low); border-color: var(--low); box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.15); }
-.project-subtask-priority.medium { background: var(--medium); border-color: var(--medium); box-shadow: 0 0 0 3px rgba(245, 166, 35, 0.15); }
-.project-subtask-priority.high { background: var(--high); border-color: var(--high); box-shadow: 0 0 0 3px rgba(224, 72, 88, 0.15); }
+.project-subtask-priority.medium { background: var(--medium); border-color: var(--medium); box-shadow: 0 0 0 3px rgba(255, 165, 0, 0.15); }
+.project-subtask-priority.high { background: var(--high); border-color: var(--high); box-shadow: 0 0 0 3px rgba(230, 138, 0, 0.15); }
 
 .project-subtask-body {
   flex: 1;
@@ -699,7 +702,7 @@ button {
   font-size: 14px;
   line-height: 1;
 }
-.project-subtask-delete:hover { background: rgba(224, 72, 88, 0.12); color: var(--danger); }
+.project-subtask-delete:hover { background: rgba(230, 138, 0, 0.12); color: var(--danger); }
 
 .completed-wrap {
   margin-top: 10px;
@@ -853,13 +856,13 @@ html, body {
 
 .nav-dot.overdue {
   background: var(--danger);
-  box-shadow: 0 0 0 4px rgba(224, 69, 79, 0.16);
+  box-shadow: 0 0 0 4px rgba(230, 138, 0, 0.16);
   animation: pulseDot 1.8s ease-in-out infinite;
 }
 
 @keyframes pulseDot {
-  0%, 100% { box-shadow: 0 0 0 4px rgba(224, 69, 79, 0.16); }
-  50% { box-shadow: 0 0 0 7px rgba(224, 69, 79, 0.28); }
+  0%, 100% { box-shadow: 0 0 0 4px rgba(230, 138, 0, 0.16); }
+  50% { box-shadow: 0 0 0 7px rgba(230, 138, 0, 0.28); }
 }
 
 .nav-label {
@@ -979,7 +982,7 @@ html, body {
   left: 0;
   right: 0;
   height: 3px;
-  background: linear-gradient(90deg, var(--accent), #7eb3ff);
+  background: linear-gradient(90deg, var(--accent), #6C8BC4);
   opacity: 0;
   transition: opacity 200ms ease;
 }
@@ -1188,8 +1191,8 @@ button.stat-card:hover::before { opacity: 1; }
 }
 
 .list-attendance.done {
-  background: rgba(52, 211, 153, 0.16);
-  color: #16a34a;
+  background: rgba(31, 70, 144, 0.16);
+  color: #1F4690;
 }
 
 .list-nav.horizontal .nav-badge {
@@ -1301,22 +1304,22 @@ button.stat-card:hover::before { opacity: 1; }
 }
 
 .list-column {
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(8px);
-  border: 1px solid rgba(17, 24, 39, 0.06);
-  border-top: 3px solid var(--list-accent, var(--accent-strong));
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-left: 3px solid var(--list-accent, var(--accent-strong));
   border-radius: var(--radius-lg);
-  box-shadow: 0 4px 20px rgba(17, 24, 39, 0.06);
+  box-shadow: var(--shadow-sm);
   animation: riseIn 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
   max-height: none;
   height: auto;
-  transition: box-shadow 200ms ease;
+  transition: box-shadow 200ms ease, transform 200ms ease;
   resize: both;
   overflow: hidden;
 }
 
 .list-column:hover {
-  box-shadow: 0 8px 30px rgba(17, 24, 39, 0.1);
+  box-shadow: var(--shadow);
+  transform: translateY(-2px);
 }
 
 .task-row {
@@ -1657,8 +1660,8 @@ button.stat-card:hover::before { opacity: 1; }
 }
 
 .calendar-pill.priority-low { border-left-color: var(--low); background: rgba(96, 165, 250, 0.14); }
-.calendar-pill.priority-medium { border-left-color: var(--medium); background: rgba(245, 166, 35, 0.14); }
-.calendar-pill.priority-high { border-left-color: var(--high); background: rgba(224, 72, 88, 0.14); }
+.calendar-pill.priority-medium { border-left-color: var(--medium); background: rgba(255, 165, 0, 0.14); }
+.calendar-pill.priority-high { border-left-color: var(--high); background: rgba(230, 138, 0, 0.14); }
 .calendar-pill.done { opacity: 0.55; text-decoration: line-through; }
 
 .calendar-more {
@@ -1963,11 +1966,11 @@ button.stat-card:hover::before { opacity: 1; }
   color: var(--text-muted);
 }
 
-.project-chip.priority-low { background: rgba(90, 156, 247, 0.14); color: var(--low); }
-.project-chip.priority-medium { background: rgba(245, 166, 35, 0.16); color: var(--medium); }
-.project-chip.priority-high { background: rgba(224, 72, 88, 0.14); color: var(--high); }
+.project-chip.priority-low { background: rgba(108, 139, 196, 0.16); color: var(--low); }
+.project-chip.priority-medium { background: rgba(255, 165, 0, 0.16); color: var(--medium); }
+.project-chip.priority-high { background: rgba(230, 138, 0, 0.14); color: var(--high); }
 .project-chip.project-status-chip { background: rgba(58, 91, 160, 0.1); color: var(--accent-strong); }
-.project-chip.category-chip { background: rgba(139, 140, 246, 0.14); color: #6f5fd8; }
+.project-chip.category-chip { background: rgba(31, 70, 144, 0.08); color: var(--primary); }
 
 .project-row.done .task-text { color: var(--text-muted); text-decoration: line-through; }
 
@@ -2247,7 +2250,7 @@ button.stat-card:hover::before { opacity: 1; }
 }
 
 .attendance-time.in { color: var(--accent); font-weight: 600; }
-.attendance-time.out { color: #16a34a; font-weight: 600; }
+.attendance-time.out { color: #1F4690; font-weight: 600; }
 .attendance-grid td.weekend .attendance-time.in,
 .attendance-grid td.weekend .attendance-time.out { color: #fff; }
 
@@ -2286,17 +2289,17 @@ button.stat-card:hover::before { opacity: 1; }
 .regular-check {
   width: 12px;
   height: 12px;
-  border: 1.5px solid #2f6fed;
+  border: 1.5px solid var(--secondary);
   border-radius: 3px;
-  background: #e8f0fd;
+  background: var(--accent-tint);
   padding: 0;
   vertical-align: middle;
 }
 
 .regular-check.checked {
-  background: #2f6fed;
-  border-color: #1652c9;
-  box-shadow: inset 0 0 0 1.5px #2f6fed;
+  background: var(--secondary);
+  border-color: var(--primary);
+  box-shadow: inset 0 0 0 1.5px var(--secondary);
 }
 
 .regular-check.checked::after {
@@ -2507,7 +2510,7 @@ button.stat-card:hover::before { opacity: 1; }
   display: block;
   height: 100%;
   border-radius: 999px;
-  background: linear-gradient(90deg, var(--accent), #578ffd);
+  background: linear-gradient(90deg, var(--accent), #6C8BC4);
   box-shadow: 0 1px 2px rgba(31, 70, 144, 0.2);
   transition: width 500ms cubic-bezier(0.4, 0, 0.2, 1);
   position: relative;
@@ -2753,12 +2756,12 @@ button.stat-card:hover::before { opacity: 1; }
 .task-status:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(17, 24, 39, 0.12); }
 
 .task-status.status-pending { background: rgba(148, 163, 184, 0.18); color: #64748b; }
-.task-status.status-in-progress { background: rgba(245, 166, 35, 0.16); color: var(--medium); }
-.task-status.status-done { background: rgba(52, 211, 153, 0.16); color: #16a34a; }
+.task-status.status-in-progress { background: rgba(255, 165, 0, 0.16); color: var(--medium); }
+.task-status.status-done { background: rgba(31, 70, 144, 0.16); color: #1F4690; }
 
 .project-chip.project-status-chip.status-pending { background: rgba(148, 163, 184, 0.18); color: #64748b; }
-.project-chip.project-status-chip.status-in-progress { background: rgba(245, 166, 35, 0.16); color: var(--medium); }
-.project-chip.project-status-chip.status-done { background: rgba(52, 211, 153, 0.16); color: #16a34a; }
+.project-chip.project-status-chip.status-in-progress { background: rgba(255, 165, 0, 0.16); color: var(--medium); }
+.project-chip.project-status-chip.status-done { background: rgba(31, 70, 144, 0.16); color: #1F4690; }
 .project-chip.project-status-chip { cursor: pointer; transition: transform 120ms ease, box-shadow 120ms ease; }
 .project-chip.project-status-chip:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(17, 24, 39, 0.12); }
 

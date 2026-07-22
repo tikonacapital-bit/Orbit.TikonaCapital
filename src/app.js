@@ -71,7 +71,7 @@ function showToast(message, undoFn) {
 }
 
 function fireConfetti() {
-  const colors = ['#1F4690', '#16a34a', '#FFA500', '#e04858', '#34d399', '#a855f7'];
+  const colors = ['#1F4690', '#3A5BA0', '#FFA500', '#E68A00', '#6C8BC4', '#111827'];
   const canvas = document.createElement('canvas');
   canvas.style.cssText = 'position:fixed;inset:0;width:100vw;height:100vh;pointer-events:none;z-index:9999;';
   canvas.width = window.innerWidth;
@@ -183,7 +183,7 @@ function itemDisplayProgress(item) {
   const fieldProgress = PROGRESS_STEPS.includes(item.progress) ? item.progress : 0;
   return Math.max(fieldProgress, statusToProgress(item.status));
 }
-const LIST_COLORS = ['#6fd5c8', '#f0b95a', '#8b8cf6', '#ff7d7d', '#5ac8fa', '#34d399', '#f472b6', '#facc15'];
+const LIST_COLORS = ['#1F4690', '#3A5BA0', '#FFA500', '#0F2A5C', '#E68A00', '#6C8BC4', '#111827', '#C77400'];
 const VIEW_META = {
   board: { label: 'Horizontal', icon: '<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><rect x="1" y="3" width="5" height="14" rx="1.5"/><rect x="7.5" y="3" width="5" height="14" rx="1.5"/><rect x="14" y="3" width="5" height="14" rx="1.5"/></svg>' },
   table: { label: 'Table', icon: '<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><rect x="1" y="2" width="18" height="16" rx="1.5" fill="none" stroke="currentColor" stroke-width="1.6"/><line x1="1" y1="8" x2="19" y2="8" stroke="currentColor" stroke-width="1.6"/><line x1="1" y1="13" x2="19" y2="13" stroke="currentColor" stroke-width="1.6"/></svg>' },
@@ -800,7 +800,7 @@ function openRegularPopup(title, bodyHtml, { confirmLabel = 'Save', danger = fal
     ${bodyHtml}
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px;">
       <button type="button" id="regPopupCancel" style="padding:8px 20px;border:1px solid #ddd;border-radius:6px;background:white;cursor:pointer;font-size:13.5px;font-weight:500;">Cancel</button>
-      <button type="button" id="regPopupConfirm" style="padding:8px 20px;border:none;border-radius:6px;background:${danger ? '#e04858' : '#FFA500'};color:white;cursor:pointer;font-size:13.5px;font-weight:500;">${confirmLabel}</button>
+      <button type="button" id="regPopupConfirm" style="padding:8px 20px;border:none;border-radius:6px;background:${danger ? '#111827' : '#FFA500'};color:white;cursor:pointer;font-size:13.5px;font-weight:500;">${confirmLabel}</button>
     </div>
   `;
   overlay.appendChild(popup);
@@ -933,7 +933,7 @@ function openAttendancePopup() {
   popup.appendChild(signInWrap);
 
   const verifiedBanner = document.createElement('div');
-  verifiedBanner.style.cssText = 'display:none;margin-bottom:12px;padding:8px 10px;border-radius:8px;background:rgba(52,211,153,0.14);color:#16a34a;font-size:12.5px;font-weight:600;';
+  verifiedBanner.style.cssText = 'display:none;margin-bottom:12px;padding:8px 10px;border-radius:8px;background:rgba(31,70,144,0.12);color:#1F4690;font-size:12.5px;font-weight:600;';
   popup.appendChild(verifiedBanner);
 
   const list = document.createElement('div');
@@ -987,7 +987,7 @@ function openAttendancePopup() {
           btn.textContent = 'Check Out';
           btn.disabled = !canAct;
           btn.title = canAct ? '' : 'Sign in with this person’s Google account to check them out';
-          btn.style.cssText = `padding:6px 12px;border:none;border-radius:6px;background:${canAct ? '#e04858' : '#c7ccd6'};color:#fff;font-size:12px;font-weight:600;cursor:${canAct ? 'pointer' : 'not-allowed'};`;
+          btn.style.cssText = `padding:6px 12px;border:none;border-radius:6px;background:${canAct ? '#3A5BA0' : '#c7ccd6'};color:#fff;font-size:12px;font-weight:600;cursor:${canAct ? 'pointer' : 'not-allowed'};`;
           btn.addEventListener('click', async () => {
             if (!canAct) return;
             btn.disabled = true;
@@ -999,7 +999,7 @@ function openAttendancePopup() {
           actionsWrap.appendChild(btn);
         } else {
           const outTime = document.createElement('span');
-          outTime.style.cssText = 'font-size:11.5px;color:#16a34a;font-weight:600;';
+          outTime.style.cssText = 'font-size:11.5px;color:#1F4690;font-weight:600;';
           outTime.textContent = `Out ${fmtTimeOnly(checkout.timestamp)}`;
           actionsWrap.appendChild(outTime);
         }
@@ -1021,8 +1021,8 @@ function openAttendancePopup() {
           signInWrap.innerHTML = '';
           google.accounts.id.renderButton(signInWrap, { theme: 'outline', size: 'medium', width: 240 });
           verifiedBanner.style.display = 'block';
-          verifiedBanner.style.background = 'rgba(224,72,88,0.12)';
-          verifiedBanner.style.color = '#e04858';
+          verifiedBanner.style.background = 'rgba(230,138,0,0.14)';
+          verifiedBanner.style.color = '#E68A00';
           verifiedBanner.textContent = 'Could not verify that Google sign-in. Please try again.';
           return;
         }
@@ -1031,12 +1031,12 @@ function openAttendancePopup() {
         verifiedBanner.style.display = 'block';
         if (match) {
           verifiedEmail = email;
-          verifiedBanner.style.background = 'rgba(52,211,153,0.14)';
-          verifiedBanner.style.color = '#16a34a';
+          verifiedBanner.style.background = 'rgba(31,70,144,0.12)';
+          verifiedBanner.style.color = '#1F4690';
           verifiedBanner.textContent = `Signed in as ${match.name || email} — you can check yourself in/out below.`;
         } else {
-          verifiedBanner.style.background = 'rgba(224,72,88,0.12)';
-          verifiedBanner.style.color = '#e04858';
+          verifiedBanner.style.background = 'rgba(230,138,0,0.14)';
+          verifiedBanner.style.color = '#E68A00';
           verifiedBanner.textContent = `${email} isn’t registered as an employee, so it can’t check in.`;
         }
         renderRows();
@@ -1187,7 +1187,7 @@ function openExitPopup() {
   const exitConfirmBtn = document.createElement('button');
   exitConfirmBtn.type = 'button';
   exitConfirmBtn.textContent = 'Exit Employee';
-  exitConfirmBtn.style.cssText = 'padding:8px 20px;border:none;border-radius:6px;background:#e04858;color:#fff;cursor:pointer;font-size:13.5px;font-weight:600;';
+  exitConfirmBtn.style.cssText = 'padding:8px 20px;border:none;border-radius:6px;background:#111827;color:#fff;cursor:pointer;font-size:13.5px;font-weight:600;';
   exitConfirmBtn.disabled = !employees.length;
   exitConfirmBtn.addEventListener('click', () => {
     const email = select.value;
@@ -2529,13 +2529,13 @@ function openItemPopup(existingItem = null, existingIsProject = false, presetAss
         <label style="${FIELD_LABEL_STYLE}">Priority</label>
         <div style="display: flex; gap: 5px;">
           <button type="button" class="item-priority-btn" data-priority="low" title="Low" style="flex: 1; padding: 7px; border: 2px solid #ddd; border-radius: 6px; background: white; cursor: pointer;">
-            <span style="display: inline-block; width: 10px; height: 10px; background: #5ac8fa; border-radius: 50%;"></span>
+            <span style="display: inline-block; width: 10px; height: 10px; background: #6C8BC4; border-radius: 50%;"></span>
           </button>
           <button type="button" class="item-priority-btn" data-priority="medium" title="Medium" style="flex: 1; padding: 7px; border: 2px solid #ddd; border-radius: 6px; background: white; cursor: pointer;">
-            <span style="display: inline-block; width: 10px; height: 10px; background: #f5a623; border-radius: 50%;"></span>
+            <span style="display: inline-block; width: 10px; height: 10px; background: #FFA500; border-radius: 50%;"></span>
           </button>
           <button type="button" class="item-priority-btn" data-priority="high" title="High" style="flex: 1; padding: 7px; border: 2px solid #ddd; border-radius: 6px; background: white; cursor: pointer;">
-            <span style="display: inline-block; width: 10px; height: 10px; background: #e04858; border-radius: 50%;"></span>
+            <span style="display: inline-block; width: 10px; height: 10px; background: #E68A00; border-radius: 50%;"></span>
           </button>
         </div>
       </div>
@@ -4467,7 +4467,7 @@ function chartStatusBreakdown() {
   return [
     { label: 'Open', value: Math.max(open, 0), color: 'var(--accent)' },
     { label: 'Overdue', value: overdue, color: 'var(--danger)' },
-    { label: 'Done', value: done, color: '#0ca30c' },
+    { label: 'Done', value: done, color: '#1F4690' },
   ];
 }
 
