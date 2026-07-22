@@ -25,18 +25,18 @@
   --accent-soft: #6C8BC4;
   --accent-tint: #E4EAF6;
 
-  /* Status colors — no red/green/purple/teal here on purpose. Every
-     "semantic" color in this app (priority, overdue, done) is built from
-     the same navy/orange/black system as everything else: orange reads
-     as "needs attention" (medium → strong orange as urgency rises),
-     black reads as "serious/destructive", navy reads as "settled/done". */
+  /* Status colors. Red is kept deliberately for high-priority/overdue —
+     it's the one non-brand color the app keeps on purpose, since it's
+     the universal "this needs attention now" signal and nothing in the
+     navy/orange system reads as urgently. Everything else (medium
+     priority, done/settled) stays inside the brand system. */
   --accent-warm: var(--accent-orange);
-  --danger: var(--accent-orange-strong);
-  --danger-strong: #111827;
+  --danger: #E04858;
+  --danger-strong: #DC2626;
   --success: var(--primary);
   --low: var(--accent-soft);
   --medium: var(--accent-orange);
-  --high: var(--accent-orange-strong);
+  --high: #E04858;
   --done: #94A3B8;
 
   /* Elevation */
@@ -145,7 +145,6 @@ button {
   align-items: center;
   justify-content: space-between;
   padding: 8px 24px 8px 14px;
-  border-bottom: 1px solid rgba(17, 24, 39, 0.06);
 }
 
 .brand {
@@ -160,6 +159,11 @@ button {
   flex: 0 0 auto;
   height: 28px;
   width: auto;
+  /* The source logo is a navy wordmark meant for a light background; on
+     the app's navy topbar it reads as nearly invisible navy-on-navy.
+     Force it to render as a clean white mark instead of distorting the
+     real company logo with an arbitrary recolor. */
+  filter: brightness(0) invert(1);
 }
 
 .brand-text {
@@ -170,7 +174,7 @@ button {
 
 .brand-sub {
   font-size: 10.5px;
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.7);
 }
 
 .topbar-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
@@ -183,7 +187,7 @@ button {
   font-weight: 700;
   font-size: 14px;
   letter-spacing: -0.1px;
-  color: var(--accent-strong);
+  color: var(--accent-orange-tint);
   text-align: left;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -208,16 +212,17 @@ button {
 }
 .btn:hover { background: var(--bg-hover); }
 .btn-primary {
-  background: linear-gradient(135deg, var(--accent-strong) 0%, var(--accent) 100%);
+  background: var(--accent-orange);
   border-color: transparent;
-  color: #fff;
-  font-weight: 600;
-  box-shadow: 0 4px 14px rgba(31, 70, 144, 0.25);
+  border-radius: 999px;
+  color: var(--text);
+  font-weight: 700;
+  box-shadow: 0 4px 14px rgba(255, 165, 0, 0.3);
 }
 .btn-primary:hover {
-  background: linear-gradient(135deg, var(--accent-strong), #6C8BC4);
-  color: #fff;
-  box-shadow: 0 6px 20px rgba(31, 70, 144, 0.35);
+  background: var(--accent-orange-strong);
+  color: var(--text);
+  box-shadow: 0 6px 20px rgba(255, 165, 0, 0.4);
   transform: translateY(-1px);
 }
 
@@ -228,29 +233,29 @@ button {
   width: 36px;
   height: 36px;
   padding: 0;
-  border-radius: var(--radius-sm);
-  background: rgba(58, 91, 160, 0.08);
-  border: 1px solid rgba(58, 91, 160, 0.18);
-  color: var(--text);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #fff;
   font-weight: 600;
   transition: all 160ms ease;
 }
 
 .analytics-btn svg { flex: 0 0 auto; }
-.analytics-btn svg[fill="none"] { stroke: var(--accent); }
-.analytics-btn svg:not([fill="none"]) { fill: var(--accent); }
+.analytics-btn svg[fill="none"] { stroke: #fff; }
+.analytics-btn svg:not([fill="none"]) { fill: #fff; }
 
 .analytics-btn:hover {
-  background: rgba(58, 91, 160, 0.14);
-  border-color: rgba(58, 91, 160, 0.3);
+  background: rgba(255, 255, 255, 0.2);
+  border-color: rgba(255, 255, 255, 0.4);
   transform: translateY(-1px);
 }
 
 .analytics-btn.active {
-  background: linear-gradient(135deg, var(--accent-strong), var(--accent));
+  background: var(--accent-orange);
   border-color: transparent;
   color: #fff;
-  box-shadow: 0 4px 14px rgba(31, 70, 144, 0.3);
+  box-shadow: 0 4px 14px rgba(255, 165, 0, 0.4);
 }
 
 .analytics-btn.active svg[fill="none"] { stroke: #fff; }
@@ -258,12 +263,14 @@ button {
 
 .exit-btn {
   color: var(--danger);
-  background: rgba(230, 138, 0, 0.06);
-  border-color: rgba(230, 138, 0, 0.22);
+  background: rgba(224, 72, 88, 0.16);
+  border-color: rgba(224, 72, 88, 0.4);
 }
+.exit-btn svg[fill="none"] { stroke: var(--danger); }
+.exit-btn svg:not([fill="none"]) { fill: var(--danger); }
 .exit-btn:hover {
-  background: rgba(230, 138, 0, 0.13);
-  border-color: rgba(230, 138, 0, 0.4);
+  background: rgba(224, 72, 88, 0.28);
+  border-color: rgba(224, 72, 88, 0.55);
 }
 
 .board {
@@ -556,7 +563,7 @@ button {
 }
 .task-priority.low { background: var(--low); border-color: var(--low); box-shadow: 0 0 0 3px rgba(108, 139, 196, 0.15); }
 .task-priority.medium { background: var(--medium); border-color: var(--medium); box-shadow: 0 0 0 3px rgba(255, 165, 0, 0.15); }
-.task-priority.high { background: var(--high); border-color: var(--high); box-shadow: 0 0 0 3px rgba(230, 138, 0, 0.15); }
+.task-priority.high { background: var(--high); border-color: var(--high); box-shadow: 0 0 0 3px rgba(224, 72, 88, 0.15); }
 
 .task-text {
   flex: 1;
@@ -603,7 +610,7 @@ button {
   transition: all 120ms ease;
 }
 .task-due:hover { background: rgba(17, 24, 39, 0.05); }
-.task-due.overdue { color: var(--danger); font-weight: 600; background: rgba(230, 138, 0, 0.06); }
+.task-due.overdue { color: var(--danger); font-weight: 600; background: rgba(224, 72, 88, 0.06); }
 .task-due.due-today { color: var(--medium); font-weight: 600; background: rgba(255, 165, 0, 0.08); }
 .task-due:empty::before { content: "+ due date"; opacity: 0.5; }
 
@@ -658,7 +665,7 @@ button {
 }
 .project-subtask-priority.low { background: var(--low); border-color: var(--low); box-shadow: 0 0 0 3px rgba(96, 165, 250, 0.15); }
 .project-subtask-priority.medium { background: var(--medium); border-color: var(--medium); box-shadow: 0 0 0 3px rgba(255, 165, 0, 0.15); }
-.project-subtask-priority.high { background: var(--high); border-color: var(--high); box-shadow: 0 0 0 3px rgba(230, 138, 0, 0.15); }
+.project-subtask-priority.high { background: var(--high); border-color: var(--high); box-shadow: 0 0 0 3px rgba(224, 72, 88, 0.15); }
 
 .project-subtask-body {
   flex: 1;
@@ -702,7 +709,7 @@ button {
   font-size: 14px;
   line-height: 1;
 }
-.project-subtask-delete:hover { background: rgba(230, 138, 0, 0.12); color: var(--danger); }
+.project-subtask-delete:hover { background: rgba(224, 72, 88, 0.12); color: var(--danger); }
 
 .completed-wrap {
   margin-top: 10px;
@@ -769,10 +776,11 @@ html, body {
 }
 
 .topbar {
-  background: rgba(255, 255, 255, 0.75);
-  backdrop-filter: blur(20px) saturate(1.6);
-  -webkit-backdrop-filter: blur(20px) saturate(1.6);
-  box-shadow: 0 1px 0 rgba(17, 24, 39, 0.04), 0 4px 24px rgba(17, 24, 39, 0.03);
+  /* Dark chrome, light canvas — matches the company's own site (navy
+     hero sections, white content cards) while keeping the dense
+     workspace below in a light theme for readability during real use. */
+  background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+  box-shadow: 0 4px 20px rgba(17, 24, 39, 0.18);
   position: relative;
   z-index: 10;
 }
@@ -788,10 +796,6 @@ html, body {
   height: calc(100vh - 53px);
   min-height: 0;
   overflow: auto;
-}
-
-.board {
-  animation: fadeIn 200ms ease both;
 }
 
 .sidebar-title {
@@ -856,13 +860,13 @@ html, body {
 
 .nav-dot.overdue {
   background: var(--danger);
-  box-shadow: 0 0 0 4px rgba(230, 138, 0, 0.16);
+  box-shadow: 0 0 0 4px rgba(224, 72, 88, 0.16);
   animation: pulseDot 1.8s ease-in-out infinite;
 }
 
 @keyframes pulseDot {
-  0%, 100% { box-shadow: 0 0 0 4px rgba(230, 138, 0, 0.16); }
-  50% { box-shadow: 0 0 0 7px rgba(230, 138, 0, 0.28); }
+  0%, 100% { box-shadow: 0 0 0 4px rgba(224, 72, 88, 0.16); }
+  50% { box-shadow: 0 0 0 7px rgba(224, 72, 88, 0.28); }
 }
 
 .nav-label {
@@ -908,9 +912,9 @@ html, body {
   flex: 0 1 220px;
   height: 32px;
   padding: 0 10px;
-  border: 1px solid rgba(17, 24, 39, 0.1);
-  border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.85);
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: #ffffff;
   color: var(--text-muted);
   transition: border-color 140ms ease, box-shadow 140ms ease;
   margin: 0 10px;
@@ -963,12 +967,11 @@ html, body {
   width: auto;
   height: 36px;
   box-sizing: border-box;
-  border: 1px solid rgba(17, 24, 39, 0.06);
+  border: 1px solid transparent;
   border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.85);
-  backdrop-filter: blur(8px);
+  background: #ffffff;
   padding: 0 9px;
-  box-shadow: none;
+  box-shadow: 0 1px 3px rgba(17, 24, 39, 0.08);
   text-align: left;
   position: relative;
   overflow: hidden;
@@ -1150,7 +1153,7 @@ button.stat-card:hover::before { opacity: 1; }
   width: auto;
   min-height: 32px;
   padding: 6px 14px;
-  border-radius: 10px;
+  border-radius: 999px;
   border: none;
   background: transparent;
   color: var(--text-muted);
@@ -1208,7 +1211,7 @@ button.stat-card:hover::before { opacity: 1; }
 .tab-add {
   flex: 0 0 auto;
   padding: 6px 14px;
-  border-radius: 10px;
+  border-radius: 999px;
   border: 1.5px dashed rgba(17, 24, 39, 0.12);
   background: transparent;
   color: var(--text-muted);
@@ -1235,17 +1238,18 @@ button.stat-card:hover::before { opacity: 1; }
   width: 36px;
   height: 36px;
   padding: 0;
-  border-radius: 6px;
-  background: rgba(31, 70, 144, 0.1);
-  border: 1px solid rgba(31, 70, 144, 0.24);
-  color: var(--text);
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.22);
+  color: #fff;
   font-weight: 600;
+  transition: all 160ms ease;
 }
 
-.view-menu-btn:hover { background: rgba(31, 70, 144, 0.16); }
+.view-menu-btn:hover { background: rgba(255, 255, 255, 0.2); border-color: rgba(255, 255, 255, 0.4); }
 .view-menu-btn svg { flex: 0 0 auto; }
-.view-menu-btn svg[fill="none"] { stroke: var(--accent); }
-.view-menu-btn svg:not([fill="none"]) { fill: var(--accent); }
+.view-menu-btn svg[fill="none"] { stroke: #fff; }
+.view-menu-btn svg:not([fill="none"]) { fill: #fff; }
 .view-menu-label { text-align: left; white-space: nowrap; }
 
 .view-dropdown {
@@ -1309,7 +1313,6 @@ button.stat-card:hover::before { opacity: 1; }
   border-left: 3px solid var(--list-accent, var(--accent-strong));
   border-radius: var(--radius-lg);
   box-shadow: var(--shadow-sm);
-  animation: riseIn 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
   max-height: none;
   height: auto;
   transition: box-shadow 200ms ease, transform 200ms ease;
@@ -1339,7 +1342,6 @@ button.stat-card:hover::before { opacity: 1; }
 .table-panel,
 .stack-panel {
   width: 100%;
-  animation: fadeIn 180ms ease both;
 }
 
 .table-panel {
@@ -1388,7 +1390,6 @@ button.stat-card:hover::before { opacity: 1; }
 }
 
 .task-table tr {
-  animation: fadeIn 180ms ease both;
   transition: background 140ms ease;
 }
 
@@ -1460,7 +1461,6 @@ button.stat-card:hover::before { opacity: 1; }
   background: rgba(255, 255, 255, 0.92);
   padding: 14px;
   box-shadow: 0 12px 26px rgba(17, 24, 39, 0.1);
-  animation: riseIn 260ms ease both;
   transition: transform 160ms ease, border-color 160ms ease, background 160ms ease;
 }
 
@@ -1521,7 +1521,6 @@ button.stat-card:hover::before { opacity: 1; }
   background: var(--bg-elevated);
   box-shadow: var(--shadow);
   padding: 16px;
-  animation: fadeIn 180ms ease both;
 }
 
 .calendar-mini-panel {
@@ -1661,7 +1660,7 @@ button.stat-card:hover::before { opacity: 1; }
 
 .calendar-pill.priority-low { border-left-color: var(--low); background: rgba(96, 165, 250, 0.14); }
 .calendar-pill.priority-medium { border-left-color: var(--medium); background: rgba(255, 165, 0, 0.14); }
-.calendar-pill.priority-high { border-left-color: var(--high); background: rgba(230, 138, 0, 0.14); }
+.calendar-pill.priority-high { border-left-color: var(--high); background: rgba(224, 72, 88, 0.14); }
 .calendar-pill.done { opacity: 0.55; text-decoration: line-through; }
 
 .calendar-more {
@@ -1968,7 +1967,7 @@ button.stat-card:hover::before { opacity: 1; }
 
 .project-chip.priority-low { background: rgba(108, 139, 196, 0.16); color: var(--low); }
 .project-chip.priority-medium { background: rgba(255, 165, 0, 0.16); color: var(--medium); }
-.project-chip.priority-high { background: rgba(230, 138, 0, 0.14); color: var(--high); }
+.project-chip.priority-high { background: rgba(224, 72, 88, 0.14); color: var(--high); }
 .project-chip.project-status-chip { background: rgba(58, 91, 160, 0.1); color: var(--accent-strong); }
 .project-chip.category-chip { background: rgba(31, 70, 144, 0.08); color: var(--primary); }
 
@@ -2097,7 +2096,6 @@ button.stat-card:hover::before { opacity: 1; }
   border-radius: 8px;
   background: #ffffff;
   box-shadow: var(--shadow);
-  animation: fadeIn 180ms ease both;
   scrollbar-gutter: stable both-edges;
   margin: 0 auto;
   max-width: 1400px;
@@ -2429,7 +2427,6 @@ button.stat-card:hover::before { opacity: 1; }
   background: #ffffff;
   box-shadow: 0 10px 30px -5px rgba(17, 24, 39, 0.05), 0 1px 3px rgba(17, 24, 39, 0.02);
   padding: 20px;
-  animation: riseIn 300ms cubic-bezier(0.16, 1, 0.3, 1) both;
   transition: transform 200ms ease, box-shadow 200ms ease;
   flex: 0 1 380px;
   min-width: 280px;
@@ -2484,7 +2481,6 @@ button.stat-card:hover::before { opacity: 1; }
   grid-template-columns: 96px minmax(0, 1fr) 44px;
   align-items: center;
   gap: 12px;
-  animation: fadeIn 240ms ease both;
   padding: 2px 0;
 }
 
@@ -2546,7 +2542,6 @@ button.stat-card:hover::before { opacity: 1; }
 }
 
 .pie-slice {
-  animation: fadeIn 420ms ease both;
   transition: stroke-width 160ms cubic-bezier(0.4, 0, 0.2, 1);
 }
 

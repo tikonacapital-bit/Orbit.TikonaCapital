@@ -799,8 +799,8 @@ function openRegularPopup(title, bodyHtml, { confirmLabel = 'Save', danger = fal
     <h2 style="margin:0 0 12px 0;font-size:17px;font-weight:600;">${title}</h2>
     ${bodyHtml}
     <div style="display:flex;gap:10px;justify-content:flex-end;margin-top:14px;">
-      <button type="button" id="regPopupCancel" style="padding:8px 20px;border:1px solid #ddd;border-radius:6px;background:white;cursor:pointer;font-size:13.5px;font-weight:500;">Cancel</button>
-      <button type="button" id="regPopupConfirm" style="padding:8px 20px;border:none;border-radius:6px;background:${danger ? '#111827' : '#FFA500'};color:white;cursor:pointer;font-size:13.5px;font-weight:500;">${confirmLabel}</button>
+      <button type="button" id="regPopupCancel" style="padding:8px 20px;border:1px solid #ddd;border-radius:999px;background:white;cursor:pointer;font-size:13.5px;font-weight:500;">Cancel</button>
+      <button type="button" id="regPopupConfirm" style="padding:8px 20px;border:none;border-radius:999px;background:${danger ? '#E04858' : '#FFA500'};color:white;cursor:pointer;font-size:13.5px;font-weight:600;">${confirmLabel}</button>
     </div>
   `;
   overlay.appendChild(popup);
@@ -965,7 +965,7 @@ function openAttendancePopup() {
         btn.textContent = 'Check In';
         btn.disabled = !canAct;
         btn.title = canAct ? '' : 'Sign in with this person’s Google account to check them in';
-        btn.style.cssText = `padding:6px 12px;border:none;border-radius:6px;background:${canAct ? '#FFA500' : '#c7ccd6'};color:#fff;font-size:12px;font-weight:600;cursor:${canAct ? 'pointer' : 'not-allowed'};`;
+        btn.style.cssText = `padding:6px 12px;border:none;border-radius:999px;background:${canAct ? '#FFA500' : '#c7ccd6'};color:#fff;font-size:12px;font-weight:600;cursor:${canAct ? 'pointer' : 'not-allowed'};`;
         btn.addEventListener('click', async () => {
           if (!canAct) return;
           btn.disabled = true;
@@ -987,7 +987,7 @@ function openAttendancePopup() {
           btn.textContent = 'Check Out';
           btn.disabled = !canAct;
           btn.title = canAct ? '' : 'Sign in with this person’s Google account to check them out';
-          btn.style.cssText = `padding:6px 12px;border:none;border-radius:6px;background:${canAct ? '#3A5BA0' : '#c7ccd6'};color:#fff;font-size:12px;font-weight:600;cursor:${canAct ? 'pointer' : 'not-allowed'};`;
+          btn.style.cssText = `padding:6px 12px;border:none;border-radius:999px;background:${canAct ? '#3A5BA0' : '#c7ccd6'};color:#fff;font-size:12px;font-weight:600;cursor:${canAct ? 'pointer' : 'not-allowed'};`;
           btn.addEventListener('click', async () => {
             if (!canAct) return;
             btn.disabled = true;
@@ -1050,7 +1050,7 @@ function openAttendancePopup() {
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
   closeBtn.textContent = 'Close';
-  closeBtn.style.cssText = 'padding:8px 20px;border:1px solid #ddd;border-radius:6px;background:white;cursor:pointer;font-size:13.5px;font-weight:500;';
+  closeBtn.style.cssText = 'padding:8px 20px;border:1px solid #ddd;border-radius:999px;background:white;cursor:pointer;font-size:13.5px;font-weight:500;';
   closeBtn.addEventListener('click', () => overlay.remove());
   closeRow.appendChild(closeBtn);
   popup.appendChild(closeRow);
@@ -1187,7 +1187,7 @@ function openExitPopup() {
   const exitConfirmBtn = document.createElement('button');
   exitConfirmBtn.type = 'button';
   exitConfirmBtn.textContent = 'Exit Employee';
-  exitConfirmBtn.style.cssText = 'padding:8px 20px;border:none;border-radius:6px;background:#111827;color:#fff;cursor:pointer;font-size:13.5px;font-weight:600;';
+  exitConfirmBtn.style.cssText = 'padding:8px 20px;border:none;border-radius:999px;background:#E04858;color:#fff;cursor:pointer;font-size:13.5px;font-weight:600;';
   exitConfirmBtn.disabled = !employees.length;
   exitConfirmBtn.addEventListener('click', () => {
     const email = select.value;
@@ -1236,7 +1236,7 @@ function openExitPopup() {
       const restoreBtn = document.createElement('button');
       restoreBtn.type = 'button';
       restoreBtn.textContent = 'Restore';
-      restoreBtn.style.cssText = 'padding:6px 12px;border:none;border-radius:6px;background:#1F4690;color:#fff;font-size:12px;font-weight:600;cursor:pointer;';
+      restoreBtn.style.cssText = 'padding:6px 12px;border:none;border-radius:999px;background:#1F4690;color:#fff;font-size:12px;font-weight:600;cursor:pointer;';
       restoreBtn.addEventListener('click', () => {
         restoreEmployee(entry.id);
         overlay.remove();
@@ -1254,7 +1254,7 @@ function openExitPopup() {
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
   closeBtn.textContent = 'Close';
-  closeBtn.style.cssText = 'padding:8px 20px;border:1px solid #ddd;border-radius:6px;background:white;cursor:pointer;font-size:13.5px;font-weight:500;';
+  closeBtn.style.cssText = 'padding:8px 20px;border:1px solid #ddd;border-radius:999px;background:white;cursor:pointer;font-size:13.5px;font-weight:500;';
   closeBtn.addEventListener('click', () => overlay.remove());
   closeRow.appendChild(closeBtn);
   popup.appendChild(closeRow);
@@ -2535,7 +2535,7 @@ function openItemPopup(existingItem = null, existingIsProject = false, presetAss
             <span style="display: inline-block; width: 10px; height: 10px; background: #FFA500; border-radius: 50%;"></span>
           </button>
           <button type="button" class="item-priority-btn" data-priority="high" title="High" style="flex: 1; padding: 7px; border: 2px solid #ddd; border-radius: 6px; background: white; cursor: pointer;">
-            <span style="display: inline-block; width: 10px; height: 10px; background: #E68A00; border-radius: 50%;"></span>
+            <span style="display: inline-block; width: 10px; height: 10px; background: #E04858; border-radius: 50%;"></span>
           </button>
         </div>
       </div>
@@ -2585,8 +2585,8 @@ function openItemPopup(existingItem = null, existingIsProject = false, presetAss
 
     <div style="display: flex; align-items: center; justify-content: flex-end;">
       <div style="display: flex; gap: 10px;">
-        <button type="button" id="cancelItemBtn" style="padding: 8px 20px; border: 1px solid #ddd; border-radius: 6px; background: white; cursor: pointer; font-size: 13.5px; font-weight: 500;">Cancel</button>
-        <button type="button" id="saveItemBtn" style="padding: 8px 20px; border: none; border-radius: 8px; background: #FFA500; color: white; cursor: pointer; font-size: 13.5px; font-weight: 600; box-shadow: 0 2px 8px rgba(255, 165, 0, 0.35);">${isEdit ? 'Save Changes' : 'Add'}</button>
+        <button type="button" id="cancelItemBtn" style="padding: 8px 20px; border: 1px solid #ddd; border-radius: 999px; background: white; cursor: pointer; font-size: 13.5px; font-weight: 500;">Cancel</button>
+        <button type="button" id="saveItemBtn" style="padding: 8px 22px; border: none; border-radius: 999px; background: #FFA500; color: white; cursor: pointer; font-size: 13.5px; font-weight: 600; box-shadow: 0 2px 8px rgba(255, 165, 0, 0.35);">${isEdit ? 'Save Changes' : 'Add'}</button>
       </div>
     </div>
   `;
