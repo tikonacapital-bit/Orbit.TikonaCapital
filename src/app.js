@@ -2441,6 +2441,21 @@ function renderProjectSubtaskRow(project, task) {
   });
   row.appendChild(check);
 
+  const priorityEl = document.createElement('span');
+  priorityEl.className = `project-subtask-priority ${task.priority || 'none'}`;
+  priorityEl.title = 'Click to cycle priority';
+  priorityEl.addEventListener('click', (e) => {
+    e.stopPropagation();
+    const idx = PRIORITY_ORDER.indexOf(task.priority || 'none');
+    task.priority = PRIORITY_ORDER[(idx + 1) % PRIORITY_ORDER.length];
+    persist();
+    render();
+  });
+  row.appendChild(priorityEl);
+
+  const body = document.createElement('div');
+  body.className = 'project-subtask-body';
+
   const text = document.createElement('span');
   text.className = 'project-subtask-text';
   text.textContent = task.text;
@@ -2455,14 +2470,16 @@ function renderProjectSubtaskRow(project, task) {
     if (!val) { text.textContent = task.text; return; }
     if (val !== task.text) { task.text = val; persist(); }
   });
-  row.appendChild(text);
+  body.appendChild(text);
 
-  if (task.assignedTo) {
-    const who = document.createElement('span');
-    who.className = 'project-subtask-assignee';
-    who.textContent = task.assignedTo;
-    row.appendChild(who);
+  if (task.description) {
+    const desc = document.createElement('div');
+    desc.className = 'project-subtask-desc';
+    desc.textContent = task.description;
+    body.appendChild(desc);
   }
+
+  row.appendChild(body);
 
   const delBtn = document.createElement('button');
   delBtn.type = 'button';
@@ -2524,9 +2541,19 @@ function openItemPopup(existingItem = null, existingIsProject = false, presetAss
       </div>
     </div>
 
-    <div style="margin-bottom: 10px;">
-      <label style="${FIELD_LABEL_STYLE}">Name *</label>
-      <input type="text" id="itemName" placeholder="Enter a name" style="${FIELD_STYLE}">
+    <div class="popup-2col" style="display: grid; grid-template-columns: 1.4fr 1fr; gap: 10px; margin-bottom: 10px;">
+      <div>
+        <label style="${FIELD_LABEL_STYLE}">Name *</label>
+        <input type="text" id="itemName" placeholder="Enter a name" style="${FIELD_STYLE}">
+      </div>
+      <div style="${isEdit ? 'visibility: hidden;' : ''}">
+        <label style="${FIELD_LABEL_STYLE}">Add to</label>
+        <select id="itemProjectSelect" style="${FIELD_STYLE} cursor: pointer;">
+          <option value="">Main List</option>
+          <option value="__new__">+ New Project</option>
+          ${(state.projects || []).map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
+        </select>
+      </div>
     </div>
 
     <div style="margin-bottom: 10px;">
@@ -2556,17 +2583,7 @@ function openItemPopup(existingItem = null, existingIsProject = false, presetAss
       </div>
     </div>
 
-    <div style="display: flex; align-items: center; justify-content: space-between;">
-      <div style="display: flex; align-items: center; gap: 6px; font-size: 13px; font-weight: 600; color: var(--text); ${isEdit ? 'visibility: hidden;' : ''}">
-        <label style="display: flex; align-items: center; gap: 6px;">
-          Add to:
-        </label>
-        <select id="itemProjectSelect" style="padding: 6px 10px; border: 1px solid #ddd; border-radius: 6px; font-size: 13px; background: white; cursor: pointer;">
-          <option value="">Main List</option>
-          <option value="__new__">+ New Project</option>
-          ${(state.projects || []).map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
-        </select>
-      </div>
+    <div style="display: flex; align-items: center; justify-content: flex-end;">
       <div style="display: flex; gap: 10px;">
         <button type="button" id="cancelItemBtn" style="padding: 8px 20px; border: 1px solid #ddd; border-radius: 6px; background: white; cursor: pointer; font-size: 13.5px; font-weight: 500;">Cancel</button>
         <button type="button" id="saveItemBtn" style="padding: 8px 20px; border: none; border-radius: 8px; background: #FFA500; color: white; cursor: pointer; font-size: 13.5px; font-weight: 600; box-shadow: 0 2px 8px rgba(255, 165, 0, 0.35);">${isEdit ? 'Save Changes' : 'Add'}</button>
