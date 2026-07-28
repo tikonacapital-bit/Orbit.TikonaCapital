@@ -2447,6 +2447,109 @@ button.stat-card:hover::before { opacity: 1; }
   box-shadow: 0 25px 50px -12px rgba(17, 24, 39, 0.25);
 }
 
+/* ==========================================================================
+   KRA widget grid — same drag-to-reorder + native-resize pattern as the
+   charts dashboard above, just holding an iframe instead of a chart.
+   ========================================================================== */
+.kra-toolbar {
+  margin-bottom: 16px;
+}
+
+.kra-grid {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  gap: 16px;
+  padding-bottom: 12px;
+}
+
+.kra-widget {
+  display: flex;
+  flex-direction: column;
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  background: #ffffff;
+  box-shadow: 0 10px 30px -5px rgba(17, 24, 39, 0.05), 0 1px 3px rgba(17, 24, 39, 0.02);
+  transition: transform 200ms ease, box-shadow 200ms ease;
+  flex: 0 1 480px;
+  min-width: 320px;
+  max-width: 1000px;
+  min-height: 320px;
+  max-height: 900px;
+  resize: both;
+  overflow: hidden;
+}
+
+.kra-widget:hover {
+  box-shadow: 0 20px 40px -10px rgba(17, 24, 39, 0.1), 0 1px 4px rgba(17, 24, 39, 0.03);
+}
+
+.kra-widget.dragging {
+  opacity: 0.5;
+  transform: scale(1.02);
+  box-shadow: 0 25px 50px -12px rgba(17, 24, 39, 0.25);
+}
+
+.kra-widget-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 10px 8px 10px 14px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg-hover);
+  flex: 0 0 auto;
+}
+
+.kra-widget-title {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--text);
+}
+
+.kra-widget-actions {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 0 0 auto;
+}
+
+.kra-widget-action {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 13px;
+  text-decoration: none;
+  cursor: pointer;
+  transition: background 120ms ease, color 120ms ease;
+}
+.kra-widget-action:hover { background: rgba(17, 24, 39, 0.08); color: var(--text); }
+.kra-widget-remove:hover { background: rgba(224, 72, 88, 0.12); color: var(--danger); }
+
+.kra-widget-body {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  background: var(--bg);
+}
+
+.kra-widget-body iframe {
+  display: block;
+  width: 100%;
+  height: 100%;
+  border: none;
+}
+
 .chart-card-head {
   display: flex;
   flex-direction: column;

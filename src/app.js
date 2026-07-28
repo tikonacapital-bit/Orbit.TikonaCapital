@@ -11,7 +11,7 @@ const tplSection = document.getElementById('tpl-section');
 const tplTask = document.getElementById('tpl-task');
 const toastEl = document.getElementById('toast');
 
-let state = { lists: [], projects: [], employees: [], activity: [], bin: [], categories: [] };
+let state = { lists: [], projects: [], employees: [], activity: [], bin: [], categories: [], kraWidgets: [] };
 let toastTimer = null;
 let activeListId = 'all';
 let activeWorkspace = 'tasks';
@@ -378,7 +378,19 @@ function normalizeState(value) {
     bin: normalizeBin(value?.bin),
     categories: normalizeCategories(value?.categories),
     chartsOrder: value?.chartsOrder || {},
+    kraWidgets: normalizeKraWidgets(value?.kraWidgets),
   };
+}
+
+function normalizeKraWidgets(widgets) {
+  if (!Array.isArray(widgets)) return [];
+  return widgets
+    .filter((w) => w && typeof w.url === 'string' && w.url.trim())
+    .map((w) => ({
+      id: w.id || uid('kra'),
+      url: w.url.trim(),
+      title: typeof w.title === 'string' ? w.title.trim() : '',
+    }));
 }
 
 function normalizeCategories(categories) {
@@ -1658,7 +1670,7 @@ function render() {
       statsEl.innerHTML = '';
       boardEl.innerHTML = '';
       boardEl.className = 'board';
-      boardEl.appendChild(renderEmptyState('KRA dashboard — coming soon.'));
+      boardEl.appendChild(renderKraWorkspace());
       lastRenderKey = renderKey;
       return;
     }
@@ -4094,6 +4106,163 @@ function renderEmptyState(text) {
   empty.className = 'empty-state';
   empty.textContent = text;
   return empty;
+}
+
+// ---------- KRA widget grid ----------
+
+// Adds a scheme if the user typed a bare domain (e.g. "example.com"), since
+// an <iframe src> with no scheme resolves relative to this page and fails.
+function normalizeWidgetUrl(input) {
+  const trimmed = (input || '').trim();
+  if (!trimmed) return '';
+  if (/^https?:\/\//i.test(trimmed)) return trimmed;
+  return `https://${trimmed}`;
+}
+
+function widgetHostname(url) {
+  try {
+    return new URL(url).hostname.replace(/^www\./, '');
+  } catch (err) {
+    return url;
+  }
+}
+
+function openAddKraWidgetPopup() {
+  const { overlay, popup, confirmBtn } = openRegularPopup('Add Website', `
+    <div style="margin-bottom:10px;">
+      <label style="${FIELD_LABEL_STYLE}">Website URL *</label>
+      <input type="text" id="kraWidgetUrl" placeholder="e.g. tradingview.com" autocomplete="off" style="${FIELD_STYLE}">
+    </div>
+    <div>
+      <label style="${FIELD_LABEL_STYLE}">Title (optional)</label>
+      <input type="text" id="kraWidgetTitle" placeholder="Defaults to the site's domain" autocomplete="off" style="${FIELD_STYLE}">
+    </div>
+    <p style="margin:10px 0 0;font-size:12px;color:#8a94a6;">Some sites (Google, banking, social media) block being embedded this way — those will show an empty widget, but "Open in new tab" still works.</p>
+  `, { confirmLabel: 'Add' });
+
+  setTimeout(() => popup.querySelector('#kraWidgetUrl').focus(), 100);
+
+  confirmBtn.addEventListener('click', () => {
+    const url = normalizeWidgetUrl(popup.querySelector('#kraWidgetUrl').value);
+    if (!url) { alert('Please enter a website URL'); return; }
+    const title = popup.querySelector('#kraWidgetTitle').value.trim();
+    if (!Array.isArray(state.kraWidgets)) state.kraWidgets = [];
+    state.kraWidgets.push({ id: uid('kra'), url, title });
+    persist();
+    overlay.remove();
+    render();
+  });
+}
+
+function renderKraWorkspace() {
+  const wrap = document.createElement('div');
+  wrap.className = 'kra-workspace';
+
+  const toolbar = document.createElement('div');
+  toolbar.className = 'kra-toolbar';
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.className = 'tab-add has-archived';
+  addBtn.textContent = '+ Add Website';
+  addBtn.addEventListener('click', () => openAddKraWidgetPopup());
+  toolbar.appendChild(addBtn);
+  wrap.appendChild(toolbar);
+
+  const widgets = state.kraWidgets || [];
+  if (!widgets.length) {
+    wrap.appendChild(renderEmptyState('No websites added yet. Click "+ Add Website" to get started.'));
+    return wrap;
+  }
+
+  const grid = document.createElement('div');
+  grid.className = 'kra-grid';
+  widgets.forEach((widget) => grid.appendChild(renderKraWidget(widget)));
+  wrap.appendChild(grid);
+
+  return wrap;
+}
+
+function renderKraWidget(widget) {
+  const card = document.createElement('div');
+  card.className = 'kra-widget';
+  card.dataset.widgetId = widget.id;
+  makeResizable(card, `kra:${widget.id}`);
+  card.draggable = true;
+  card.style.cursor = 'grab';
+
+  card.addEventListener('dragstart', (e) => {
+    e.dataTransfer.setData('text/plain', widget.id);
+    e.dataTransfer.effectAllowed = 'move';
+    card.classList.add('dragging');
+  });
+  card.addEventListener('dragend', () => card.classList.remove('dragging'));
+  card.addEventListener('dragover', (e) => {
+    e.preventDefault();
+    e.dataTransfer.dropEffect = 'move';
+  });
+  card.addEventListener('drop', (e) => {
+    e.preventDefault();
+    const fromId = e.dataTransfer.getData('text/plain');
+    if (fromId === widget.id) return;
+    const widgets = state.kraWidgets;
+    const fromIndex = widgets.findIndex((w) => w.id === fromId);
+    const toIndex = widgets.findIndex((w) => w.id === widget.id);
+    if (fromIndex === -1 || toIndex === -1) return;
+    const [moved] = widgets.splice(fromIndex, 1);
+    widgets.splice(toIndex, 0, moved);
+    persist();
+    render();
+  });
+
+  const head = document.createElement('div');
+  head.className = 'kra-widget-head';
+
+  const titleEl = document.createElement('span');
+  titleEl.className = 'kra-widget-title';
+  titleEl.textContent = widget.title || widgetHostname(widget.url);
+  titleEl.title = widget.url;
+  head.appendChild(titleEl);
+
+  const actions = document.createElement('div');
+  actions.className = 'kra-widget-actions';
+
+  const openLink = document.createElement('a');
+  openLink.className = 'kra-widget-action';
+  openLink.href = widget.url;
+  openLink.target = '_blank';
+  openLink.rel = 'noopener noreferrer';
+  openLink.title = 'Open in new tab';
+  openLink.innerHTML = '&#8599;';
+  openLink.addEventListener('click', (e) => e.stopPropagation());
+  actions.appendChild(openLink);
+
+  const removeBtn = document.createElement('button');
+  removeBtn.type = 'button';
+  removeBtn.className = 'kra-widget-action kra-widget-remove';
+  removeBtn.title = 'Remove widget';
+  removeBtn.innerHTML = '&times;';
+  removeBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    if (!confirm(`Remove "${titleEl.textContent}"?`)) return;
+    state.kraWidgets = (state.kraWidgets || []).filter((w) => w.id !== widget.id);
+    persist();
+    render();
+  });
+  actions.appendChild(removeBtn);
+
+  head.appendChild(actions);
+  card.appendChild(head);
+
+  const body = document.createElement('div');
+  body.className = 'kra-widget-body';
+  const iframe = document.createElement('iframe');
+  iframe.src = widget.url;
+  iframe.loading = 'lazy';
+  iframe.title = widget.title || widgetHostname(widget.url);
+  body.appendChild(iframe);
+  card.appendChild(body);
+
+  return card;
 }
 
 function textCell(text) {
