@@ -1653,6 +1653,16 @@ function render() {
       return;
     }
 
+    if (activeWorkspace === 'kra') {
+      dashboardTitleEl.textContent = 'KRA';
+      statsEl.innerHTML = '';
+      boardEl.innerHTML = '';
+      boardEl.className = 'board';
+      boardEl.appendChild(renderEmptyState('KRA dashboard — coming soon.'));
+      lastRenderKey = renderKey;
+      return;
+    }
+
     renderDashboardHeader();
 
     const boardTop = document.createElement('div');
@@ -1760,6 +1770,9 @@ function getEmployeeAttendanceLabel(listName) {
 function renderPinnedState() {
   const analyticsBtn = document.getElementById('analyticsBtn');
   if (analyticsBtn) analyticsBtn.classList.toggle('active', activeWorkspace === 'charts');
+
+  const kraBtn = document.getElementById('kraBtn');
+  if (kraBtn) kraBtn.classList.toggle('active', activeWorkspace === 'kra');
 
   const archivedBtn = document.getElementById('archivedListsBtn');
   if (archivedBtn) {
@@ -3338,7 +3351,7 @@ function regularScheduleLabel(task) {
 
 function renderViewTabs() {
   const viewMenu = document.querySelector('.view-menu');
-  if (activeWorkspace === 'regular' || activeWorkspace === 'charts') {
+  if (activeWorkspace === 'regular' || activeWorkspace === 'charts' || activeWorkspace === 'kra') {
     if (viewMenu) viewMenu.style.display = 'none';
     return;
   }
@@ -4806,6 +4819,11 @@ document.getElementById('globalAddTaskBtn').addEventListener('click', () => {
 
 document.getElementById('analyticsBtn').addEventListener('click', () => {
   activeWorkspace = 'charts';
+  render();
+});
+
+document.getElementById('kraBtn').addEventListener('click', () => {
+  activeWorkspace = 'kra';
   render();
 });
 
