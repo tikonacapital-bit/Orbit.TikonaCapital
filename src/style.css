@@ -2474,9 +2474,9 @@ button.stat-card:hover::before { opacity: 1; }
   flex: 0 0 auto;
   width: 480px;
   min-width: 320px;
-  max-width: 1000px;
+  max-width: 96vw;
   min-height: 320px;
-  max-height: 900px;
+  max-height: 96vh;
   resize: both;
   overflow: hidden;
 }
@@ -2515,7 +2515,7 @@ button.stat-card:hover::before { opacity: 1; }
 .kra-widget-actions {
   display: flex;
   align-items: center;
-  gap: 2px;
+  gap: 4px;
   flex: 0 0 auto;
 }
 
@@ -2523,13 +2523,14 @@ button.stat-card:hover::before { opacity: 1; }
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 30px;
+  height: 30px;
   border: none;
-  border-radius: 6px;
+  border-radius: 7px;
   background: transparent;
   color: var(--text-muted);
-  font-size: 13px;
+  font-size: 17px;
+  line-height: 1;
   text-decoration: none;
   cursor: pointer;
   transition: background 120ms ease, color 120ms ease;
