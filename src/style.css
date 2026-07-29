@@ -2535,6 +2535,8 @@ button.stat-card:hover::before { opacity: 1; }
 }
 .kra-widget-action:hover { background: rgba(17, 24, 39, 0.08); color: var(--text); }
 .kra-widget-remove:hover { background: rgba(224, 72, 88, 0.12); color: var(--danger); }
+.kra-widget-proxy-toggle.active { background: var(--accent-orange-tint); color: #6B3F00; }
+.kra-widget-proxy-toggle.active:hover { background: var(--accent-orange); color: #fff; }
 
 .kra-widget-body {
   position: relative;

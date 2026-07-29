@@ -390,6 +390,7 @@ function normalizeKraWidgets(widgets) {
       id: w.id || uid('kra'),
       url: w.url.trim(),
       title: typeof w.title === 'string' ? w.title.trim() : '',
+      viaProxy: Boolean(w.viaProxy),
     }));
 }
 
@@ -4226,6 +4227,26 @@ function renderKraWidget(widget) {
   const actions = document.createElement('div');
   actions.className = 'kra-widget-actions';
 
+  // Some sites block direct embedding (X-Frame-Options). This toggle re-loads
+  // the widget through the /api/proxy serverless function instead, which
+  // fetches the page server-side and strips that restriction — only worth
+  // trying for public/no-login pages, since the proxy doesn't carry cookies.
+  const proxyToggle = document.createElement('button');
+  proxyToggle.type = 'button';
+  proxyToggle.className = 'kra-widget-action kra-widget-proxy-toggle';
+  proxyToggle.classList.toggle('active', Boolean(widget.viaProxy));
+  proxyToggle.title = widget.viaProxy
+    ? 'Viewing via proxy — click to go back to loading it directly'
+    : 'Widget blank? Click to try loading this site through the proxy';
+  proxyToggle.innerHTML = '&#8635;';
+  proxyToggle.addEventListener('click', (e) => {
+    e.stopPropagation();
+    widget.viaProxy = !widget.viaProxy;
+    persist();
+    render();
+  });
+  actions.appendChild(proxyToggle);
+
   const openLink = document.createElement('a');
   openLink.className = 'kra-widget-action';
   openLink.href = widget.url;
@@ -4256,7 +4277,7 @@ function renderKraWidget(widget) {
   const body = document.createElement('div');
   body.className = 'kra-widget-body';
   const iframe = document.createElement('iframe');
-  iframe.src = widget.url;
+  iframe.src = widget.viaProxy ? `/api/proxy?url=${encodeURIComponent(widget.url)}` : widget.url;
   iframe.loading = 'lazy';
   iframe.title = widget.title || widgetHostname(widget.url);
   body.appendChild(iframe);
