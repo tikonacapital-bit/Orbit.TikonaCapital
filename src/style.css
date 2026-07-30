@@ -155,26 +155,16 @@ button {
   flex-shrink: 0;
 }
 
-.brand-logo-img {
+.brand-mark {
   flex: 0 0 auto;
-  height: 28px;
-  width: auto;
-  /* The source logo is a navy wordmark meant for a light background; on
-     the app's navy topbar it reads as nearly invisible navy-on-navy.
-     Force it to render as a clean white mark instead of distorting the
-     real company logo with an arbitrary recolor. */
-  filter: brightness(0) invert(1);
-}
-
-.brand-text {
-  display: flex;
-  flex-direction: column;
-  line-height: 1;
 }
 
 .brand-sub {
-  font-size: 10.5px;
-  color: rgba(255, 255, 255, 0.7);
+  font-size: 15px;
+  font-weight: 800;
+  letter-spacing: 0.2px;
+  color: var(--accent-orange-tint);
+  line-height: 1;
 }
 
 .topbar-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
@@ -2821,8 +2811,8 @@ button.stat-card:hover::before { opacity: 1; }
     justify-content: flex-start;
   }
 
-  .brand-logo-img { height: 24px; }
-  .brand-sub { font-size: 10px; }
+  .brand-mark { width: 24px; height: 24px; }
+  .brand-sub { font-size: 12px; }
 
   .viewbar {
     padding: 6px 10px 4px;
