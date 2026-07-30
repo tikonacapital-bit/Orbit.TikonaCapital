@@ -155,16 +155,10 @@ button {
   flex-shrink: 0;
 }
 
-.brand-mark {
+.brand-logo-img {
   flex: 0 0 auto;
-}
-
-.brand-sub {
-  font-size: 15px;
-  font-weight: 800;
-  letter-spacing: 0.2px;
-  color: var(--accent-orange-tint);
-  line-height: 1;
+  height: 46px;
+  width: auto;
 }
 
 .topbar-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
@@ -2811,8 +2805,7 @@ button.stat-card:hover::before { opacity: 1; }
     justify-content: flex-start;
   }
 
-  .brand-mark { width: 24px; height: 24px; }
-  .brand-sub { font-size: 12px; }
+  .brand-logo-img { height: 34px; }
 
   .viewbar {
     padding: 6px 10px 4px;
