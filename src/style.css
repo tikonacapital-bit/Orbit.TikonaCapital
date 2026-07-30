@@ -2451,6 +2451,85 @@ button.stat-card:hover::before { opacity: 1; }
    KRA widget grid — same drag-to-reorder + native-resize pattern as the
    charts dashboard above, just holding an iframe instead of a chart.
    ========================================================================== */
+.kra-tabbar {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 2px;
+  padding-bottom: 0;
+  margin-bottom: 18px;
+  border-bottom: 1px solid var(--border);
+}
+
+.kra-tab {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 14px;
+  border: none;
+  border-bottom: 2px solid transparent;
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 14px;
+  white-space: nowrap;
+  cursor: pointer;
+  transition: color 140ms ease, background 140ms ease, border-color 140ms ease;
+}
+
+.kra-tab:hover {
+  color: var(--text);
+  background: rgba(17, 24, 39, 0.04);
+}
+
+.kra-tab.active {
+  color: var(--accent);
+  border-bottom-color: var(--accent);
+}
+
+.kra-tab-remove {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 16px;
+  height: 16px;
+  border-radius: 50%;
+  font-size: 13px;
+  line-height: 1;
+  color: var(--text-muted);
+  transition: background 120ms ease, color 120ms ease;
+}
+
+.kra-tab:hover .kra-tab-remove,
+.kra-tab.active .kra-tab-remove {
+  display: flex;
+}
+
+.kra-tab-remove:hover {
+  background: rgba(224, 72, 88, 0.15);
+  color: var(--danger);
+}
+
+.kra-tab-add {
+  flex: 0 0 auto;
+  margin: 0 0 0 6px;
+  padding: 6px 14px;
+  border-radius: 999px;
+  border: 1.5px dashed rgba(17, 24, 39, 0.12);
+  background: transparent;
+  color: var(--text-muted);
+  font-weight: 600;
+  font-size: 13px;
+  white-space: nowrap;
+  transition: all 160ms ease;
+}
+
+.kra-tab-add:hover {
+  background: rgba(58, 91, 160, 0.06);
+  color: var(--accent);
+  border-color: rgba(58, 91, 160, 0.3);
+}
+
 .kra-toolbar {
   margin-bottom: 16px;
 }

@@ -11,7 +11,7 @@ const tplSection = document.getElementById('tpl-section');
 const tplTask = document.getElementById('tpl-task');
 const toastEl = document.getElementById('toast');
 
-let state = { lists: [], projects: [], employees: [], activity: [], bin: [], categories: [], kraWidgets: [] };
+let state = { lists: [], projects: [], employees: [], activity: [], bin: [], categories: [], kraTabs: [], activeKraTabId: null };
 let toastTimer = null;
 let activeListId = 'all';
 let activeWorkspace = 'tasks';
@@ -360,6 +360,11 @@ function sameEmployee(a, b) {
 
 function normalizeState(value) {
   const lists = Array.isArray(value?.lists) ? value.lists : [];
+  const kraTabs = normalizeKraTabs(value);
+  const activeKraTabId =
+    value?.activeKraTabId && kraTabs.some((t) => t.id === value.activeKraTabId)
+      ? value.activeKraTabId
+      : kraTabs[0]?.id || null;
   return {
     lists: lists.map((list) => ({
       id: list.id || uid('list'),
@@ -378,11 +383,12 @@ function normalizeState(value) {
     bin: normalizeBin(value?.bin),
     categories: normalizeCategories(value?.categories),
     chartsOrder: value?.chartsOrder || {},
-    kraWidgets: normalizeKraWidgets(value?.kraWidgets),
+    kraTabs,
+    activeKraTabId,
   };
 }
 
-function normalizeKraWidgets(widgets) {
+function normalizeKraWidgetsList(widgets) {
   if (!Array.isArray(widgets)) return [];
   return widgets
     .filter((w) => w && typeof w.url === 'string' && w.url.trim())
@@ -392,6 +398,24 @@ function normalizeKraWidgets(widgets) {
       title: typeof w.title === 'string' ? w.title.trim() : '',
       viaProxy: Boolean(w.viaProxy),
     }));
+}
+
+// The Tabs section used to be a single flat grid of widgets (state.kraWidgets)
+// before it grew separate named tabs/windows, each with its own grid. Any
+// value saved under the old shape gets migrated into one "Home" tab instead
+// of dropped, so real widgets users already added keep working.
+function normalizeKraTabs(value) {
+  if (Array.isArray(value?.kraTabs) && value.kraTabs.length) {
+    return value.kraTabs
+      .filter((t) => t && typeof t === 'object')
+      .map((t) => ({
+        id: t.id || uid('kratab'),
+        name: typeof t.name === 'string' && t.name.trim() ? t.name.trim() : 'Untitled',
+        widgets: normalizeKraWidgetsList(t.widgets),
+      }));
+  }
+  const legacyWidgets = normalizeKraWidgetsList(value?.kraWidgets);
+  return [{ id: uid('kratab'), name: 'Home', widgets: legacyWidgets }];
 }
 
 function normalizeCategories(categories) {
@@ -1667,7 +1691,7 @@ function render() {
     }
 
     if (activeWorkspace === 'kra') {
-      dashboardTitleEl.textContent = 'KRA';
+      dashboardTitleEl.textContent = 'Tabs';
       statsEl.innerHTML = '';
       boardEl.innerHTML = '';
       boardEl.className = 'board';
@@ -4128,7 +4152,49 @@ function widgetHostname(url) {
   }
 }
 
-function openAddKraWidgetPopup() {
+function getActiveKraTab() {
+  if (!Array.isArray(state.kraTabs) || !state.kraTabs.length) return null;
+  return state.kraTabs.find((t) => t.id === state.activeKraTabId) || state.kraTabs[0];
+}
+
+function switchKraTab(tabId) {
+  state.activeKraTabId = tabId;
+  persist();
+  render();
+}
+
+function addKraTab() {
+  const name = prompt('Name this tab (e.g. News, Market, Research):');
+  if (name === null) return;
+  const tab = { id: uid('kratab'), name: name.trim() || 'New Tab', widgets: [] };
+  if (!Array.isArray(state.kraTabs)) state.kraTabs = [];
+  state.kraTabs.push(tab);
+  state.activeKraTabId = tab.id;
+  persist();
+  render();
+}
+
+function renameKraTab(tab) {
+  const name = prompt('Rename tab', tab.name);
+  if (name === null || !name.trim()) return;
+  tab.name = name.trim();
+  persist();
+  render();
+}
+
+function removeKraTab(tab) {
+  if (state.kraTabs.length <= 1) {
+    alert('At least one tab is required.');
+    return;
+  }
+  if (!confirm(`Remove tab "${tab.name}"? Its widgets will be removed too.`)) return;
+  state.kraTabs = state.kraTabs.filter((t) => t.id !== tab.id);
+  if (state.activeKraTabId === tab.id) state.activeKraTabId = state.kraTabs[0].id;
+  persist();
+  render();
+}
+
+function openAddKraWidgetPopup(tab) {
   const { overlay, popup, confirmBtn } = openRegularPopup('Add Website', `
     <div style="margin-bottom:10px;">
       <label style="${FIELD_LABEL_STYLE}">Website URL *</label>
@@ -4147,8 +4213,8 @@ function openAddKraWidgetPopup() {
     const url = normalizeWidgetUrl(popup.querySelector('#kraWidgetUrl').value);
     if (!url) { alert('Please enter a website URL'); return; }
     const title = popup.querySelector('#kraWidgetTitle').value.trim();
-    if (!Array.isArray(state.kraWidgets)) state.kraWidgets = [];
-    state.kraWidgets.push({ id: uid('kra'), url, title });
+    if (!Array.isArray(tab.widgets)) tab.widgets = [];
+    tab.widgets.push({ id: uid('kra'), url, title });
     persist();
     overlay.remove();
     render();
@@ -4159,31 +4225,77 @@ function renderKraWorkspace() {
   const wrap = document.createElement('div');
   wrap.className = 'kra-workspace';
 
+  const tabs = Array.isArray(state.kraTabs) ? state.kraTabs : [];
+  const activeTab = getActiveKraTab();
+
+  const tabbar = document.createElement('div');
+  tabbar.className = 'kra-tabbar';
+  tabs.forEach((tab) => {
+    const tabBtn = document.createElement('button');
+    tabBtn.type = 'button';
+    tabBtn.className = 'kra-tab';
+    tabBtn.classList.toggle('active', activeTab && tab.id === activeTab.id);
+
+    const label = document.createElement('span');
+    label.className = 'kra-tab-label';
+    label.textContent = tab.name;
+    label.title = 'Double-click to rename';
+    tabBtn.appendChild(label);
+
+    const closeBtn = document.createElement('span');
+    closeBtn.className = 'kra-tab-remove';
+    closeBtn.innerHTML = '&times;';
+    closeBtn.title = 'Remove tab';
+    closeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      removeKraTab(tab);
+    });
+    tabBtn.appendChild(closeBtn);
+
+    tabBtn.addEventListener('click', () => switchKraTab(tab.id));
+    tabBtn.addEventListener('dblclick', (e) => {
+      e.stopPropagation();
+      renameKraTab(tab);
+    });
+    tabbar.appendChild(tabBtn);
+  });
+
+  const newTabBtn = document.createElement('button');
+  newTabBtn.type = 'button';
+  newTabBtn.className = 'kra-tab-add';
+  newTabBtn.textContent = '+ New tab';
+  newTabBtn.addEventListener('click', () => addKraTab());
+  tabbar.appendChild(newTabBtn);
+
+  wrap.appendChild(tabbar);
+
+  if (!activeTab) return wrap;
+
   const toolbar = document.createElement('div');
   toolbar.className = 'kra-toolbar';
   const addBtn = document.createElement('button');
   addBtn.type = 'button';
   addBtn.className = 'tab-add has-archived';
   addBtn.textContent = '+ Add Website';
-  addBtn.addEventListener('click', () => openAddKraWidgetPopup());
+  addBtn.addEventListener('click', () => openAddKraWidgetPopup(activeTab));
   toolbar.appendChild(addBtn);
   wrap.appendChild(toolbar);
 
-  const widgets = state.kraWidgets || [];
+  const widgets = activeTab.widgets || [];
   if (!widgets.length) {
-    wrap.appendChild(renderEmptyState('No websites added yet. Click "+ Add Website" to get started.'));
+    wrap.appendChild(renderEmptyState(`No websites in "${activeTab.name}" yet. Click "+ Add Website" to get started.`));
     return wrap;
   }
 
   const grid = document.createElement('div');
   grid.className = 'kra-grid';
-  widgets.forEach((widget) => grid.appendChild(renderKraWidget(widget)));
+  widgets.forEach((widget) => grid.appendChild(renderKraWidget(widget, activeTab)));
   wrap.appendChild(grid);
 
   return wrap;
 }
 
-function renderKraWidget(widget) {
+function renderKraWidget(widget, tab) {
   const card = document.createElement('div');
   card.className = 'kra-widget';
   card.dataset.widgetId = widget.id;
@@ -4205,7 +4317,7 @@ function renderKraWidget(widget) {
     e.preventDefault();
     const fromId = e.dataTransfer.getData('text/plain');
     if (fromId === widget.id) return;
-    const widgets = state.kraWidgets;
+    const widgets = tab.widgets;
     const fromIndex = widgets.findIndex((w) => w.id === fromId);
     const toIndex = widgets.findIndex((w) => w.id === widget.id);
     if (fromIndex === -1 || toIndex === -1) return;
@@ -4265,7 +4377,7 @@ function renderKraWidget(widget) {
   removeBtn.addEventListener('click', (e) => {
     e.stopPropagation();
     if (!confirm(`Remove "${titleEl.textContent}"?`)) return;
-    state.kraWidgets = (state.kraWidgets || []).filter((w) => w.id !== widget.id);
+    tab.widgets = (tab.widgets || []).filter((w) => w.id !== widget.id);
     persist();
     render();
   });
