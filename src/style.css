@@ -2185,10 +2185,23 @@ button.stat-card:hover::before { opacity: 1; }
   opacity: 0.7;
 }
 
+/* Weekends are still real columns (dates aren't hidden), just dialed back
+   to the lightest shade so they read as "off day" without the loud dark
+   blue the Attendance grid still uses (overridden back in below). */
 .regular-grid th.weekend,
 .regular-grid td.weekend {
+  background: rgba(31, 70, 144, 0.06);
+  color: var(--text-muted);
+}
+
+.attendance-grid th.weekend,
+.attendance-grid td.weekend {
   background: var(--secondary);
   color: #fff;
+}
+
+.reg-schedule-section {
+  margin-bottom: 10px;
 }
 
 /* "Today" is the one cell in this grid worth calling out, so it gets the

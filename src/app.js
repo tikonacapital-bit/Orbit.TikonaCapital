@@ -567,9 +567,12 @@ function normalizeRegular(regular) {
     title: task.title || 'Untitled regular task',
     time: task.time || '',
     group: task.group === 'Research - Daily' ? 'Daily' : (task.group || cadenceLabel(task.cadence || 'daily')),
+    category: typeof task.category === 'string' ? task.category : '',
     weekday: Number.isInteger(task.weekday) ? task.weekday : 1,
     dayOfMonth: Number.isInteger(task.dayOfMonth) ? task.dayOfMonth : 1,
     month: Number.isInteger(task.month) ? task.month : 0,
+    monthlyMode: task.monthlyMode === 'weekday' ? 'weekday' : 'date',
+    weekdayOrdinal: Number.isInteger(task.weekdayOrdinal) ? Math.min(4, Math.max(1, task.weekdayOrdinal)) : 1,
   }));
   const employees = [...new Set(tasks.map((task) => task.owner))].sort();
   const rawCompletions = regular?.completions && typeof regular.completions === 'object' ? regular.completions : {};
@@ -765,15 +768,12 @@ function getRegularTasks() {
 function getRegularDates() {
   const columnKeys = state.regular?.columns || [];
   if (columnKeys.length) {
-    return columnKeys
-      .map((key) => {
-        const [year, month, day] = key.split('-').map(Number);
-        return new Date(year, month - 1, day);
-      })
-      .filter((date) => !isWeekend(date));
+    return columnKeys.map((key) => {
+      const [year, month, day] = key.split('-').map(Number);
+      return new Date(year, month - 1, day);
+    });
   }
-  return Array.from({ length: daysInMonth(regularStartDate) }, (_, index) => addDays(regularStartDate, index))
-    .filter((date) => !isWeekend(date));
+  return Array.from({ length: daysInMonth(regularStartDate) }, (_, index) => addDays(regularStartDate, index));
 }
 
 function addRegularTask() {
@@ -805,9 +805,12 @@ function addRegularTaskWith(details = {}) {
     title: details.title || 'New regular task',
     time: details.time || '',
     group: details.group || cadenceLabel(cadence),
+    category: details.category || '',
     weekday: Number.isInteger(details.weekday) ? details.weekday : 1,
     dayOfMonth: Number.isInteger(details.dayOfMonth) ? details.dayOfMonth : 1,
     month: Number.isInteger(details.month) ? details.month : 0,
+    monthlyMode: details.monthlyMode === 'weekday' ? 'weekday' : 'date',
+    weekdayOrdinal: Number.isInteger(details.weekdayOrdinal) ? Math.min(4, Math.max(1, details.weekdayOrdinal)) : 1,
   };
   // insert into tasks array; if details.insertAfterId provided, place after that task
   if (details.insertAfterId) {
@@ -1301,17 +1304,54 @@ function openExitPopup() {
   overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
 }
 
+// Mon-first weekday order for schedule dropdowns (WEEKDAYS itself is
+// Sun-first to match Date#getDay(), which is what's actually stored).
+const WEEKDAY_PICKER_ORDER = [1, 2, 3, 4, 5, 6, 0];
+const ORDINAL_WORDS = ['1st', '2nd', '3rd', '4th'];
+
+function hourlyTimeOptions(selected = '09:00') {
+  return Array.from({ length: 24 }, (_, h) => {
+    const value = `${String(h).padStart(2, '0')}:00`;
+    return `<option value="${value}"${value === selected ? ' selected' : ''}>${value}</option>`;
+  }).join('');
+}
+
+function weekdaySelectOptions(selectedDay = 1) {
+  return WEEKDAY_PICKER_ORDER
+    .map((idx) => `<option value="${idx}"${idx === selectedDay ? ' selected' : ''}>${WEEKDAYS[idx]}</option>`)
+    .join('');
+}
+
+function dayOfMonthOptions(selected = 1) {
+  return Array.from({ length: 31 }, (_, i) => i + 1)
+    .map((d) => `<option value="${d}"${d === selected ? ' selected' : ''}>Day ${d}</option>`)
+    .join('');
+}
+
+function ordinalSelectOptions(selected = 1) {
+  return ORDINAL_WORDS
+    .map((word, i) => `<option value="${i + 1}"${i + 1 === selected ? ' selected' : ''}>${word}</option>`)
+    .join('');
+}
+
+function monthSelectOptions(selected = 0) {
+  return MONTHS
+    .map((m, i) => `<option value="${i}"${i === selected ? ' selected' : ''}>${m}</option>`)
+    .join('');
+}
+
 function openAddRegularRowPopup() {
   const employees = getAllEmployees();
   const employeeOptions = employees.map((e) => `<option value="${escapeHtml(e)}">${escapeHtml(e)}</option>`).join('');
   const cadenceOptions = CADENCE_OPTIONS.map((c) => `<option value="${c}">${cadenceLabel(c)}</option>`).join('');
+  const categoryDatalistOptions = (state.categories || []).map((c) => `<option value="${escapeHtml(c)}">`).join('');
 
   const { overlay, popup, confirmBtn } = openRegularPopup('Add Regular Task', `
     <div style="margin-bottom:10px;">
       <label style="${FIELD_LABEL_STYLE}">Task Title *</label>
       <input type="text" id="regRowTitle" placeholder="Enter task title" style="${FIELD_STYLE}">
     </div>
-    <div class="popup-2col" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+    <div class="popup-2col" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
       <div>
         <label style="${FIELD_LABEL_STYLE}">Employee</label>
         <select id="regRowOwner" style="${FIELD_STYLE}"><option value="Unassigned">Unassigned</option>${employeeOptions}</select>
@@ -1321,6 +1361,44 @@ function openAddRegularRowPopup() {
         <select id="regRowCadence" style="${FIELD_STYLE}">${cadenceOptions}</select>
       </div>
     </div>
+    <div style="margin-bottom:10px;">
+      <label style="${FIELD_LABEL_STYLE}">Category (optional)</label>
+      <input type="text" id="regRowCategory" list="regRowCategoryList" placeholder="e.g. Social Media" autocomplete="off" style="${FIELD_STYLE}">
+      <datalist id="regRowCategoryList">${categoryDatalistOptions}</datalist>
+    </div>
+
+    <div id="regScheduleDaily" class="reg-schedule-section">
+      <label style="${FIELD_LABEL_STYLE}">Time</label>
+      <select id="regRowTime" style="${FIELD_STYLE}">${hourlyTimeOptions()}</select>
+    </div>
+
+    <div id="regScheduleWeekly" class="reg-schedule-section" style="display:none;">
+      <label style="${FIELD_LABEL_STYLE}">Day of week</label>
+      <select id="regRowWeekday" style="${FIELD_STYLE}">${weekdaySelectOptions()}</select>
+    </div>
+
+    <div id="regScheduleMonthly" class="reg-schedule-section" style="display:none;">
+      <label style="${FIELD_LABEL_STYLE}">Monthly pattern</label>
+      <div style="display:flex;gap:16px;margin-bottom:8px;font-size:13px;">
+        <label style="display:flex;align-items:center;gap:5px;font-weight:400;"><input type="radio" name="regMonthlyMode" value="date" checked> On a date</label>
+        <label style="display:flex;align-items:center;gap:5px;font-weight:400;"><input type="radio" name="regMonthlyMode" value="weekday"> On a weekday pattern</label>
+      </div>
+      <div id="regMonthlyDateWrap">
+        <select id="regRowDayOfMonth" style="${FIELD_STYLE}">${dayOfMonthOptions()}</select>
+      </div>
+      <div id="regMonthlyWeekdayWrap" style="display:none;grid-template-columns:1fr 1fr;gap:10px;">
+        <select id="regRowOrdinal" style="${FIELD_STYLE}">${ordinalSelectOptions()}</select>
+        <select id="regRowMonthlyWeekday" style="${FIELD_STYLE}">${weekdaySelectOptions()}</select>
+      </div>
+    </div>
+
+    <div id="regScheduleAnnualLike" class="reg-schedule-section" style="display:none;">
+      <label style="${FIELD_LABEL_STYLE}">Month &amp; date</label>
+      <div class="popup-2col" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
+        <select id="regRowMonth" style="${FIELD_STYLE}">${monthSelectOptions()}</select>
+        <select id="regRowAnnualDate" style="${FIELD_STYLE}">${dayOfMonthOptions()}</select>
+      </div>
+    </div>
   `, { confirmLabel: 'Add' });
 
   if (activeRegularEmployee !== 'all') {
@@ -1328,18 +1406,70 @@ function openAddRegularRowPopup() {
     if ([...sel.options].some((o) => o.value === activeRegularEmployee)) sel.value = activeRegularEmployee;
   }
 
+  const cadenceSel = popup.querySelector('#regRowCadence');
+  const scheduleSections = {
+    daily: popup.querySelector('#regScheduleDaily'),
+    weekly: popup.querySelector('#regScheduleWeekly'),
+    monthly: popup.querySelector('#regScheduleMonthly'),
+    quarterly: popup.querySelector('#regScheduleAnnualLike'),
+    'half-yearly': popup.querySelector('#regScheduleAnnualLike'),
+    yearly: popup.querySelector('#regScheduleAnnualLike'),
+  };
+  const updateScheduleSections = () => {
+    Object.values(scheduleSections).forEach((el) => { if (el) el.style.display = 'none'; });
+    const target = scheduleSections[cadenceSel.value];
+    if (target) target.style.display = '';
+  };
+  cadenceSel.addEventListener('change', updateScheduleSections);
+  updateScheduleSections();
+
+  const monthlyDateWrap = popup.querySelector('#regMonthlyDateWrap');
+  const monthlyWeekdayWrap = popup.querySelector('#regMonthlyWeekdayWrap');
+  popup.querySelectorAll('input[name="regMonthlyMode"]').forEach((radio) => {
+    radio.addEventListener('change', () => {
+      const mode = popup.querySelector('input[name="regMonthlyMode"]:checked').value;
+      monthlyDateWrap.style.display = mode === 'date' ? '' : 'none';
+      monthlyWeekdayWrap.style.display = mode === 'weekday' ? 'grid' : 'none';
+    });
+  });
+
   confirmBtn.addEventListener('click', () => {
     const title = popup.querySelector('#regRowTitle').value.trim();
     if (!title) { alert('Please enter a task title'); return; }
     const owner = popup.querySelector('#regRowOwner').value;
-    const cadence = popup.querySelector('#regRowCadence').value;
-    const group = cadenceLabel(cadence);
+    const cadence = cadenceSel.value;
+    const category = popup.querySelector('#regRowCategory').value.trim();
+    if (category && !state.categories.some((c) => c.toLowerCase() === category.toLowerCase())) {
+      state.categories.push(category);
+    }
+    const group = category ? `${category} - ${cadenceLabel(cadence)}` : cadenceLabel(cadence);
+
+    const details = { cadence, owner, title, category, group };
+    if (cadence === 'daily') {
+      details.time = popup.querySelector('#regRowTime').value;
+    } else if (cadence === 'weekly') {
+      details.weekday = Number(popup.querySelector('#regRowWeekday').value);
+    } else if (cadence === 'monthly') {
+      const mode = popup.querySelector('input[name="regMonthlyMode"]:checked').value;
+      details.monthlyMode = mode;
+      if (mode === 'weekday') {
+        details.weekdayOrdinal = Number(popup.querySelector('#regRowOrdinal').value);
+        details.weekday = Number(popup.querySelector('#regRowMonthlyWeekday').value);
+      } else {
+        details.dayOfMonth = Number(popup.querySelector('#regRowDayOfMonth').value);
+      }
+    } else {
+      details.month = Number(popup.querySelector('#regRowMonth').value);
+      details.dayOfMonth = Number(popup.querySelector('#regRowAnnualDate').value);
+    }
+
     let insertAfterId = null;
     for (let i = state.regular.tasks.length - 1; i >= 0; i--) {
       const t = state.regular.tasks[i];
       if (t.group === group || t.cadence === cadence) { insertAfterId = t.id; break; }
     }
-    addRegularTaskWith({ cadence, owner, title, time: '', group, weekday: 1, dayOfMonth: 1, month: 0, insertAfterId });
+    details.insertAfterId = insertAfterId;
+    addRegularTaskWith(details);
     overlay.remove();
   });
 }
@@ -1363,102 +1493,11 @@ function openRemoveRegularRowPopup() {
   });
 }
 
-function openAddRegularColumnPopup() {
-  ensureRegularColumns();
-  const cols = state.regular.columns || [];
-  const afterOptions = ['<option value="">At the end</option>'].concat(cols.map((c) => `<option value="${c}">After ${c}</option>`)).join('');
-
-  const { overlay, popup, confirmBtn } = openRegularPopup('Add Column', `
-    <div class="popup-2col" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-      <div>
-        <label style="${FIELD_LABEL_STYLE}">Insert after</label>
-        <select id="regColAfter" style="${FIELD_STYLE}">${afterOptions}</select>
-      </div>
-      <div>
-        <label style="${FIELD_LABEL_STYLE}">Date for new column</label>
-        <input type="date" id="regColDate" style="${FIELD_STYLE}">
-      </div>
-    </div>
-  `, { confirmLabel: 'Add' });
-
-  confirmBtn.addEventListener('click', () => {
-    const afterDate = popup.querySelector('#regColAfter').value;
-    const dateStr = popup.querySelector('#regColDate').value;
-    const newDate = dateStr
-      ? new Date(`${dateStr}T00:00:00`)
-      : addDays(getRegularDates().slice(-1)[0] || regularStartDate, 1);
-    const key = dateKey(newDate);
-    const cols2 = [...state.regular.columns];
-    if (afterDate) {
-      const idx = cols2.findIndex((c) => c === afterDate);
-      if (idx >= 0) cols2.splice(idx + 1, 0, key);
-      else cols2.push(key);
-    } else {
-      cols2.push(key);
-    }
-    state.regular.columns = cols2;
-    persist();
-    overlay.remove();
-    render();
-  });
-}
-
-function openRemoveRegularColumnPopup() {
-  ensureRegularColumns();
-  const cols = state.regular.columns || [];
-  if (!cols.length) { alert('No columns to remove.'); return; }
-  const options = cols.map((c) => `<option value="${c}">${c}</option>`).join('');
-
-  const { overlay, popup, confirmBtn } = openRegularPopup('Remove Column', `
-    <div>
-      <label style="${FIELD_LABEL_STYLE}">Which date?</label>
-      <select id="regColRemoveSelect" style="${FIELD_STYLE}">${options}</select>
-    </div>
-  `, { confirmLabel: 'Remove', danger: true });
-
-  confirmBtn.addEventListener('click', () => {
-    const val = popup.querySelector('#regColRemoveSelect').value;
-    const cols2 = [...state.regular.columns];
-    const idx = cols2.indexOf(val);
-    if (idx !== -1) {
-      cols2.splice(idx, 1);
-      state.regular.columns = cols2;
-      persist();
-      render();
-    }
-    overlay.remove();
-  });
-}
-
 function ensureRegularColumns() {
   if (!state.regular) state.regular = { columns: [] };
   if (!Array.isArray(state.regular.columns) || !state.regular.columns.length) {
     state.regular.columns = Array.from({ length: daysInMonth(regularStartDate) }, (_, index) => dateKey(addDays(regularStartDate, index)));
   }
-}
-
-function resizeRegularColumns(delta) {
-  ensureRegularColumns();
-  const columns = [...state.regular.columns];
-  if (delta > 0) {
-    const lastDate = getRegularDates().slice(-1)[0];
-    columns.push(dateKey(addDays(lastDate, 1)));
-  } else if (columns.length > 5) {
-    columns.pop();
-  }
-  state.regular.columns = columns;
-  persist();
-  render();
-}
-
-function shiftRegularColumns(delta) {
-  ensureRegularColumns();
-  state.regular.columns = state.regular.columns.map((key) => {
-    const [year, month, day] = key.split('-').map(Number);
-    return dateKey(addDays(new Date(year, month - 1, day), delta));
-  });
-  persist();
-  render();
 }
 
 function moveRegularColumn(fromIndex, toIndex) {
@@ -1503,7 +1542,14 @@ function isRegularTaskExpected(task, date) {
   const monthsSinceRef = ((date.getMonth() - refMonth) % 12 + 12) % 12;
   if (task.cadence === 'daily') return date.getDay() !== 0;
   if (task.cadence === 'weekly') return date.getDay() === task.weekday;
-  if (task.cadence === 'monthly') return date.getDate() === task.dayOfMonth;
+  if (task.cadence === 'monthly') {
+    if (task.monthlyMode === 'weekday') {
+      if (date.getDay() !== task.weekday) return false;
+      const ordinal = Math.ceil(date.getDate() / 7);
+      return ordinal === Math.min(4, task.weekdayOrdinal || 1);
+    }
+    return date.getDate() === task.dayOfMonth;
+  }
   if (task.cadence === 'quarterly') return monthsSinceRef % 3 === 0 && date.getDate() === task.dayOfMonth;
   if (task.cadence === 'half-yearly') return monthsSinceRef % 6 === 0 && date.getDate() === task.dayOfMonth;
   if (task.cadence === 'yearly') return date.getMonth() === refMonth && date.getDate() === task.dayOfMonth;
@@ -1600,8 +1646,22 @@ function updateRegularSchedule(task, value) {
     const idx = WEEKDAYS.findIndex((day) => day.toLowerCase().startsWith(clean.slice(0, 3).toLowerCase()));
     if (idx >= 0) task.weekday = idx;
   } else if (task.cadence === 'monthly') {
-    const day = Number.parseInt(clean, 10);
-    if (day) task.dayOfMonth = Math.max(1, Math.min(31, day));
+    const patternMatch = clean.match(/^(1st|2nd|3rd|4th)\s+([A-Za-z]{3,})/i);
+    if (patternMatch) {
+      const ordinalMap = { '1st': 1, '2nd': 2, '3rd': 3, '4th': 4 };
+      const idx = WEEKDAYS.findIndex((day) => day.toLowerCase().startsWith(patternMatch[2].slice(0, 3).toLowerCase()));
+      if (idx >= 0) {
+        task.monthlyMode = 'weekday';
+        task.weekdayOrdinal = ordinalMap[patternMatch[1].toLowerCase()];
+        task.weekday = idx;
+      }
+    } else {
+      const day = Number.parseInt(clean, 10);
+      if (day) {
+        task.monthlyMode = 'date';
+        task.dayOfMonth = Math.max(1, Math.min(31, day));
+      }
+    }
   } else {
     const dayMatch = clean.match(/\d{1,2}/);
     if (dayMatch) task.dayOfMonth = Math.max(1, Math.min(31, Number.parseInt(dayMatch[0], 10)));
@@ -1627,7 +1687,7 @@ function regularScheduleValue(task) {
 
 function regularSchedulePlaceholder(cadence) {
   if (cadence === 'weekly') return 'e.g. Monday';
-  if (cadence === 'monthly') return 'Day of month, e.g. 15';
+  if (cadence === 'monthly') return 'e.g. 15 or "2nd Mon"';
   if (cadence === 'quarterly' || cadence === 'half-yearly' || cadence === 'yearly') return 'e.g. 15 Jan';
   return 'Enter time';
 }
@@ -3085,20 +3145,6 @@ function renderRegularToolbar() {
   removeRowBtn.addEventListener('click', openRemoveRegularRowPopup);
   actions.appendChild(removeRowBtn);
 
-  const addColBtn = document.createElement('button');
-  addColBtn.type = 'button';
-  addColBtn.className = 'btn secondary';
-  addColBtn.textContent = '+ Col';
-  addColBtn.addEventListener('click', openAddRegularColumnPopup);
-  actions.appendChild(addColBtn);
-
-  const removeColBtn = document.createElement('button');
-  removeColBtn.type = 'button';
-  removeColBtn.className = 'btn secondary';
-  removeColBtn.textContent = '- Col';
-  removeColBtn.addEventListener('click', openRemoveRegularColumnPopup);
-  actions.appendChild(removeColBtn);
-
   const columnLabel = document.createElement('span');
   columnLabel.className = 'regular-column-count';
   columnLabel.textContent = `${dates.length} days`;
@@ -3133,7 +3179,7 @@ function renderRegularGridView() {
     th.className = [isWeekend(date) ? 'weekend' : '', dateKey(date) === todayStr() ? 'today-col' : ''].filter(Boolean).join(' ');
     th.draggable = true;
     th.dataset.columnIndex = String(index);
-    th.innerHTML = `<span>${date.getDate()}</span><small>${WEEKDAYS[date.getDay()].slice(0, 1)}</small>`;
+    th.innerHTML = `<span>${date.getDate()}</span><small>${WEEKDAYS[date.getDay()].slice(0, 3).toUpperCase()}</small>`;
     th.title = `${date.getDate()} ${MONTHS[date.getMonth()]} (${WEEKDAYS[date.getDay()]})`;
     th.addEventListener('dragstart', (event) => {
       event.dataTransfer.setData('text/plain', String(index));
@@ -3367,7 +3413,9 @@ function groupedRegularTasks(tasks) {
   const order = ['Daily', 'Weekly', 'Monthly', 'Quarterly', 'Half-yearly', 'Yearly'];
   const map = new Map();
   tasks.forEach((task) => {
-    const group = task.group || cadenceLabel(task.cadence);
+    const group = task.category
+      ? `${task.category} - ${cadenceLabel(task.cadence)}`
+      : (task.group || cadenceLabel(task.cadence));
     if (!map.has(group)) map.set(group, []);
     map.get(group).push(task);
   });
@@ -3383,6 +3431,10 @@ function regularScheduleLabel(task) {
   if (task.cadence === 'weekly') return WEEKDAYS[task.weekday] || 'Weekly';
   if (task.cadence === 'yearly') return `${MONTHS[task.month || 0]} ${task.dayOfMonth}`;
   if (task.cadence === 'quarterly' || task.cadence === 'half-yearly') return `${MONTHS[task.month || 0]} ${task.dayOfMonth} +`;
+  if (task.monthlyMode === 'weekday') {
+    const ordinalWord = ['1st', '2nd', '3rd', '4th'][Math.min(4, task.weekdayOrdinal || 1) - 1];
+    return `${ordinalWord} ${WEEKDAYS[task.weekday]}`;
+  }
   return `Day ${task.dayOfMonth}`;
 }
 
