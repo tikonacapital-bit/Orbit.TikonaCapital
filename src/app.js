@@ -23,6 +23,8 @@ let activeProjectEmployee = 'all';
 let regularStartDate = firstDayOfMonth(new Date());
 let attendanceMonth = firstDayOfMonth(new Date());
 let calendarMonth = firstDayOfMonth(new Date());
+let regularViewMode = 'grid';
+let regularCalendarMonth = firstDayOfMonth(new Date());
 let viewMode = loadViewMode();
 const VIEW_MODES = new Set(['board', 'table', 'stack', 'calendar']);
 
@@ -1344,7 +1346,6 @@ function openAddRegularRowPopup() {
   const employees = getAllEmployees();
   const employeeOptions = employees.map((e) => `<option value="${escapeHtml(e)}">${escapeHtml(e)}</option>`).join('');
   const cadenceOptions = CADENCE_OPTIONS.map((c) => `<option value="${c}">${cadenceLabel(c)}</option>`).join('');
-  const categoryDatalistOptions = (state.categories || []).map((c) => `<option value="${escapeHtml(c)}">`).join('');
 
   const { overlay, popup, confirmBtn } = openRegularPopup('Add Regular Task', `
     <div style="margin-bottom:10px;">
@@ -1361,10 +1362,9 @@ function openAddRegularRowPopup() {
         <select id="regRowCadence" style="${FIELD_STYLE}">${cadenceOptions}</select>
       </div>
     </div>
-    <div style="margin-bottom:10px;">
-      <label style="${FIELD_LABEL_STYLE}">Category (optional)</label>
-      <input type="text" id="regRowCategory" list="regRowCategoryList" placeholder="e.g. Social Media" autocomplete="off" style="${FIELD_STYLE}">
-      <datalist id="regRowCategoryList">${categoryDatalistOptions}</datalist>
+    <div style="margin-bottom:10px;position:relative;">
+      <label style="${FIELD_LABEL_STYLE}">Category (optional) — groups this task under the chosen cadence</label>
+      <input type="text" id="regRowCategory" placeholder="e.g. Social Media" autocomplete="off" style="${FIELD_STYLE}">
     </div>
 
     <div id="regScheduleDaily" class="reg-schedule-section">
@@ -1433,16 +1433,74 @@ function openAddRegularRowPopup() {
     });
   });
 
+  // Category combobox — same type-to-filter / type-to-create suggestion
+  // list used by the main task popup's category field, instead of a plain
+  // native <datalist> (which renders inconsistently and doesn't match the
+  // app's look).
+  const categoryInput = popup.querySelector('#regRowCategory');
+  const categorySuggestions = document.createElement('div');
+  categorySuggestions.className = 'combo-suggestions';
+  categorySuggestions.style.cssText = 'position:fixed;max-height:140px;z-index:1100;display:none;';
+  document.body.appendChild(categorySuggestions);
+
+  function positionCategorySuggestions() {
+    const rect = categoryInput.getBoundingClientRect();
+    categorySuggestions.style.left = `${rect.left}px`;
+    categorySuggestions.style.top = `${rect.bottom + 2}px`;
+    categorySuggestions.style.width = `${rect.width}px`;
+  }
+  function showCategorySuggestions() {
+    const q = categoryInput.value.trim().toLowerCase();
+    const matches = (state.categories || []).filter((c) => !q || c.toLowerCase().includes(q));
+    if (!matches.length) { categorySuggestions.style.display = 'none'; return; }
+    categorySuggestions.innerHTML = matches.map((c) => `<div class="category-suggestion" data-value="${escapeHtml(c)}" style="padding:6px 10px;cursor:pointer;font-size:13px;">${escapeHtml(c)}</div>`).join('');
+    categorySuggestions.scrollTop = 0;
+    positionCategorySuggestions();
+    categorySuggestions.style.display = 'block';
+  }
+  categoryInput.addEventListener('focus', showCategorySuggestions);
+  categoryInput.addEventListener('input', showCategorySuggestions);
+  categorySuggestions.addEventListener('mousedown', (e) => {
+    e.preventDefault();
+    const target = e.target.closest('.category-suggestion');
+    if (target) {
+      categoryInput.value = target.dataset.value;
+      categorySuggestions.style.display = 'none';
+    }
+  });
+  categoryInput.addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') { e.preventDefault(); categorySuggestions.style.display = 'none'; }
+  });
+  const closeCategoryOnOutsideClick = (e) => {
+    if (!categoryInput.parentElement.contains(e.target) && !categorySuggestions.contains(e.target)) categorySuggestions.style.display = 'none';
+  };
+  const hideCategoryOnScroll = (e) => {
+    if (e.target === categorySuggestions) return;
+    categorySuggestions.style.display = 'none';
+  };
+  document.addEventListener('mousedown', closeCategoryOnOutsideClick);
+  window.addEventListener('scroll', hideCategoryOnScroll, true);
+  function cleanupCategoryCombo() {
+    document.removeEventListener('mousedown', closeCategoryOnOutsideClick);
+    window.removeEventListener('scroll', hideCategoryOnScroll, true);
+    categorySuggestions.remove();
+  }
+  popup.querySelector('#regPopupCancel').addEventListener('click', cleanupCategoryCombo);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) cleanupCategoryCombo(); });
+
   confirmBtn.addEventListener('click', () => {
     const title = popup.querySelector('#regRowTitle').value.trim();
     if (!title) { alert('Please enter a task title'); return; }
     const owner = popup.querySelector('#regRowOwner').value;
     const cadence = cadenceSel.value;
-    const category = popup.querySelector('#regRowCategory').value.trim();
+    const category = categoryInput.value.trim();
     if (category && !state.categories.some((c) => c.toLowerCase() === category.toLowerCase())) {
       state.categories.push(category);
     }
-    const group = category ? `${category} - ${cadenceLabel(cadence)}` : cadenceLabel(cadence);
+    // The group is always just the cadence -- category is a separate field
+    // that nests as a sub-section INSIDE that cadence's block, not a
+    // parallel top-level section of its own.
+    const group = cadenceLabel(cadence);
 
     const details = { cadence, owner, title, category, group };
     if (cadence === 'daily') {
@@ -1466,10 +1524,17 @@ function openAddRegularRowPopup() {
     let insertAfterId = null;
     for (let i = state.regular.tasks.length - 1; i >= 0; i--) {
       const t = state.regular.tasks[i];
-      if (t.group === group || t.cadence === cadence) { insertAfterId = t.id; break; }
+      if (t.cadence === cadence && (t.category || '') === category) { insertAfterId = t.id; break; }
+    }
+    if (insertAfterId === null) {
+      for (let i = state.regular.tasks.length - 1; i >= 0; i--) {
+        const t = state.regular.tasks[i];
+        if (t.cadence === cadence) { insertAfterId = t.id; break; }
+      }
     }
     details.insertAfterId = insertAfterId;
     addRegularTaskWith(details);
+    cleanupCategoryCombo();
     overlay.remove();
   });
 }
@@ -2087,11 +2152,32 @@ function renderRegularSection() {
   const title = document.createElement('h2');
   title.textContent = getActiveRegularSectionTitle();
   header.appendChild(title);
+
+  const viewToggle = document.createElement('div');
+  viewToggle.className = 'regular-view-toggle';
+  [['grid', 'Grid'], ['calendar', 'Calendar']].forEach(([mode, label]) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `btn small${regularViewMode === mode ? ' active' : ''}`;
+    btn.textContent = label;
+    btn.addEventListener('click', () => {
+      if (regularViewMode === mode) return;
+      regularViewMode = mode;
+      render();
+    });
+    viewToggle.appendChild(btn);
+  });
+  header.appendChild(viewToggle);
   section.appendChild(header);
 
   section.appendChild(renderRegularEmployeeSelector());
-  section.appendChild(renderRegularToolbar());
-  section.appendChild(renderRegularGridView());
+
+  if (regularViewMode === 'calendar') {
+    section.appendChild(renderRegularCalendarView());
+  } else {
+    section.appendChild(renderRegularToolbar());
+    section.appendChild(renderRegularGridView());
+  }
   return section;
 }
 
@@ -3198,7 +3284,7 @@ function renderRegularGridView() {
   table.appendChild(thead);
 
   const tbody = document.createElement('tbody');
-  groupedRegularTasks(tasks).forEach(([group, rows]) => {
+  groupedRegularTasks(tasks).forEach(([group, subgroups]) => {
     const groupRow = document.createElement('tr');
     groupRow.className = 'regular-group-row';
     const groupCell = document.createElement('td');
@@ -3207,49 +3293,141 @@ function renderRegularGridView() {
     groupRow.appendChild(groupCell);
     tbody.appendChild(groupRow);
 
-    rows.forEach((task) => {
-      const tr = document.createElement('tr');
-      tr.draggable = true;
-      tr.dataset.taskId = task.id;
-      tr.addEventListener('dragstart', (event) => {
-        event.dataTransfer.setData('text/plain', task.id);
-        event.dataTransfer.effectAllowed = 'move';
+    subgroups.forEach(({ category, tasks: rows }) => {
+      if (category) {
+        const subgroupRow = document.createElement('tr');
+        subgroupRow.className = 'regular-subgroup-row';
+        const subgroupCell = document.createElement('td');
+        subgroupCell.colSpan = dates.length + 4;
+        subgroupCell.textContent = category;
+        subgroupRow.appendChild(subgroupCell);
+        tbody.appendChild(subgroupRow);
+      }
+
+      rows.forEach((task) => {
+        const tr = document.createElement('tr');
+        tr.draggable = true;
+        tr.dataset.taskId = task.id;
+        tr.addEventListener('dragstart', (event) => {
+          event.dataTransfer.setData('text/plain', task.id);
+          event.dataTransfer.effectAllowed = 'move';
+        });
+        tr.addEventListener('dragover', (event) => event.preventDefault());
+        tr.addEventListener('drop', (event) => {
+          event.preventDefault();
+          const fromId = event.dataTransfer.getData('text/plain');
+          if (fromId && fromId !== task.id) moveRegularRow(fromId, task.id);
+        });
+
+        const ownerCell = document.createElement('td');
+        ownerCell.appendChild(editableText(task.owner, (value) => updateRegularTask(task, 'owner', value), 'regular-editable'));
+        tr.appendChild(ownerCell);
+
+        const titleCell = document.createElement('td');
+        titleCell.appendChild(editableText(task.title, (value) => updateRegularTask(task, 'title', value), 'regular-editable'));
+        tr.appendChild(titleCell);
+
+        const timeCell = document.createElement('td');
+        timeCell.appendChild(editableText(regularScheduleValue(task), (value) => updateRegularSchedule(task, value), 'regular-editable', regularSchedulePlaceholder(task.cadence)));
+        tr.appendChild(timeCell);
+
+        tr.appendChild(textCell(`${regularTaskProgress(task, dates).pct}%`));
+
+        dates.forEach((date) => {
+          const td = document.createElement('td');
+          td.className = [isWeekend(date) ? 'weekend' : '', dateKey(date) === todayStr() ? 'today-col' : ''].filter(Boolean).join(' ');
+          if (isRegularTaskExpected(task, date)) {
+            td.appendChild(renderRegularCheckbox(task, date));
+          }
+          tr.appendChild(td);
+        });
+        tbody.appendChild(tr);
       });
-      tr.addEventListener('dragover', (event) => event.preventDefault());
-      tr.addEventListener('drop', (event) => {
-        event.preventDefault();
-        const fromId = event.dataTransfer.getData('text/plain');
-        if (fromId && fromId !== task.id) moveRegularRow(fromId, task.id);
-      });
-
-      const ownerCell = document.createElement('td');
-      ownerCell.appendChild(editableText(task.owner, (value) => updateRegularTask(task, 'owner', value), 'regular-editable'));
-      tr.appendChild(ownerCell);
-
-      const titleCell = document.createElement('td');
-      titleCell.appendChild(editableText(task.title, (value) => updateRegularTask(task, 'title', value), 'regular-editable'));
-      tr.appendChild(titleCell);
-
-      const timeCell = document.createElement('td');
-      timeCell.appendChild(editableText(regularScheduleValue(task), (value) => updateRegularSchedule(task, value), 'regular-editable', regularSchedulePlaceholder(task.cadence)));
-      tr.appendChild(timeCell);
-
-      tr.appendChild(textCell(`${regularTaskProgress(task, dates).pct}%`));
-
-      dates.forEach((date) => {
-        const td = document.createElement('td');
-        td.className = [isWeekend(date) ? 'weekend' : '', dateKey(date) === todayStr() ? 'today-col' : ''].filter(Boolean).join(' ');
-        if (isRegularTaskExpected(task, date)) {
-          td.appendChild(renderRegularCheckbox(task, date));
-        }
-        tr.appendChild(td);
-      });
-      tbody.appendChild(tr);
     });
   });
   table.appendChild(tbody);
   panel.appendChild(table);
   return panel;
+}
+
+// Month calendar for Regular Tasks. Daily tasks are deliberately excluded --
+// they'd otherwise fill in every single cell and drown out the tasks that
+// actually only happen on specific days (weekly/monthly/quarterly/...).
+function renderRegularCalendarView() {
+  const wrap = document.createElement('div');
+  wrap.className = 'calendar-view-panel regular-calendar-panel';
+
+  wrap.appendChild(renderCalendarToolbar(regularCalendarMonth, (next) => {
+    regularCalendarMonth = next;
+    render();
+  }));
+
+  const grid = document.createElement('div');
+  grid.className = 'calendar-grid';
+
+  const weekdayRow = document.createElement('div');
+  weekdayRow.className = 'calendar-weekdays';
+  WEEKDAYS.forEach((w) => {
+    const cell = document.createElement('div');
+    cell.textContent = w;
+    weekdayRow.appendChild(cell);
+  });
+  grid.appendChild(weekdayRow);
+
+  const days = document.createElement('div');
+  days.className = 'calendar-days';
+
+  const month = regularCalendarMonth;
+  const startOfGrid = addDays(month, -month.getDay());
+  const today = todayStr();
+  const tasks = getRegularTasks().filter((task) => task.cadence !== 'daily');
+  const maxPerDay = 4;
+
+  for (let i = 0; i < 42; i++) {
+    const date = addDays(startOfGrid, i);
+    const key = dateKey(date);
+    const inMonth = date.getMonth() === month.getMonth();
+
+    const cell = document.createElement('div');
+    cell.className = `calendar-cell${inMonth ? '' : ' outside'}${key === today ? ' today' : ''}`;
+
+    const dayNum = document.createElement('div');
+    dayNum.className = 'calendar-day-num';
+    dayNum.textContent = date.getDate();
+    cell.appendChild(dayNum);
+
+    const dayTasks = tasks.filter((task) => isRegularTaskExpected(task, date));
+    const locked = isPastDate(date);
+
+    dayTasks.slice(0, maxPerDay).forEach((task) => {
+      const done = isRegularDone(task, date);
+      const pill = document.createElement('button');
+      pill.type = 'button';
+      pill.className = `calendar-pill regular-calendar-pill${done ? ' done' : ''}`;
+      pill.textContent = task.title;
+      pill.title = `${task.title} — ${task.owner}${locked ? ' (past date, locked)' : ''}`;
+      pill.disabled = locked;
+      pill.addEventListener('click', (e) => {
+        e.stopPropagation();
+        if (locked) return;
+        toggleRegularCompletion(task, date);
+      });
+      cell.appendChild(pill);
+    });
+
+    if (dayTasks.length > maxPerDay) {
+      const more = document.createElement('div');
+      more.className = 'calendar-more';
+      more.textContent = `+${dayTasks.length - maxPerDay} more`;
+      cell.appendChild(more);
+    }
+
+    days.appendChild(cell);
+  }
+
+  grid.appendChild(days);
+  wrap.appendChild(grid);
+  return wrap;
 }
 
 function renderRegularTableView() {
@@ -3409,20 +3587,37 @@ function renderRegularCheckbox(task, date) {
   return wrapper;
 }
 
+// Two-level grouping: cadence is always the top-level section (Daily,
+// Weekly, ...); category (if set) nests as a sub-section INSIDE that
+// cadence block rather than forming its own parallel top-level section.
+// Returns [[cadenceLabel, [{category, tasks}, ...]], ...] -- the first
+// subgroup per cadence (category: '') holds the uncategorized tasks and
+// renders with no sub-header.
 function groupedRegularTasks(tasks) {
   const order = ['Daily', 'Weekly', 'Monthly', 'Quarterly', 'Half-yearly', 'Yearly'];
-  const map = new Map();
+  const cadenceMap = new Map();
   tasks.forEach((task) => {
-    const group = task.category
-      ? `${task.category} - ${cadenceLabel(task.cadence)}`
-      : (task.group || cadenceLabel(task.cadence));
-    if (!map.has(group)) map.set(group, []);
-    map.get(group).push(task);
+    const cadence = cadenceLabel(task.cadence);
+    if (!cadenceMap.has(cadence)) cadenceMap.set(cadence, new Map());
+    const subMap = cadenceMap.get(cadence);
+    const category = task.category || '';
+    if (!subMap.has(category)) subMap.set(category, []);
+    subMap.get(category).push(task);
   });
-  return [...map.entries()].sort((a, b) => {
+  const cadenceEntries = [...cadenceMap.entries()].sort((a, b) => {
     const ai = order.indexOf(a[0]);
     const bi = order.indexOf(b[0]);
     return (ai === -1 ? 99 : ai) - (bi === -1 ? 99 : bi);
+  });
+  return cadenceEntries.map(([cadence, subMap]) => {
+    const subgroups = [...subMap.entries()]
+      .sort((a, b) => {
+        if (a[0] === '') return -1;
+        if (b[0] === '') return 1;
+        return a[0].localeCompare(b[0]);
+      })
+      .map(([category, rows]) => ({ category, tasks: rows }));
+    return [cadence, subgroups];
   });
 }
 

@@ -1651,11 +1651,32 @@ button.stat-card:hover::before { opacity: 1; }
 .calendar-pill.priority-high { border-left-color: var(--high); background: rgba(224, 72, 88, 0.14); }
 .calendar-pill.done { opacity: 0.55; text-decoration: line-through; }
 
+.calendar-pill.regular-calendar-pill { border-left-color: var(--accent); background: rgba(58, 91, 160, 0.1); }
+.calendar-pill.regular-calendar-pill.done { border-left-color: var(--low); background: rgba(96, 165, 250, 0.14); }
+.calendar-pill.regular-calendar-pill:disabled { cursor: not-allowed; opacity: 0.5; }
+
 .calendar-more {
   font-size: 10px;
   font-weight: 600;
   color: var(--text-muted);
   padding: 0 3px;
+}
+
+.regular-view-toggle {
+  display: flex;
+  gap: 6px;
+  margin-left: auto;
+}
+
+.btn.small {
+  padding: 4px 12px;
+  font-size: 12px;
+}
+
+.regular-view-toggle .btn.active {
+  background: var(--accent);
+  border-color: var(--accent);
+  color: #fff;
 }
 
 @media (max-width: 560px) {
@@ -2262,6 +2283,22 @@ button.stat-card:hover::before { opacity: 1; }
   font-weight: 800;
   letter-spacing: 0.2px;
   text-transform: uppercase;
+}
+
+/* A category, when set, nests as a sub-section inside its cadence block --
+   lighter than the main cadence header so the hierarchy (cadence -> category)
+   reads clearly rather than looking like a second parallel section. */
+.regular-subgroup-row td {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  background: #E4EAF7 !important;
+  color: #1F4690;
+  font-weight: 700;
+  font-size: 10px;
+  letter-spacing: 0.2px;
+  text-transform: uppercase;
+  padding-left: 16px;
 }
 
 .regular-checkbox-wrap {
