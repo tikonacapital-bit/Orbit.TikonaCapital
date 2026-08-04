@@ -1622,6 +1622,23 @@ button.stat-card:hover::before { opacity: 1; }
   color: #6B3F00;
 }
 
+/* Multi-select day picker used by the Leave Application popup -- a
+   compact variant of the same calendar grid (short on vertical room in a
+   modal), with a distinct "picked" state separate from "today". */
+.leave-calendar .calendar-days {
+  grid-auto-rows: minmax(38px, auto);
+}
+
+.calendar-cell.selected {
+  border-color: var(--accent);
+  background: rgba(58, 91, 160, 0.14);
+  box-shadow: 0 0 0 1px var(--accent) inset;
+}
+
+.calendar-cell.selected .calendar-day-num {
+  color: var(--accent);
+}
+
 .calendar-pill {
   display: block;
   width: 100%;

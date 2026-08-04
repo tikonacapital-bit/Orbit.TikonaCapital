@@ -574,7 +574,7 @@ function normalizeRegular(regular) {
     dayOfMonth: Number.isInteger(task.dayOfMonth) ? task.dayOfMonth : 1,
     month: Number.isInteger(task.month) ? task.month : 0,
     monthlyMode: task.monthlyMode === 'weekday' ? 'weekday' : 'date',
-    weekdayOrdinal: Number.isInteger(task.weekdayOrdinal) ? Math.min(4, Math.max(1, task.weekdayOrdinal)) : 1,
+    weekdayOrdinal: Number.isInteger(task.weekdayOrdinal) ? Math.min(5, Math.max(1, task.weekdayOrdinal)) : 1,
   }));
   const employees = [...new Set(tasks.map((task) => task.owner))].sort();
   const rawCompletions = regular?.completions && typeof regular.completions === 'object' ? regular.completions : {};
@@ -812,7 +812,7 @@ function addRegularTaskWith(details = {}) {
     dayOfMonth: Number.isInteger(details.dayOfMonth) ? details.dayOfMonth : 1,
     month: Number.isInteger(details.month) ? details.month : 0,
     monthlyMode: details.monthlyMode === 'weekday' ? 'weekday' : 'date',
-    weekdayOrdinal: Number.isInteger(details.weekdayOrdinal) ? Math.min(4, Math.max(1, details.weekdayOrdinal)) : 1,
+    weekdayOrdinal: Number.isInteger(details.weekdayOrdinal) ? Math.min(5, Math.max(1, details.weekdayOrdinal)) : 1,
   };
   // insert into tasks array; if details.insertAfterId provided, place after that task
   if (details.insertAfterId) {
@@ -876,9 +876,9 @@ async function fetchClientIp() {
   }
 }
 
-function logActivity(type, email, ip, device, name = '') {
+function logActivity(type, email, ip, device, name = '', extra = {}) {
   state.activity = state.activity || [];
-  state.activity.push({ id: uid('act'), type, name, email, timestamp: Date.now(), ip, device });
+  state.activity.push({ id: uid('act'), type, name, email, timestamp: Date.now(), ip, device, ...extra });
   if (state.activity.length > ACTIVITY_RETENTION) state.activity = state.activity.slice(-ACTIVITY_RETENTION);
   persist();
   render();
@@ -1102,6 +1102,179 @@ function openAttendancePopup() {
   overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
 }
 
+function openLeaveApplicationPopup() {
+  document.querySelectorAll('.regular-popup-overlay').forEach((m) => m.remove());
+  const employees = getRegisteredEmployees();
+  if (!employees.length) { alert('No registered employees yet. Please register first.'); return; }
+
+  const overlay = document.createElement('div');
+  overlay.className = 'regular-popup-overlay';
+
+  const popup = document.createElement('div');
+  popup.style.maxWidth = '440px';
+
+  const heading = document.createElement('h2');
+  heading.style.cssText = 'margin:0 0 12px 0;font-size:17px;font-weight:600;';
+  heading.textContent = 'Leave Application';
+  popup.appendChild(heading);
+
+  const empWrap = document.createElement('div');
+  empWrap.style.cssText = 'margin-bottom:12px;';
+  const empLabel = document.createElement('label');
+  empLabel.style.cssText = FIELD_LABEL_STYLE;
+  empLabel.textContent = 'Employee';
+  empWrap.appendChild(empLabel);
+  const empSelect = document.createElement('select');
+  empSelect.style.cssText = FIELD_STYLE;
+  empSelect.innerHTML = '<option value="">Select employee…</option>'
+    + employees.map((e) => `<option value="${escapeHtml(e.email)}">${escapeHtml(e.name || e.email)}</option>`).join('');
+  empWrap.appendChild(empSelect);
+  popup.appendChild(empWrap);
+
+  const calLabel = document.createElement('label');
+  calLabel.style.cssText = FIELD_LABEL_STYLE;
+  calLabel.textContent = 'Click the dates on leave';
+  popup.appendChild(calLabel);
+
+  const calWrap = document.createElement('div');
+  calWrap.className = 'leave-calendar';
+  calWrap.style.cssText = 'margin-bottom:12px;';
+  popup.appendChild(calWrap);
+
+  let leaveMonth = firstDayOfMonth(new Date());
+  const selectedDates = new Map(); // dateKey -> reason
+
+  function renderLeaveCalendar() {
+    calWrap.innerHTML = '';
+    calWrap.appendChild(renderCalendarToolbar(leaveMonth, (next) => {
+      leaveMonth = next;
+      renderLeaveCalendar();
+    }));
+
+    const grid = document.createElement('div');
+    grid.className = 'calendar-grid';
+    const weekdayRow = document.createElement('div');
+    weekdayRow.className = 'calendar-weekdays';
+    WEEKDAYS.forEach((w) => {
+      const cell = document.createElement('div');
+      cell.textContent = w;
+      weekdayRow.appendChild(cell);
+    });
+    grid.appendChild(weekdayRow);
+
+    const days = document.createElement('div');
+    days.className = 'calendar-days';
+    const startOfGrid = addDays(leaveMonth, -leaveMonth.getDay());
+    const today = todayStr();
+    for (let i = 0; i < 42; i++) {
+      const date = addDays(startOfGrid, i);
+      const key = dateKey(date);
+      const inMonth = date.getMonth() === leaveMonth.getMonth();
+      const cell = document.createElement('div');
+      cell.className = `calendar-cell${inMonth ? '' : ' outside'}${key === today ? ' today' : ''}${selectedDates.has(key) ? ' selected' : ''}`;
+      const dayNum = document.createElement('div');
+      dayNum.className = 'calendar-day-num';
+      dayNum.textContent = date.getDate();
+      cell.appendChild(dayNum);
+      cell.addEventListener('click', () => {
+        if (selectedDates.has(key)) selectedDates.delete(key);
+        else selectedDates.set(key, '');
+        renderLeaveCalendar();
+        renderReasonList();
+      });
+      days.appendChild(cell);
+    }
+    grid.appendChild(days);
+    calWrap.appendChild(grid);
+  }
+
+  const reasonLabel = document.createElement('label');
+  reasonLabel.style.cssText = FIELD_LABEL_STYLE;
+  reasonLabel.textContent = 'Selected dates & reason';
+  popup.appendChild(reasonLabel);
+
+  const reasonList = document.createElement('div');
+  reasonList.style.cssText = 'display:flex;flex-direction:column;gap:8px;margin-bottom:14px;max-height:160px;overflow-y:auto;';
+  popup.appendChild(reasonList);
+
+  function renderReasonList() {
+    reasonList.innerHTML = '';
+    if (!selectedDates.size) {
+      const empty = document.createElement('div');
+      empty.style.cssText = 'font-size:12.5px;color:#8a94a6;';
+      empty.textContent = 'Click dates on the calendar above to add them.';
+      reasonList.appendChild(empty);
+      return;
+    }
+    [...selectedDates.keys()].sort().forEach((key) => {
+      const row = document.createElement('div');
+      row.style.cssText = 'display:flex;align-items:center;gap:8px;';
+
+      const label = document.createElement('span');
+      label.style.cssText = 'font-size:12.5px;font-weight:600;white-space:nowrap;color:#1F4690;min-width:66px;';
+      label.textContent = formatDateStrForShare(key);
+      row.appendChild(label);
+
+      const input = document.createElement('input');
+      input.type = 'text';
+      input.placeholder = 'Reason (optional)';
+      input.value = selectedDates.get(key) || '';
+      input.style.cssText = 'flex:1;padding:6px 8px;border:1px solid #ddd;border-radius:6px;font-size:12.5px;box-sizing:border-box;';
+      input.addEventListener('input', () => selectedDates.set(key, input.value));
+      row.appendChild(input);
+
+      const rm = document.createElement('button');
+      rm.type = 'button';
+      rm.textContent = '×';
+      rm.title = 'Remove this date';
+      rm.style.cssText = 'border:none;background:transparent;color:#8a94a6;font-size:16px;line-height:1;cursor:pointer;padding:0 4px;';
+      rm.addEventListener('click', () => {
+        selectedDates.delete(key);
+        renderLeaveCalendar();
+        renderReasonList();
+      });
+      row.appendChild(rm);
+
+      reasonList.appendChild(row);
+    });
+  }
+
+  renderLeaveCalendar();
+  renderReasonList();
+
+  const actionsRow = document.createElement('div');
+  actionsRow.style.cssText = 'display:flex;gap:10px;justify-content:flex-end;';
+  const cancelBtn = document.createElement('button');
+  cancelBtn.type = 'button';
+  cancelBtn.textContent = 'Cancel';
+  cancelBtn.style.cssText = 'padding:8px 20px;border:1px solid #ddd;border-radius:999px;background:white;cursor:pointer;font-size:13.5px;font-weight:500;';
+  cancelBtn.addEventListener('click', () => overlay.remove());
+  actionsRow.appendChild(cancelBtn);
+
+  const doneBtn = document.createElement('button');
+  doneBtn.type = 'button';
+  doneBtn.textContent = 'Done';
+  doneBtn.style.cssText = 'padding:8px 20px;border:none;border-radius:999px;background:#FFA500;color:white;cursor:pointer;font-size:13.5px;font-weight:600;';
+  doneBtn.addEventListener('click', () => {
+    const email = empSelect.value;
+    if (!email) { alert('Please select an employee.'); return; }
+    if (!selectedDates.size) { alert('Please select at least one date on the calendar.'); return; }
+    const emp = employees.find((e) => e.email === email);
+    const leaveDates = [...selectedDates.entries()]
+      .sort(([a], [b]) => (a < b ? -1 : 1))
+      .map(([date, reason]) => ({ date, reason: reason.trim() }));
+    logActivity('leave', email, '', navigator.userAgent, emp?.name || email, { leaveDates });
+    overlay.remove();
+    showToast('Leave application submitted');
+  });
+  actionsRow.appendChild(doneBtn);
+  popup.appendChild(actionsRow);
+
+  overlay.appendChild(popup);
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+}
+
 function exitEmployee(email) {
   const empIndex = state.employees.findIndex((e) => e.email === email);
   if (empIndex === -1) return;
@@ -1309,7 +1482,8 @@ function openExitPopup() {
 // Mon-first weekday order for schedule dropdowns (WEEKDAYS itself is
 // Sun-first to match Date#getDay(), which is what's actually stored).
 const WEEKDAY_PICKER_ORDER = [1, 2, 3, 4, 5, 6, 0];
-const ORDINAL_WORDS = ['1st', '2nd', '3rd', '4th'];
+const ORDINAL_WORDS = ['1st', '2nd', '3rd', '4th', '5th'];
+const ORDINAL_MAP = { '1st': 1, '2nd': 2, '3rd': 3, '4th': 4, '5th': 5 };
 
 function hourlyTimeOptions(selected = '09:00') {
   return Array.from({ length: 24 }, (_, h) => {
@@ -1363,7 +1537,7 @@ function openAddRegularRowPopup() {
       </div>
     </div>
     <div style="margin-bottom:10px;position:relative;">
-      <label style="${FIELD_LABEL_STYLE}">Category (optional) — groups this task under the chosen cadence</label>
+      <label style="${FIELD_LABEL_STYLE}">Category — groups this task under the chosen cadence</label>
       <input type="text" id="regRowCategory" placeholder="e.g. Social Media" autocomplete="off" style="${FIELD_STYLE}">
     </div>
 
@@ -1393,10 +1567,18 @@ function openAddRegularRowPopup() {
     </div>
 
     <div id="regScheduleAnnualLike" class="reg-schedule-section" style="display:none;">
-      <label style="${FIELD_LABEL_STYLE}">Month &amp; date</label>
-      <div class="popup-2col" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
-        <select id="regRowMonth" style="${FIELD_STYLE}">${monthSelectOptions()}</select>
+      <label style="${FIELD_LABEL_STYLE}">Month</label>
+      <select id="regRowMonth" style="${FIELD_STYLE}">${monthSelectOptions()}</select>
+      <div style="display:flex;gap:16px;margin:10px 0 8px;font-size:13px;">
+        <label style="display:flex;align-items:center;gap:5px;font-weight:400;"><input type="radio" name="regAnnualMode" value="date" checked> On a date</label>
+        <label style="display:flex;align-items:center;gap:5px;font-weight:400;"><input type="radio" name="regAnnualMode" value="weekday"> On a weekday pattern</label>
+      </div>
+      <div id="regAnnualDateWrap">
         <select id="regRowAnnualDate" style="${FIELD_STYLE}">${dayOfMonthOptions()}</select>
+      </div>
+      <div id="regAnnualWeekdayWrap" style="display:none;grid-template-columns:1fr 1fr;gap:10px;">
+        <select id="regRowAnnualOrdinal" style="${FIELD_STYLE}">${ordinalSelectOptions()}</select>
+        <select id="regRowAnnualWeekday" style="${FIELD_STYLE}">${weekdaySelectOptions()}</select>
       </div>
     </div>
   `, { confirmLabel: 'Add' });
@@ -1430,6 +1612,16 @@ function openAddRegularRowPopup() {
       const mode = popup.querySelector('input[name="regMonthlyMode"]:checked').value;
       monthlyDateWrap.style.display = mode === 'date' ? '' : 'none';
       monthlyWeekdayWrap.style.display = mode === 'weekday' ? 'grid' : 'none';
+    });
+  });
+
+  const annualDateWrap = popup.querySelector('#regAnnualDateWrap');
+  const annualWeekdayWrap = popup.querySelector('#regAnnualWeekdayWrap');
+  popup.querySelectorAll('input[name="regAnnualMode"]').forEach((radio) => {
+    radio.addEventListener('change', () => {
+      const mode = popup.querySelector('input[name="regAnnualMode"]:checked').value;
+      annualDateWrap.style.display = mode === 'date' ? '' : 'none';
+      annualWeekdayWrap.style.display = mode === 'weekday' ? 'grid' : 'none';
     });
   });
 
@@ -1518,7 +1710,14 @@ function openAddRegularRowPopup() {
       }
     } else {
       details.month = Number(popup.querySelector('#regRowMonth').value);
-      details.dayOfMonth = Number(popup.querySelector('#regRowAnnualDate').value);
+      const mode = popup.querySelector('input[name="regAnnualMode"]:checked').value;
+      details.monthlyMode = mode;
+      if (mode === 'weekday') {
+        details.weekdayOrdinal = Number(popup.querySelector('#regRowAnnualOrdinal').value);
+        details.weekday = Number(popup.querySelector('#regRowAnnualWeekday').value);
+      } else {
+        details.dayOfMonth = Number(popup.querySelector('#regRowAnnualDate').value);
+      }
     }
 
     let insertAfterId = null;
@@ -1602,22 +1801,28 @@ function isWeekend(date) {
   return day === 0 || day === 6;
 }
 
+// Shared by monthly/quarterly/half-yearly/yearly tasks in "weekday pattern"
+// mode (e.g. "2nd Monday", capped at the 5th occurrence -- a small handful
+// of months have 5 of a given weekday, so this isn't purely academic).
+function matchesWeekdayPattern(task, date) {
+  if (date.getDay() !== task.weekday) return false;
+  const ordinal = Math.ceil(date.getDate() / 7);
+  return ordinal === Math.min(5, task.weekdayOrdinal || 1);
+}
+
+function matchesDateOrWeekdayPattern(task, date) {
+  return task.monthlyMode === 'weekday' ? matchesWeekdayPattern(task, date) : date.getDate() === task.dayOfMonth;
+}
+
 function isRegularTaskExpected(task, date) {
   const refMonth = Number.isInteger(task.month) ? task.month : 0;
   const monthsSinceRef = ((date.getMonth() - refMonth) % 12 + 12) % 12;
   if (task.cadence === 'daily') return date.getDay() !== 0;
   if (task.cadence === 'weekly') return date.getDay() === task.weekday;
-  if (task.cadence === 'monthly') {
-    if (task.monthlyMode === 'weekday') {
-      if (date.getDay() !== task.weekday) return false;
-      const ordinal = Math.ceil(date.getDate() / 7);
-      return ordinal === Math.min(4, task.weekdayOrdinal || 1);
-    }
-    return date.getDate() === task.dayOfMonth;
-  }
-  if (task.cadence === 'quarterly') return monthsSinceRef % 3 === 0 && date.getDate() === task.dayOfMonth;
-  if (task.cadence === 'half-yearly') return monthsSinceRef % 6 === 0 && date.getDate() === task.dayOfMonth;
-  if (task.cadence === 'yearly') return date.getMonth() === refMonth && date.getDate() === task.dayOfMonth;
+  if (task.cadence === 'monthly') return matchesDateOrWeekdayPattern(task, date);
+  if (task.cadence === 'quarterly') return monthsSinceRef % 3 === 0 && matchesDateOrWeekdayPattern(task, date);
+  if (task.cadence === 'half-yearly') return monthsSinceRef % 6 === 0 && matchesDateOrWeekdayPattern(task, date);
+  if (task.cadence === 'yearly') return date.getMonth() === refMonth && matchesDateOrWeekdayPattern(task, date);
   return false;
 }
 
@@ -1711,13 +1916,12 @@ function updateRegularSchedule(task, value) {
     const idx = WEEKDAYS.findIndex((day) => day.toLowerCase().startsWith(clean.slice(0, 3).toLowerCase()));
     if (idx >= 0) task.weekday = idx;
   } else if (task.cadence === 'monthly') {
-    const patternMatch = clean.match(/^(1st|2nd|3rd|4th)\s+([A-Za-z]{3,})/i);
+    const patternMatch = clean.match(/^(1st|2nd|3rd|4th|5th)\s+([A-Za-z]{3,})/i);
     if (patternMatch) {
-      const ordinalMap = { '1st': 1, '2nd': 2, '3rd': 3, '4th': 4 };
       const idx = WEEKDAYS.findIndex((day) => day.toLowerCase().startsWith(patternMatch[2].slice(0, 3).toLowerCase()));
       if (idx >= 0) {
         task.monthlyMode = 'weekday';
-        task.weekdayOrdinal = ordinalMap[patternMatch[1].toLowerCase()];
+        task.weekdayOrdinal = ORDINAL_MAP[patternMatch[1].toLowerCase()];
         task.weekday = idx;
       }
     } else {
@@ -1728,17 +1932,35 @@ function updateRegularSchedule(task, value) {
       }
     }
   } else {
-    const dayMatch = clean.match(/\d{1,2}/);
-    if (dayMatch) task.dayOfMonth = Math.max(1, Math.min(31, Number.parseInt(dayMatch[0], 10)));
-    const monthMatch = clean.match(/[A-Za-z]{3,}/);
-    if (monthMatch) {
-      const idx = MONTHS.findIndex((m) => m.toLowerCase() === monthMatch[0].slice(0, 3).toLowerCase());
-      if (idx >= 0) task.month = idx;
+    // quarterly / half-yearly / yearly -- both a month and either a plain
+    // date ("Oct 15") or a weekday pattern ("Mar 2nd Mon") need parsing.
+    const patternMatch = clean.match(/(1st|2nd|3rd|4th|5th)\s+([A-Za-z]{3,})/i);
+    if (patternMatch) {
+      const idx = WEEKDAYS.findIndex((day) => day.toLowerCase().startsWith(patternMatch[2].slice(0, 3).toLowerCase()));
+      if (idx >= 0) {
+        task.monthlyMode = 'weekday';
+        task.weekdayOrdinal = ORDINAL_MAP[patternMatch[1].toLowerCase()];
+        task.weekday = idx;
+      }
+      const monthMatch = clean.slice(0, patternMatch.index).match(/[A-Za-z]{3,}/);
+      if (monthMatch) {
+        const mIdx = MONTHS.findIndex((m) => m.toLowerCase() === monthMatch[0].slice(0, 3).toLowerCase());
+        if (mIdx >= 0) task.month = mIdx;
+      }
     } else {
-      const parts = clean.split(/[\/\-\s]+/).filter(Boolean);
-      if (parts.length >= 2) {
-        const m = Number.parseInt(parts[1], 10);
-        if (m >= 1 && m <= 12) task.month = m - 1;
+      task.monthlyMode = 'date';
+      const dayMatch = clean.match(/\d{1,2}/);
+      if (dayMatch) task.dayOfMonth = Math.max(1, Math.min(31, Number.parseInt(dayMatch[0], 10)));
+      const monthMatch = clean.match(/[A-Za-z]{3,}/);
+      if (monthMatch) {
+        const idx = MONTHS.findIndex((m) => m.toLowerCase() === monthMatch[0].slice(0, 3).toLowerCase());
+        if (idx >= 0) task.month = idx;
+      } else {
+        const parts = clean.split(/[\/\-\s]+/).filter(Boolean);
+        if (parts.length >= 2) {
+          const m = Number.parseInt(parts[1], 10);
+          if (m >= 1 && m <= 12) task.month = m - 1;
+        }
       }
     }
   }
@@ -2339,8 +2561,8 @@ function renderActivitySection() {
     return section;
   }
 
-  const ACTIVITY_LABELS = { register: 'registered', checkin: 'checked in', checkout: 'checked out' };
-  const ACTIVITY_ICONS = { register: '📝', checkin: '➡️', checkout: '⬅️' };
+  const ACTIVITY_LABELS = { register: 'registered', checkin: 'checked in', checkout: 'checked out', leave: 'applied for leave' };
+  const ACTIVITY_ICONS = { register: '📝', checkin: '➡️', checkout: '⬅️', leave: '🏖️' };
 
   const list = document.createElement('div');
   list.className = 'activity-list';
@@ -2358,16 +2580,23 @@ function renderActivitySection() {
 
     const line1 = document.createElement('div');
     line1.className = 'activity-main';
-    line1.textContent = `${entry.name || entry.email} ${ACTIVITY_LABELS[entry.type] || entry.type}`;
+    const dayCount = entry.type === 'leave' && Array.isArray(entry.leaveDates) ? entry.leaveDates.length : 0;
+    line1.textContent = `${entry.name || entry.email} ${ACTIVITY_LABELS[entry.type] || entry.type}${dayCount > 1 ? ` (${dayCount} days)` : ''}`;
     info.appendChild(line1);
 
     const line2 = document.createElement('div');
     line2.className = 'activity-sub';
-    const parts = [fmtDateTime(entry.timestamp)];
-    if (entry.name && entry.email) parts.push(entry.email);
-    if (entry.ip) parts.push(`IP: ${entry.ip}`);
-    if (entry.device) parts.push(shortenDevice(entry.device));
-    line2.textContent = parts.join(' · ');
+    if (entry.type === 'leave' && Array.isArray(entry.leaveDates)) {
+      line2.textContent = entry.leaveDates
+        .map((d) => `${formatDateStrForShare(d.date)}${d.reason ? ` (${d.reason})` : ''}`)
+        .join(', ');
+    } else {
+      const parts = [fmtDateTime(entry.timestamp)];
+      if (entry.name && entry.email) parts.push(entry.email);
+      if (entry.ip) parts.push(`IP: ${entry.ip}`);
+      if (entry.device) parts.push(shortenDevice(entry.device));
+      line2.textContent = parts.join(' · ');
+    }
     info.appendChild(line2);
 
     row.appendChild(info);
@@ -2707,7 +2936,7 @@ function openItemPopup(existingItem = null, existingIsProject = false, presetAss
   popup.style.maxHeight = '92vh';
 
   const employees = getAllEmployees();
-  const titleText = isEdit ? `Edit ${isProjectItem ? 'Project' : 'Task'}` : 'Add New';
+  const titleText = isEdit ? `Edit ${isProjectItem ? 'Project' : 'Task'}` : 'Add New Task/Project';
 
   popup.innerHTML = `
     <h2 style="margin: 0 0 12px 0; font-size: 17px; font-weight: 600;">${titleText}</h2>
@@ -2739,11 +2968,11 @@ function openItemPopup(existingItem = null, existingIsProject = false, presetAss
 
     <div class="popup-2col" style="display: grid; grid-template-columns: 1.4fr 1fr; gap: 10px; margin-bottom: 10px;">
       <div>
-        <label style="${FIELD_LABEL_STYLE}">Name *</label>
+        <label style="${FIELD_LABEL_STYLE}">Task/Project Name *</label>
         <input type="text" id="itemName" placeholder="Enter a name" style="${FIELD_STYLE}">
       </div>
       <div style="${isEdit ? 'visibility: hidden;' : ''}">
-        <label style="${FIELD_LABEL_STYLE}">Add to</label>
+        <label style="${FIELD_LABEL_STYLE}">Add to Task/Project</label>
         <select id="itemProjectSelect" style="${FIELD_STYLE} cursor: pointer;">
           <option value="">Main List</option>
           <option value="__new__">+ New Project</option>
@@ -3627,15 +3856,32 @@ function groupedRegularTasks(tasks) {
 // once it's, say, October. Show whichever qualifying month is coming up
 // next (or today, if today is one) instead, so the label actually reflects
 // where the task is in its own cycle.
+// The date of the Nth (1st-5th) occurrence of a weekday within a given
+// month -- may land in the following month if that occurrence doesn't
+// exist (e.g. a "5th Friday" in a month that only has 4), same tolerance
+// matchesWeekdayPattern already has when checking the grid.
+function nthWeekdayOfMonth(year, month, weekday, ordinal) {
+  const first = new Date(year, month, 1);
+  const offset = ((weekday - first.getDay()) + 7) % 7;
+  const day = 1 + offset + (Math.min(5, ordinal || 1) - 1) * 7;
+  return new Date(year, month, day);
+}
+
 function nextRegularOccurrence(task) {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
   const refMonth = Number.isInteger(task.month) ? task.month : 0;
-  const day = task.dayOfMonth || 1;
   const interval = task.cadence === 'half-yearly' ? 6 : 3;
-  let candidate = new Date(today.getFullYear(), refMonth, day);
+  const weekdayMode = task.monthlyMode === 'weekday';
+  const occurrenceInMonth = (year, month) => weekdayMode
+    ? nthWeekdayOfMonth(year, month, task.weekday || 0, task.weekdayOrdinal)
+    : new Date(year, month, task.dayOfMonth || 1);
+
+  let month = refMonth;
+  let candidate = occurrenceInMonth(today.getFullYear(), month);
   while (candidate < today) {
-    candidate = new Date(candidate.getFullYear(), candidate.getMonth() + interval, day);
+    month += interval;
+    candidate = occurrenceInMonth(today.getFullYear(), month);
   }
   return candidate;
 }
@@ -3643,13 +3889,23 @@ function nextRegularOccurrence(task) {
 function regularScheduleLabel(task) {
   if (task.cadence === 'daily') return task.time || 'Daily';
   if (task.cadence === 'weekly') return WEEKDAYS[task.weekday] || 'Weekly';
-  if (task.cadence === 'yearly') return `${MONTHS[task.month || 0]} ${task.dayOfMonth}`;
+  if (task.cadence === 'yearly') {
+    if (task.monthlyMode === 'weekday') {
+      const ordinalWord = ORDINAL_WORDS[Math.min(5, task.weekdayOrdinal || 1) - 1];
+      return `${MONTHS[task.month || 0]} ${ordinalWord} ${WEEKDAYS[task.weekday]}`;
+    }
+    return `${MONTHS[task.month || 0]} ${task.dayOfMonth}`;
+  }
   if (task.cadence === 'quarterly' || task.cadence === 'half-yearly') {
     const next = nextRegularOccurrence(task);
+    if (task.monthlyMode === 'weekday') {
+      const ordinalWord = ORDINAL_WORDS[Math.min(5, task.weekdayOrdinal || 1) - 1];
+      return `${MONTHS[next.getMonth()]} ${ordinalWord} ${WEEKDAYS[next.getDay()]}`;
+    }
     return `${MONTHS[next.getMonth()]} ${next.getDate()}`;
   }
   if (task.monthlyMode === 'weekday') {
-    const ordinalWord = ['1st', '2nd', '3rd', '4th'][Math.min(4, task.weekdayOrdinal || 1) - 1];
+    const ordinalWord = ORDINAL_WORDS[Math.min(5, task.weekdayOrdinal || 1) - 1];
     return `${ordinalWord} ${WEEKDAYS[task.weekday]}`;
   }
   return `Day ${task.dayOfMonth}`;
@@ -5400,7 +5656,7 @@ document.getElementById('kraBtn').addEventListener('click', () => {
 
 document.getElementById('registerBtn').addEventListener('click', () => openRegisterPopup());
 document.getElementById('checkinBtn').addEventListener('click', () => openAttendancePopup());
-document.getElementById('checkoutBtn').addEventListener('click', () => openAttendancePopup());
+document.getElementById('leaveBtn').addEventListener('click', () => openLeaveApplicationPopup());
 document.getElementById('exitBtn').addEventListener('click', () => openExitPopup());
 
 const searchInputEl = document.getElementById('searchInput');
