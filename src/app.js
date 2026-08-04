@@ -3621,11 +3621,33 @@ function groupedRegularTasks(tasks) {
   });
 }
 
+// Quarterly/half-yearly tasks recur on the same day-of-month every 3 or 6
+// months starting from task.month -- but showing that fixed starting month
+// forever (e.g. always "Jan 15") reads as if the schedule is stuck/wrong
+// once it's, say, October. Show whichever qualifying month is coming up
+// next (or today, if today is one) instead, so the label actually reflects
+// where the task is in its own cycle.
+function nextRegularOccurrence(task) {
+  const today = new Date();
+  today.setHours(0, 0, 0, 0);
+  const refMonth = Number.isInteger(task.month) ? task.month : 0;
+  const day = task.dayOfMonth || 1;
+  const interval = task.cadence === 'half-yearly' ? 6 : 3;
+  let candidate = new Date(today.getFullYear(), refMonth, day);
+  while (candidate < today) {
+    candidate = new Date(candidate.getFullYear(), candidate.getMonth() + interval, day);
+  }
+  return candidate;
+}
+
 function regularScheduleLabel(task) {
   if (task.cadence === 'daily') return task.time || 'Daily';
   if (task.cadence === 'weekly') return WEEKDAYS[task.weekday] || 'Weekly';
   if (task.cadence === 'yearly') return `${MONTHS[task.month || 0]} ${task.dayOfMonth}`;
-  if (task.cadence === 'quarterly' || task.cadence === 'half-yearly') return `${MONTHS[task.month || 0]} ${task.dayOfMonth} +`;
+  if (task.cadence === 'quarterly' || task.cadence === 'half-yearly') {
+    const next = nextRegularOccurrence(task);
+    return `${MONTHS[next.getMonth()]} ${next.getDate()}`;
+  }
   if (task.monthlyMode === 'weekday') {
     const ordinalWord = ['1st', '2nd', '3rd', '4th'][Math.min(4, task.weekdayOrdinal || 1) - 1];
     return `${ordinalWord} ${WEEKDAYS[task.weekday]}`;
