@@ -848,14 +848,15 @@ button {
 .list-column.dragover { outline: 2px dashed var(--accent); }
 
 html, body {
-  /* A faint, fixed watermark of the brand mark instead of flat white --
-     the tint layer above it is deliberately near-opaque (0.93) so the logo
-     only shows as a soft imprint, not a distracting image. */
+  /* A large, clearly-colored watermark of the brand mark instead of flat
+     white -- the tint layer above it is intentionally light (0.65) so the
+     logo's real navy/orange colors stay visible rather than reading as a
+     washed-out grayscale smudge. */
   background:
     radial-gradient(ellipse at 10% -5%, rgba(58, 91, 160, 0.07), transparent 40%),
     radial-gradient(ellipse at 90% 100%, rgba(58, 91, 160, 0.04), transparent 35%),
-    linear-gradient(168deg, rgba(248, 250, 252, 0.93) 0%, rgba(248, 250, 252, 0.93) 50%, rgba(241, 245, 249, 0.93) 100%),
-    url('../icons/icon.png') center / min(420px, 55vw) no-repeat fixed;
+    linear-gradient(168deg, rgba(248, 250, 252, 0.65) 0%, rgba(248, 250, 252, 0.65) 50%, rgba(241, 245, 249, 0.65) 100%),
+    url('../icons/icon.png') center / 60vmin no-repeat fixed;
   background-color: #F8FAFC;
 }
 
