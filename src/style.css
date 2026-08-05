@@ -848,15 +848,14 @@ button {
 .list-column.dragover { outline: 2px dashed var(--accent); }
 
 html, body {
-  /* A large, clearly-colored watermark of the brand mark instead of flat
-     white -- the tint layer above it is intentionally light (0.65) so the
-     logo's real navy/orange colors stay visible rather than reading as a
-     washed-out grayscale smudge. */
+  /* Full-bleed, vividly-colored brand mark stretched edge to edge -- the
+     tint above it is barely-there (0.15) so the navy/orange come through
+     at real strength instead of reading as a pale smudge. */
   background:
     radial-gradient(ellipse at 10% -5%, rgba(58, 91, 160, 0.07), transparent 40%),
     radial-gradient(ellipse at 90% 100%, rgba(58, 91, 160, 0.04), transparent 35%),
-    linear-gradient(168deg, rgba(248, 250, 252, 0.65) 0%, rgba(248, 250, 252, 0.65) 50%, rgba(241, 245, 249, 0.65) 100%),
-    url('../icons/icon.png') center / 60vmin no-repeat fixed;
+    linear-gradient(168deg, rgba(248, 250, 252, 0.15) 0%, rgba(248, 250, 252, 0.15) 50%, rgba(241, 245, 249, 0.15) 100%),
+    url('../icons/icon.png') center / cover no-repeat fixed;
   background-color: #F8FAFC;
 }
 
