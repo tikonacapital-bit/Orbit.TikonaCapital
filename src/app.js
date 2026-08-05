@@ -373,6 +373,7 @@ function normalizeState(value) {
       name: list.name || 'Untitled list',
       sections: normalizeSections(list.sections),
       tasks: normalizeTasks(list.tasks),
+      deletedTasks: normalizeDeletedTasks(list.deletedTasks),
       archived: Boolean(list.archived),
       archivedAt: list.archivedAt || null,
       mood: typeof list.mood === 'string' ? list.mood : 'neutral',
@@ -619,6 +620,20 @@ function normalizeTasks(tasks) {
     progress: PROGRESS_STEPS.includes(task.progress) ? task.progress : 0,
     category: typeof task.category === 'string' ? task.category : '',
   }));
+}
+
+const DELETED_TASKS_RETENTION = 50;
+
+function normalizeDeletedTasks(entries) {
+  if (!Array.isArray(entries)) return [];
+  return entries
+    .filter((e) => e && e.task)
+    .map((e) => ({
+      id: e.id || uid('del'),
+      task: e.task,
+      deletedAt: Number.isFinite(e.deletedAt) ? e.deletedAt : Date.now(),
+    }))
+    .slice(0, DELETED_TASKS_RETENTION);
 }
 
 function formatDateStrForShare(dateStr) {
@@ -1994,6 +2009,23 @@ function editableText(value, onCommit, className = 'editable-cell', placeholder 
   return span;
 }
 
+// Click-to-edit category chip, same interaction as the due-date/status
+// controls right next to it. Typing a brand-new category registers it in
+// state.categories too, same as every other category entry point.
+function renderCategoryChip(record, onCommit) {
+  const chip = editableText(record.category || '', (value) => {
+    const clean = value.trim();
+    if (clean === (record.category || '')) return;
+    if (clean && !state.categories.some((c) => c.toLowerCase() === clean.toLowerCase())) {
+      state.categories.push(clean);
+    }
+    onCommit(clean);
+  }, 'project-chip category-chip editable-chip', '+ category');
+  chip.title = 'Click to change category';
+  chip.addEventListener('click', (e) => e.stopPropagation());
+  return chip;
+}
+
 // ---------- rendering ----------
 
 const SCROLL_PANEL_SELECTOR = '.regular-grid-panel, .table-panel, .stack-panel';
@@ -2824,12 +2856,11 @@ function renderProjectRow(project) {
     render();
   });
 
-  if (project.category) {
-    const catEl = document.createElement('span');
-    catEl.className = 'project-chip category-chip';
-    catEl.textContent = project.category;
-    node.querySelector('.task-meta').appendChild(catEl);
-  }
+  node.querySelector('.task-meta').appendChild(renderCategoryChip(project, (value) => {
+    project.category = value;
+    persist();
+    render();
+  }));
 
   const editBtn = node.querySelector('.task-edit');
   editBtn.addEventListener('click', (e) => {
@@ -3625,30 +3656,38 @@ function renderRegularCalendarView() {
     dayNum.textContent = date.getDate();
     cell.appendChild(dayNum);
 
-    const dayTasks = tasks.filter((task) => isRegularTaskExpected(task, date));
-    const locked = isPastDate(date);
+    // Outside-month cells (the adjacent month's overflow days shown to fill
+    // the grid) intentionally show no tasks here -- a monthly/quarterly/etc.
+    // task can land on, say, "Sep 5" while it's rendered as a trailing cell
+    // inside August's view, and toggling it would tick a date nowhere
+    // visible in the currently-open month's Grid view, looking exactly like
+    // a broken sync. Only the true "this month" cells are interactive.
+    if (inMonth) {
+      const dayTasks = tasks.filter((task) => isRegularTaskExpected(task, date));
+      const locked = isPastDate(date);
 
-    dayTasks.slice(0, maxPerDay).forEach((task) => {
-      const done = isRegularDone(task, date);
-      const pill = document.createElement('button');
-      pill.type = 'button';
-      pill.className = `calendar-pill regular-calendar-pill${done ? ' done' : ''}`;
-      pill.textContent = task.title;
-      pill.title = `${task.title} — ${task.owner}${locked ? ' (past date, locked)' : ''}`;
-      pill.disabled = locked;
-      pill.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (locked) return;
-        toggleRegularCompletion(task, date);
+      dayTasks.slice(0, maxPerDay).forEach((task) => {
+        const done = isRegularDone(task, date);
+        const pill = document.createElement('button');
+        pill.type = 'button';
+        pill.className = `calendar-pill regular-calendar-pill${done ? ' done' : ''}`;
+        pill.textContent = task.title;
+        pill.title = `${task.title} — ${task.owner}${locked ? ' (past date, locked)' : ''}`;
+        pill.disabled = locked;
+        pill.addEventListener('click', (e) => {
+          e.stopPropagation();
+          if (locked) return;
+          toggleRegularCompletion(task, date);
+        });
+        cell.appendChild(pill);
       });
-      cell.appendChild(pill);
-    });
 
-    if (dayTasks.length > maxPerDay) {
-      const more = document.createElement('div');
-      more.className = 'calendar-more';
-      more.textContent = `+${dayTasks.length - maxPerDay} more`;
-      cell.appendChild(more);
+      if (dayTasks.length > maxPerDay) {
+        const more = document.createElement('div');
+        more.className = 'calendar-more';
+        more.textContent = `+${dayTasks.length - maxPerDay} more`;
+        cell.appendChild(more);
+      }
     }
 
     days.appendChild(cell);
@@ -4101,7 +4140,59 @@ function renderList(list, options = {}) {
     completedList.classList.toggle('hidden');
   });
 
+  // deleted
+  const deletedTasks = list.deletedTasks || [];
+  const deletedList = node.querySelector('.deleted-list');
+  const deletedCount = node.querySelector('.deleted-count');
+  deletedCount.textContent = deletedTasks.length;
+  deletedTasks.forEach((entry) => deletedList.appendChild(renderDeletedTaskRow(list, entry)));
+
+  const deletedToggle = node.querySelector('.deleted-toggle');
+  deletedToggle.addEventListener('click', () => {
+    deletedList.classList.toggle('hidden');
+  });
+
   return node;
+}
+
+function renderDeletedTaskRow(list, entry) {
+  const row = document.createElement('div');
+  row.className = 'deleted-task-row';
+
+  const text = document.createElement('span');
+  text.className = 'deleted-task-text';
+  text.textContent = entry.task.text;
+  row.appendChild(text);
+
+  const meta = document.createElement('span');
+  meta.className = 'deleted-task-meta';
+  meta.textContent = fmtShort(entry.deletedAt);
+  row.appendChild(meta);
+
+  const actions = document.createElement('span');
+  actions.className = 'deleted-task-actions';
+
+  const restoreBtn = document.createElement('button');
+  restoreBtn.type = 'button';
+  restoreBtn.className = 'deleted-task-restore';
+  restoreBtn.textContent = 'Restore';
+  restoreBtn.addEventListener('click', () => restoreDeletedTask(list, entry.id));
+  actions.appendChild(restoreBtn);
+
+  const forgetBtn = document.createElement('button');
+  forgetBtn.type = 'button';
+  forgetBtn.className = 'deleted-task-forget';
+  forgetBtn.title = 'Remove permanently';
+  forgetBtn.innerHTML = '&times;';
+  forgetBtn.addEventListener('click', () => {
+    if (confirm(`Permanently remove "${entry.task.text}"? This can't be undone.`)) {
+      permanentlyDeleteTask(list, entry.id);
+    }
+  });
+  actions.appendChild(forgetBtn);
+
+  row.appendChild(actions);
+  return row;
 }
 
 function renderSection(list, section) {
@@ -4241,12 +4332,11 @@ function renderTask(list, task) {
     render();
   });
 
-  if (task.category) {
-    const catEl = document.createElement('span');
-    catEl.className = 'project-chip category-chip';
-    catEl.textContent = task.category;
-    node.querySelector('.task-meta').appendChild(catEl);
-  }
+  node.querySelector('.task-meta').appendChild(renderCategoryChip(task, (value) => {
+    task.category = value;
+    persist();
+    render();
+  }));
 
   const editBtn = node.querySelector('.task-edit');
   editBtn.addEventListener('click', (e) => {
@@ -5091,13 +5181,36 @@ function cycleListMood(list) {
 function deleteTask(list, task) {
   const idx = list.tasks.findIndex((t) => t.id === task.id);
   const removed = list.tasks.splice(idx, 1)[0];
+  list.deletedTasks = list.deletedTasks || [];
+  const entry = { id: uid('del'), task: removed, deletedAt: Date.now() };
+  list.deletedTasks.unshift(entry);
+  if (list.deletedTasks.length > DELETED_TASKS_RETENTION) list.deletedTasks.length = DELETED_TASKS_RETENTION;
   persist();
   render();
   showToast(`Deleted "${removed.text}"`, () => {
     list.tasks.splice(idx, 0, removed);
+    list.deletedTasks = list.deletedTasks.filter((e) => e.id !== entry.id);
     persist();
     render();
   });
+}
+
+function restoreDeletedTask(list, entryId) {
+  const idx = (list.deletedTasks || []).findIndex((e) => e.id === entryId);
+  if (idx === -1) return;
+  const [entry] = list.deletedTasks.splice(idx, 1);
+  list.tasks.push(entry.task);
+  persist();
+  render();
+  showToast(`Restored "${entry.task.text}"`);
+}
+
+function permanentlyDeleteTask(list, entryId) {
+  const idx = (list.deletedTasks || []).findIndex((e) => e.id === entryId);
+  if (idx === -1) return;
+  list.deletedTasks.splice(idx, 1);
+  persist();
+  render();
 }
 
 function addList(name) {

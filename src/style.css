@@ -722,6 +722,97 @@ button {
   scrollbar-gutter: stable;
 }
 
+.deleted-wrap {
+  margin-top: 6px;
+  border-top: 1px dashed rgba(17, 24, 39, 0.08);
+  padding-top: 8px;
+}
+.deleted-toggle {
+  background: none;
+  border: none;
+  color: var(--text-muted);
+  font-size: 12px;
+  font-weight: 600;
+  padding: 4px 8px;
+  border-radius: 6px;
+  transition: all 120ms ease;
+}
+.deleted-toggle:hover { color: var(--danger); background: rgba(224, 72, 88, 0.06); }
+
+.deleted-list {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  overflow-y: auto;
+  max-height: 200px;
+  scrollbar-gutter: stable;
+  padding-top: 4px;
+}
+
+.deleted-task-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 5px 8px;
+  border-radius: 6px;
+}
+.deleted-task-row:hover { background: rgba(17, 24, 39, 0.03); }
+
+.deleted-task-text {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 12.5px;
+  color: var(--text-muted);
+  text-decoration: line-through;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deleted-task-meta {
+  flex: 0 0 auto;
+  font-size: 10.5px;
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+.deleted-task-actions {
+  flex: 0 0 auto;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.deleted-task-restore {
+  padding: 2px 9px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: transparent;
+  color: var(--accent);
+  font-size: 11px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+.deleted-task-restore:hover { background: rgba(58, 91, 160, 0.08); border-color: var(--accent); }
+
+.deleted-task-forget {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
+  border: none;
+  border-radius: 50%;
+  background: transparent;
+  color: var(--text-muted);
+  font-size: 14px;
+  line-height: 1;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+.deleted-task-forget:hover { background: rgba(224, 72, 88, 0.12); color: var(--danger); }
+
 #toast {
   position: fixed;
   bottom: 20px;
@@ -757,10 +848,15 @@ button {
 .list-column.dragover { outline: 2px dashed var(--accent); }
 
 html, body {
+  /* A faint, fixed watermark of the brand mark instead of flat white --
+     the tint layer above it is deliberately near-opaque (0.93) so the logo
+     only shows as a soft imprint, not a distracting image. */
   background:
     radial-gradient(ellipse at 10% -5%, rgba(58, 91, 160, 0.07), transparent 40%),
     radial-gradient(ellipse at 90% 100%, rgba(58, 91, 160, 0.04), transparent 35%),
-    linear-gradient(168deg, #F8FAFC 0%, #F8FAFC 50%, #F1F5F9 100%);
+    linear-gradient(168deg, rgba(248, 250, 252, 0.93) 0%, rgba(248, 250, 252, 0.93) 50%, rgba(241, 245, 249, 0.93) 100%),
+    url('../icons/icon.png') center / min(420px, 55vw) no-repeat fixed;
+  background-color: #F8FAFC;
 }
 
 .topbar {
@@ -1513,7 +1609,7 @@ button.stat-card:hover::before { opacity: 1; }
 
 .calendar-mini-panel {
   min-width: 260px;
-  max-width: 360px;
+  max-width: 96vw;
   padding: 12px;
 }
 
@@ -1996,6 +2092,17 @@ button.stat-card:hover::before { opacity: 1; }
 .project-chip.priority-high { background: rgba(224, 72, 88, 0.14); color: var(--high); }
 .project-chip.project-status-chip { background: rgba(58, 91, 160, 0.1); color: var(--accent-strong); }
 .project-chip.category-chip { background: rgba(31, 70, 144, 0.08); color: var(--primary); }
+.project-chip.category-chip.editable-chip {
+  cursor: pointer;
+  outline: none;
+  min-width: 0;
+  transition: box-shadow 120ms ease;
+}
+.project-chip.category-chip.editable-chip:hover { box-shadow: 0 2px 8px rgba(17, 24, 39, 0.12); }
+.project-chip.category-chip.editable-chip:empty::before {
+  content: attr(data-placeholder);
+  opacity: 0.55;
+}
 
 .project-row.done .task-text { color: var(--text-muted); text-decoration: line-through; }
 
