@@ -848,16 +848,18 @@ button {
 .list-column.dragover { outline: 2px dashed var(--accent); }
 
 html, body {
-  /* Vividly-colored brand mark, always shown in full (contain, not cover --
-     "cover" was cropping the star tip and the "orbit" wordmark off-screen
-     on wide viewports since the source image is nearly square). The tint
-     above it is barely-there (0.15) so the navy/orange stay saturated. */
+  /* Brand mark shown in full (contain, not cover -- cover was cropping the
+     star tip and "orbit" wordmark on wide viewports). No tint over the
+     image itself anymore -- it's full strength, matching the source file
+     exactly. The side margins left over by "contain" on wide screens are
+     filled with a gradient sampled directly from the logo's own navy
+     background (#3573B4 -> #244280) so the image blends into its
+     surroundings instead of sitting in a plain box. */
   background:
     radial-gradient(ellipse at 10% -5%, rgba(58, 91, 160, 0.07), transparent 40%),
     radial-gradient(ellipse at 90% 100%, rgba(58, 91, 160, 0.04), transparent 35%),
-    linear-gradient(168deg, rgba(248, 250, 252, 0.15) 0%, rgba(248, 250, 252, 0.15) 50%, rgba(241, 245, 249, 0.15) 100%),
-    url('../icons/icon.png') center / contain no-repeat fixed;
-  background-color: #F8FAFC;
+    url('../icons/icon.png') center / contain no-repeat fixed,
+    linear-gradient(to bottom left, #3573B4 0%, #2F5695 50%, #244280 100%);
 }
 
 .topbar {
