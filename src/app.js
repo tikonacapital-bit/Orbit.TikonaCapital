@@ -37,6 +37,22 @@ function loadViewMode() {
   }
 }
 
+function loadSidebarCollapsed() {
+  try {
+    return localStorage.getItem('tikona_sidebar_collapsed_v1') === '1';
+  } catch (err) {
+    return false;
+  }
+}
+
+function saveSidebarCollapsed(collapsed) {
+  try {
+    localStorage.setItem('tikona_sidebar_collapsed_v1', collapsed ? '1' : '0');
+  } catch (err) {
+    // Collapse state can still work for the current session if localStorage is unavailable.
+  }
+}
+
 function saveViewMode(mode) {
   try {
     localStorage.setItem('tikona_view_mode_v1', mode);
@@ -2235,26 +2251,48 @@ function renderSidebar() {
   const tabsSubnav = document.createElement('div');
   tabsSubnav.className = `sidebar-subnav${sidebarTabsExpanded ? '' : ' hidden'}`;
   const kraTabs = state.kraTabs || [];
-  if (kraTabs.length) {
-    kraTabs.forEach((tab) => {
-      const item = document.createElement('button');
-      item.type = 'button';
-      item.className = `sidebar-subitem${activeWorkspace === 'kra' && state.activeKraTabId === tab.id ? ' active' : ''}`;
-      item.textContent = tab.name;
-      item.addEventListener('click', () => {
-        activeWorkspace = 'kra';
-        state.activeKraTabId = tab.id;
-        persist();
-        render();
-      });
-      tabsSubnav.appendChild(item);
+  kraTabs.forEach((tab) => {
+    const row = document.createElement('div');
+    row.className = 'sidebar-subitem-row';
+
+    const item = document.createElement('button');
+    item.type = 'button';
+    item.className = `sidebar-subitem${activeWorkspace === 'kra' && state.activeKraTabId === tab.id ? ' active' : ''}`;
+    item.textContent = tab.name;
+    item.title = 'Open this tab — double-click to rename';
+    item.addEventListener('click', () => {
+      activeWorkspace = 'kra';
+      state.activeKraTabId = tab.id;
+      persist();
+      render();
     });
-  } else {
-    const empty = document.createElement('div');
-    empty.className = 'sidebar-subnav-empty';
-    empty.textContent = 'No tabs yet';
-    tabsSubnav.appendChild(empty);
-  }
+    item.addEventListener('dblclick', (e) => {
+      e.stopPropagation();
+      renameKraTab(tab);
+    });
+    row.appendChild(item);
+
+    const removeBtn = document.createElement('button');
+    removeBtn.type = 'button';
+    removeBtn.className = 'sidebar-subitem-remove';
+    removeBtn.innerHTML = '&times;';
+    removeBtn.title = 'Remove tab';
+    removeBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      removeKraTab(tab);
+    });
+    row.appendChild(removeBtn);
+
+    tabsSubnav.appendChild(row);
+  });
+
+  const addTabBtn = document.createElement('button');
+  addTabBtn.type = 'button';
+  addTabBtn.className = 'sidebar-subitem sidebar-subitem-add';
+  addTabBtn.textContent = '+ New tab';
+  addTabBtn.addEventListener('click', () => addKraTab());
+  tabsSubnav.appendChild(addTabBtn);
+
   tabsGroup.appendChild(tabsSubnav);
   top.appendChild(tabsGroup);
 
@@ -3482,6 +3520,14 @@ function renderRegularEmployeeSelector() {
       activeRegularEmployee = employee;
       render();
     });
+    if (employee !== 'all') {
+      btn.addEventListener('dblclick', () => {
+        const newName = prompt('Rename employee', employee);
+        if (newName && newName.trim() && newName.trim() !== employee) {
+          renameRegularEmployee(employee, newName.trim());
+        }
+      });
+    }
     wrap.appendChild(btn);
   });
 
@@ -3493,40 +3539,6 @@ function getActiveRegularSectionTitle() {
     return `${activeRegularEmployee}'s Regular Tasks`;
   }
   return 'Regular Tasks';
-}
-
-function renderRegularEmployeeRail() {
-  const rail = document.createElement('aside');
-  rail.className = 'regular-employee-rail';
-  const title = document.createElement('span');
-  title.className = 'sidebar-title';
-  title.textContent = 'Employees';
-  rail.appendChild(title);
-
-  const employees = ['all', ...(state.regular?.employees || [])];
-  employees.forEach((employee) => {
-    const btn = document.createElement('button');
-    btn.type = 'button';
-    const isActive = employee === 'all' ? activeRegularEmployee === 'all' : sameEmployee(activeRegularEmployee, employee);
-    btn.className = `employee-item${isActive ? ' active' : ''}`;
-    const label = employee === 'all' ? 'All employees' : employee;
-    btn.innerHTML = `<span>${label}</span>`;
-    btn.addEventListener('click', () => {
-      activeRegularEmployee = employee;
-      render();
-    });
-    if (employee !== 'all') {
-      btn.addEventListener('dblclick', () => {
-        const newName = prompt('Rename employee', employee);
-        if (newName && newName.trim() && newName.trim() !== employee) {
-          renameRegularEmployee(employee, newName.trim());
-        }
-      });
-    }
-    rail.appendChild(btn);
-  });
-
-  return rail;
 }
 
 function renderRegularToolbar() {
@@ -4977,49 +4989,10 @@ function renderKraWorkspace() {
   const wrap = document.createElement('div');
   wrap.className = 'kra-workspace';
 
-  const tabs = Array.isArray(state.kraTabs) ? state.kraTabs : [];
   const activeTab = getActiveKraTab();
-
-  const tabbar = document.createElement('div');
-  tabbar.className = 'kra-tabbar';
-  tabs.forEach((tab) => {
-    const tabBtn = document.createElement('button');
-    tabBtn.type = 'button';
-    tabBtn.className = 'kra-tab';
-    tabBtn.classList.toggle('active', activeTab && tab.id === activeTab.id);
-
-    const label = document.createElement('span');
-    label.className = 'kra-tab-label';
-    label.textContent = tab.name;
-    label.title = 'Double-click to rename';
-    tabBtn.appendChild(label);
-
-    const closeBtn = document.createElement('span');
-    closeBtn.className = 'kra-tab-remove';
-    closeBtn.innerHTML = '&times;';
-    closeBtn.title = 'Remove tab';
-    closeBtn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      removeKraTab(tab);
-    });
-    tabBtn.appendChild(closeBtn);
-
-    tabBtn.addEventListener('click', () => switchKraTab(tab.id));
-    tabBtn.addEventListener('dblclick', (e) => {
-      e.stopPropagation();
-      renameKraTab(tab);
-    });
-    tabbar.appendChild(tabBtn);
-  });
-
-  const newTabBtn = document.createElement('button');
-  newTabBtn.type = 'button';
-  newTabBtn.className = 'kra-tab-add';
-  newTabBtn.textContent = '+ New tab';
-  newTabBtn.addEventListener('click', () => addKraTab());
-  tabbar.appendChild(newTabBtn);
-
-  wrap.appendChild(tabbar);
+  // Tab navigation (switch/rename/remove/add) now lives entirely in the
+  // sidebar's Tabs group -- no need to duplicate it here too.
+  dashboardTitleEl.textContent = activeTab ? `Tabs — ${activeTab.name}` : 'Tabs';
 
   if (!activeTab) return wrap;
 
@@ -5761,7 +5734,6 @@ function renderPieChart({ data, size = 148, thickness = 26 }) {
 function renderChartsWorkspace() {
   const wrap = document.createElement('div');
   wrap.className = 'charts-shell';
-  wrap.appendChild(renderRegularEmployeeRail());
 
   const scopeLabel = activeRegularEmployee === 'all' ? 'All employees' : activeRegularEmployee;
   const employeeKey = activeRegularEmployee === 'all' ? 'all' : activeRegularEmployee;
@@ -5897,6 +5869,19 @@ document.getElementById('globalAddTaskBtn').addEventListener('click', () => {
 // analyticsBtn/kraBtn/registerBtn/checkinBtn/leaveBtn/exitBtn are all
 // rendered fresh inside renderSidebar() now, with their click handlers
 // attached at creation time -- there's no static element to wire here.
+
+const appSidebarEl = document.getElementById('appSidebar');
+const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
+function applySidebarCollapsed(collapsed) {
+  appSidebarEl.classList.toggle('collapsed', collapsed);
+  sidebarToggleBtn.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+}
+applySidebarCollapsed(loadSidebarCollapsed());
+sidebarToggleBtn.addEventListener('click', () => {
+  const collapsed = !appSidebarEl.classList.contains('collapsed');
+  applySidebarCollapsed(collapsed);
+  saveSidebarCollapsed(collapsed);
+});
 
 const searchInputEl = document.getElementById('searchInput');
 const searchClearBtn = document.getElementById('searchClearBtn');
