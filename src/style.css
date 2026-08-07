@@ -879,10 +879,11 @@ html, body {
 }
 
 .dashboard-shell {
-  display: block;
+  display: flex;
+  align-items: stretch;
   height: calc(100vh - 53px);
   min-height: 0;
-  overflow: auto;
+  overflow: hidden;
 }
 
 .sidebar-title {
@@ -891,6 +892,87 @@ html, body {
   font-weight: 700;
   letter-spacing: 0.9px;
   text-transform: uppercase;
+}
+
+/* The main app sidebar: task-list navigation on top, then Tabs/Analytics,
+   with attendance/leave/exit pinned to the bottom via space-between. Its
+   own opaque panel (not the page background) is what keeps it readable
+   against the colored watermark behind the rest of the page. */
+.app-sidebar {
+  flex: 0 0 232px;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 12px;
+  background: var(--bg-elevated);
+  border-right: 1px solid var(--border);
+  box-shadow: 2px 0 12px rgba(17, 24, 39, 0.04);
+  overflow-y: auto;
+  scrollbar-gutter: stable;
+}
+
+.app-sidebar-top {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  min-height: 0;
+}
+
+.app-sidebar-bottom {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  flex: 0 0 auto;
+}
+
+.app-sidebar-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 10px 4px;
+}
+
+.sidebar-item {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 38px;
+  padding: 8px 10px;
+  border: 1px solid transparent;
+  border-radius: 8px;
+  background: transparent;
+  color: var(--text-muted);
+  text-align: left;
+  font-size: 13px;
+  font-weight: 600;
+  transition: background 160ms ease, color 160ms ease, border-color 160ms ease, transform 160ms ease;
+}
+
+.sidebar-item svg { flex: 0 0 auto; }
+.sidebar-item svg[fill="none"] { stroke: currentColor; }
+.sidebar-item svg:not([fill="none"]) { fill: currentColor; }
+
+.sidebar-item:hover {
+  background: rgba(17, 24, 39, 0.05);
+  color: var(--text);
+  transform: translateX(2px);
+}
+
+.sidebar-item.active {
+  background: linear-gradient(135deg, rgba(58, 91, 160, 0.18), rgba(31, 70, 144, 0.1));
+  border-color: rgba(58, 91, 160, 0.35);
+  color: var(--text);
+}
+
+.sidebar-item.exit-btn {
+  color: var(--danger);
+  background: rgba(224, 72, 88, 0.1);
+  border-color: rgba(224, 72, 88, 0.3);
+}
+.sidebar-item.exit-btn:hover {
+  background: rgba(224, 72, 88, 0.18);
+  border-color: rgba(224, 72, 88, 0.45);
 }
 
 .nav-item {
@@ -975,7 +1057,9 @@ html, body {
 .dashboard-main {
   display: grid;
   grid-template-rows: auto auto;
+  flex: 1 1 auto;
   min-width: 0;
+  overflow-y: auto;
 }
 
 .dashboard-title-compact {
@@ -1220,52 +1304,11 @@ button.stat-card:hover::before { opacity: 1; }
   padding: 8px 24px 6px;
 }
 
-.list-nav.horizontal {
-  display: flex;
-  align-items: center;
-  flex-wrap: wrap;
-  gap: 4px;
-  flex: 1;
-  min-width: 0;
-  overflow: visible;
-  padding: 3px;
-  background: rgba(17, 24, 39, 0.03);
-  border-radius: 12px;
-}
-
-.list-nav.horizontal .nav-item {
-  display: inline-flex;
-  align-items: center;
-  gap: 7px;
-  width: auto;
-  min-height: 32px;
-  padding: 6px 14px;
-  border-radius: 999px;
-  border: none;
-  background: transparent;
-  color: var(--text-muted);
-  white-space: nowrap;
-  font-weight: 600;
-  font-size: 13px;
-  overflow: hidden;
-  transition: all 140ms ease;
-}
-
-.list-nav.horizontal .nav-item::after {
-  display: none;
-}
-
-.list-nav.horizontal .nav-item:hover {
-  background: rgba(17, 24, 39, 0.04);
-  color: var(--text);
-  transform: none;
-}
-
-.list-nav.horizontal .nav-item.active {
-  background: #ffffff;
-  color: var(--text);
-  font-weight: 700;
-  box-shadow: 0 2px 8px rgba(17, 24, 39, 0.08);
+/* Task-list navigation now lives in the sidebar, so #archivedListsBtn is
+   the first of the three trailing buttons here -- push it (and the two
+   after it) to the right, leaving the title on the left. */
+#archivedListsBtn {
+  margin-left: auto;
 }
 
 .list-attendance {
@@ -1283,16 +1326,6 @@ button.stat-card:hover::before { opacity: 1; }
 .list-attendance.done {
   background: rgba(31, 70, 144, 0.16);
   color: #1F4690;
-}
-
-.list-nav.horizontal .nav-badge {
-  min-width: 18px;
-  padding: 1px 6px;
-  border-radius: 999px;
-  background: rgba(17, 24, 39, 0.06);
-  color: var(--text-muted);
-  font-size: 11px;
-  font-weight: 600;
 }
 
 .tab-add {
@@ -2966,6 +2999,35 @@ button.stat-card:hover::before { opacity: 1; }
   .stats {
     flex-wrap: wrap;
   }
+
+  /* Sidebar becomes a horizontal, wrapping strip above the content instead
+     of a fixed-width left column -- there isn't room for both side by
+     side at this width. */
+  .dashboard-shell {
+    flex-direction: column;
+  }
+
+  .app-sidebar {
+    flex: 0 0 auto;
+    flex-direction: row;
+    flex-wrap: wrap;
+    border-right: none;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .app-sidebar-top,
+  .app-sidebar-bottom {
+    flex-direction: row;
+    flex-wrap: wrap;
+  }
+
+  .app-sidebar-divider {
+    display: none;
+  }
+
+  .sidebar-item {
+    width: auto;
+  }
 }
 
 @media (max-width: 560px) {
@@ -2991,9 +3053,8 @@ button.stat-card:hover::before { opacity: 1; }
     align-items: stretch;
   }
 
-  .list-nav.horizontal {
+  .app-sidebar {
     width: 100%;
-    flex: 1 1 100%;
   }
 
   .dashboard-title-compact {
@@ -3051,7 +3112,8 @@ button.stat-card:hover::before { opacity: 1; }
   .list-mood-btn { font-size: 22px; }
   .list-quick-add-btn { width: 24px; height: 24px; font-size: 15px; }
 
-  .list-nav.horizontal .nav-item { min-height: 40px; padding: 8px 16px; font-size: 14px; }
+  .nav-item,
+  .sidebar-item { min-height: 40px; padding: 8px 16px; font-size: 14px; }
 
   .analytics-btn { width: 40px; height: 40px; }
 

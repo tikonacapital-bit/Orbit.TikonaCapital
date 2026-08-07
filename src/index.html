@@ -28,23 +28,8 @@
   </div>
   <div class="topbar-actions">
     <div id="stats" class="stats"></div>
-    <button id="kraBtn" class="analytics-btn" type="button" title="Tabs">
-      <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="4"/><circle cx="10" cy="10" r="1" fill="currentColor" stroke="none"/></svg>
-    </button>
-    <button id="analyticsBtn" class="analytics-btn" type="button" title="Analytics">
-      <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true"><rect x="2" y="10" width="4" height="8" rx="1"/><rect x="8" y="5" width="4" height="13" rx="1"/><rect x="14" y="2" width="4" height="16" rx="1"/></svg>
-    </button>
     <button id="registerBtn" class="analytics-btn" type="button" title="Register employee">
       <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="7" r="3.2"/><path d="M2.5 17c0-3.3 2.5-5.5 5.5-5.5s5.5 2.2 5.5 5.5"/><path d="M15.5 6.5v5M13 9h5"/></svg>
-    </button>
-    <button id="checkinBtn" class="analytics-btn" type="button" title="Check in / Check out">
-      <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7.5"/><path d="M10 5.5V10l3.2 2"/></svg>
-    </button>
-    <button id="leaveBtn" class="analytics-btn" type="button" title="Apply for leave">
-      <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="15" height="13" rx="1.5"/><path d="M2.5 8h15"/><path d="M6 2.5v3M14 2.5v3"/><path d="M7 12.5l2 2 4-4.5"/></svg>
-    </button>
-    <button id="exitBtn" class="analytics-btn exit-btn" type="button" title="Employee exit">
-      <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="6" r="2.6"/><path d="M3.5 17c0-3 2-5 4.5-5"/><path d="M12 8.5 16.5 13M16.5 8.5 12 13"/></svg>
     </button>
     <div class="view-menu" aria-label="View menu">
       <button class="view-menu-btn" type="button" title="Change view">
@@ -73,10 +58,37 @@
 </header>
 
 <div class="dashboard-shell">
+  <aside class="app-sidebar">
+    <div class="app-sidebar-top">
+      <nav id="listNav" class="list-nav" aria-label="Task lists"></nav>
+      <div class="app-sidebar-divider"></div>
+      <button id="kraBtn" class="sidebar-item" type="button" title="Tabs">
+        <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="4"/><circle cx="10" cy="10" r="1" fill="currentColor" stroke="none"/></svg>
+        <span class="nav-label">Tabs</span>
+      </button>
+      <button id="analyticsBtn" class="sidebar-item" type="button" title="Analytics">
+        <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true"><rect x="2" y="10" width="4" height="8" rx="1"/><rect x="8" y="5" width="4" height="13" rx="1"/><rect x="14" y="2" width="4" height="16" rx="1"/></svg>
+        <span class="nav-label">Analytics</span>
+      </button>
+    </div>
+    <div class="app-sidebar-bottom">
+      <button id="checkinBtn" class="sidebar-item" type="button" title="Check in / Check out">
+        <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7.5"/><path d="M10 5.5V10l3.2 2"/></svg>
+        <span class="nav-label">Check in/out</span>
+      </button>
+      <button id="leaveBtn" class="sidebar-item" type="button" title="Apply for leave">
+        <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="15" height="13" rx="1.5"/><path d="M2.5 8h15"/><path d="M6 2.5v3M14 2.5v3"/><path d="M7 12.5l2 2 4-4.5"/></svg>
+        <span class="nav-label">Apply for leave</span>
+      </button>
+      <button id="exitBtn" class="sidebar-item exit-btn" type="button" title="Employee exit">
+        <svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="6" r="2.6"/><path d="M3.5 17c0-3 2-5 4.5-5"/><path d="M12 8.5 16.5 13M16.5 8.5 12 13"/></svg>
+        <span class="nav-label">Employee exit</span>
+      </button>
+    </div>
+  </aside>
   <main class="dashboard-main">
     <div class="viewbar">
       <h1 id="dashboardTitle" class="dashboard-title-compact">All tasks</h1>
-      <nav id="listNav" class="list-nav horizontal" aria-label="Task lists"></nav>
       <button id="archivedListsBtn" class="tab-add" type="button" title="View archived lists">Archived</button>
       <button id="globalAddTaskBtn" class="tab-add" type="button" title="Add new task or project">+ Add</button>
       <button id="topAddListBtn" class="tab-add" type="button" title="Add list">+ New list</button>
