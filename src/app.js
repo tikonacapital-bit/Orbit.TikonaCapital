@@ -3,7 +3,6 @@
 import { loadState, loadCachedState, saveStateDebounced, startPolling, fetchLatestState } from './storage-supabase.js';
 
 const boardEl = document.getElementById('board');
-const listNavEl = document.getElementById('listNav');
 const statsEl = document.getElementById('stats');
 const dashboardTitleEl = document.getElementById('dashboardTitle');
 const tplList = document.getElementById('tpl-list');
@@ -25,6 +24,8 @@ let attendanceMonth = firstDayOfMonth(new Date());
 let calendarMonth = firstDayOfMonth(new Date());
 let regularViewMode = 'grid';
 let regularCalendarMonth = firstDayOfMonth(new Date());
+let sidebarTasksExpanded = true;
+let sidebarTabsExpanded = false;
 let viewMode = loadViewMode();
 const VIEW_MODES = new Set(['board', 'table', 'stack', 'calendar']);
 
@@ -2134,8 +2135,30 @@ function render() {
   }
 }
 
+// A small chevron toggle used next to any collapsible sidebar group header
+// (All tasks' employee list, Tabs' tab list). Rotates via the .expanded
+// class instead of swapping icons.
+function renderSidebarArrow(expanded, onToggle) {
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = `sidebar-group-arrow${expanded ? ' expanded' : ''}`;
+  btn.title = expanded ? 'Collapse' : 'Expand';
+  btn.innerHTML = '<svg viewBox="0 0 20 20" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M6 8l4 4 4-4"/></svg>';
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    onToggle();
+  });
+  return btn;
+}
+
 function renderSidebar() {
-  listNavEl.innerHTML = '';
+  const top = document.getElementById('sidebarTop');
+  const bottom = document.getElementById('sidebarBottom');
+  top.innerHTML = '';
+  bottom.innerHTML = '';
+
+  // ---- All tasks group: "All tasks" always visible, the per-employee
+  // list beneath it collapses behind its own arrow. ----
   const activeLists = getActiveLists();
   const totals = activeLists.reduce((acc, list) => {
     const stats = listTaskStats(list);
@@ -2145,7 +2168,12 @@ function renderSidebar() {
     return acc;
   }, { open: 0, done: 0, total: 0 });
 
-  listNavEl.appendChild(renderNavItem({
+  const tasksGroup = document.createElement('div');
+  tasksGroup.className = 'sidebar-group';
+
+  const tasksHeaderRow = document.createElement('div');
+  tasksHeaderRow.className = 'sidebar-group-header-row';
+  tasksHeaderRow.appendChild(renderNavItem({
     id: 'all',
     name: 'All tasks',
     count: totals.open,
@@ -2153,10 +2181,17 @@ function renderSidebar() {
     progress: totals.total ? Math.round((totals.done / totals.total) * 100) : 0,
     color: 'var(--accent)',
   }));
+  tasksHeaderRow.appendChild(renderSidebarArrow(sidebarTasksExpanded, () => {
+    sidebarTasksExpanded = !sidebarTasksExpanded;
+    render();
+  }));
+  tasksGroup.appendChild(tasksHeaderRow);
 
+  const tasksSubnav = document.createElement('div');
+  tasksSubnav.className = `sidebar-subnav${sidebarTasksExpanded ? '' : ' hidden'}`;
   activeLists.forEach((list) => {
     const stats = listTaskStats(list);
-    listNavEl.appendChild(renderNavItem({
+    tasksSubnav.appendChild(renderNavItem({
       id: list.id,
       name: list.name,
       count: stats.open,
@@ -2166,6 +2201,112 @@ function renderSidebar() {
       color: listAccentColor(list.id),
     }));
   });
+  tasksGroup.appendChild(tasksSubnav);
+  top.appendChild(tasksGroup);
+
+  const divider = document.createElement('div');
+  divider.className = 'app-sidebar-divider';
+  top.appendChild(divider);
+
+  // ---- Tabs group: same collapse pattern, sub-list is the actual Tabs
+  // workspace's tabs (state.kraTabs) so you can jump straight to one. ----
+  const tabsGroup = document.createElement('div');
+  tabsGroup.className = 'sidebar-group';
+
+  const tabsHeaderRow = document.createElement('div');
+  tabsHeaderRow.className = 'sidebar-group-header-row';
+  const tabsBtn = document.createElement('button');
+  tabsBtn.type = 'button';
+  tabsBtn.id = 'kraBtn';
+  tabsBtn.className = `sidebar-item${activeWorkspace === 'kra' ? ' active' : ''}`;
+  tabsBtn.title = 'Tabs';
+  tabsBtn.innerHTML = '<svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7"/><circle cx="10" cy="10" r="4"/><circle cx="10" cy="10" r="1" fill="currentColor" stroke="none"/></svg><span class="nav-label">Tabs</span>';
+  tabsBtn.addEventListener('click', () => {
+    activeWorkspace = 'kra';
+    render();
+  });
+  tabsHeaderRow.appendChild(tabsBtn);
+  tabsHeaderRow.appendChild(renderSidebarArrow(sidebarTabsExpanded, () => {
+    sidebarTabsExpanded = !sidebarTabsExpanded;
+    render();
+  }));
+  tabsGroup.appendChild(tabsHeaderRow);
+
+  const tabsSubnav = document.createElement('div');
+  tabsSubnav.className = `sidebar-subnav${sidebarTabsExpanded ? '' : ' hidden'}`;
+  const kraTabs = state.kraTabs || [];
+  if (kraTabs.length) {
+    kraTabs.forEach((tab) => {
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = `sidebar-subitem${activeWorkspace === 'kra' && state.activeKraTabId === tab.id ? ' active' : ''}`;
+      item.textContent = tab.name;
+      item.addEventListener('click', () => {
+        activeWorkspace = 'kra';
+        state.activeKraTabId = tab.id;
+        persist();
+        render();
+      });
+      tabsSubnav.appendChild(item);
+    });
+  } else {
+    const empty = document.createElement('div');
+    empty.className = 'sidebar-subnav-empty';
+    empty.textContent = 'No tabs yet';
+    tabsSubnav.appendChild(empty);
+  }
+  tabsGroup.appendChild(tabsSubnav);
+  top.appendChild(tabsGroup);
+
+  // ---- Analytics: no sub-list, plain link. ----
+  const analyticsBtn = document.createElement('button');
+  analyticsBtn.type = 'button';
+  analyticsBtn.id = 'analyticsBtn';
+  analyticsBtn.className = `sidebar-item${activeWorkspace === 'charts' ? ' active' : ''}`;
+  analyticsBtn.title = 'Analytics';
+  analyticsBtn.innerHTML = '<svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true"><rect x="2" y="10" width="4" height="8" rx="1"/><rect x="8" y="5" width="4" height="13" rx="1"/><rect x="14" y="2" width="4" height="16" rx="1"/></svg><span class="nav-label">Analytics</span>';
+  analyticsBtn.addEventListener('click', () => {
+    activeWorkspace = 'charts';
+    render();
+  });
+  top.appendChild(analyticsBtn);
+
+  // ---- Bottom-pinned employee actions. ----
+  const registerBtn = document.createElement('button');
+  registerBtn.type = 'button';
+  registerBtn.id = 'registerBtn';
+  registerBtn.className = 'sidebar-item';
+  registerBtn.title = 'Register employee';
+  registerBtn.innerHTML = '<svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="7" r="3.2"/><path d="M2.5 17c0-3.3 2.5-5.5 5.5-5.5s5.5 2.2 5.5 5.5"/><path d="M15.5 6.5v5M13 9h5"/></svg><span class="nav-label">Register employee</span>';
+  registerBtn.addEventListener('click', () => openRegisterPopup());
+  bottom.appendChild(registerBtn);
+
+  const checkinBtn = document.createElement('button');
+  checkinBtn.type = 'button';
+  checkinBtn.id = 'checkinBtn';
+  checkinBtn.className = 'sidebar-item';
+  checkinBtn.title = 'Check in / Check out';
+  checkinBtn.innerHTML = '<svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7.5"/><path d="M10 5.5V10l3.2 2"/></svg><span class="nav-label">Check in/out</span>';
+  checkinBtn.addEventListener('click', () => openAttendancePopup());
+  bottom.appendChild(checkinBtn);
+
+  const leaveBtn = document.createElement('button');
+  leaveBtn.type = 'button';
+  leaveBtn.id = 'leaveBtn';
+  leaveBtn.className = 'sidebar-item';
+  leaveBtn.title = 'Apply for leave';
+  leaveBtn.innerHTML = '<svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="2.5" y="4" width="15" height="13" rx="1.5"/><path d="M2.5 8h15"/><path d="M6 2.5v3M14 2.5v3"/><path d="M7 12.5l2 2 4-4.5"/></svg><span class="nav-label">Apply for leave</span>';
+  leaveBtn.addEventListener('click', () => openLeaveApplicationPopup());
+  bottom.appendChild(leaveBtn);
+
+  const exitBtn = document.createElement('button');
+  exitBtn.type = 'button';
+  exitBtn.id = 'exitBtn';
+  exitBtn.className = 'sidebar-item exit-btn';
+  exitBtn.title = 'Employee exit';
+  exitBtn.innerHTML = '<svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><circle cx="8" cy="6" r="2.6"/><path d="M3.5 17c0-3 2-5 4.5-5"/><path d="M12 8.5 16.5 13M16.5 8.5 12 13"/></svg><span class="nav-label">Employee exit</span>';
+  exitBtn.addEventListener('click', () => openExitPopup());
+  bottom.appendChild(exitBtn);
 }
 
 function fmtTimeShort(ts) {
@@ -2184,12 +2325,8 @@ function getEmployeeAttendanceLabel(listName) {
 }
 
 function renderPinnedState() {
-  const analyticsBtn = document.getElementById('analyticsBtn');
-  if (analyticsBtn) analyticsBtn.classList.toggle('active', activeWorkspace === 'charts');
-
-  const kraBtn = document.getElementById('kraBtn');
-  if (kraBtn) kraBtn.classList.toggle('active', activeWorkspace === 'kra');
-
+  // analyticsBtn/kraBtn are rebuilt fresh (with the right .active class)
+  // inside renderSidebar() on every render, so no toggling needed here.
   const archivedBtn = document.getElementById('archivedListsBtn');
   if (archivedBtn) {
     const archivedCount = getArchivedLists().length + getArchivedProjects().length;
@@ -5757,20 +5894,9 @@ document.getElementById('globalAddTaskBtn').addEventListener('click', () => {
   openItemPopup();
 });
 
-document.getElementById('analyticsBtn').addEventListener('click', () => {
-  activeWorkspace = 'charts';
-  render();
-});
-
-document.getElementById('kraBtn').addEventListener('click', () => {
-  activeWorkspace = 'kra';
-  render();
-});
-
-document.getElementById('registerBtn').addEventListener('click', () => openRegisterPopup());
-document.getElementById('checkinBtn').addEventListener('click', () => openAttendancePopup());
-document.getElementById('leaveBtn').addEventListener('click', () => openLeaveApplicationPopup());
-document.getElementById('exitBtn').addEventListener('click', () => openExitPopup());
+// analyticsBtn/kraBtn/registerBtn/checkinBtn/leaveBtn/exitBtn are all
+// rendered fresh inside renderSidebar() now, with their click handlers
+// attached at creation time -- there's no static element to wire here.
 
 const searchInputEl = document.getElementById('searchInput');
 const searchClearBtn = document.getElementById('searchClearBtn');

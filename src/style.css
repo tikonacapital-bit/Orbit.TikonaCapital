@@ -849,13 +849,15 @@ button {
 
 html, body {
   /* Brand mark shown in full (contain, not cover -- cover was cropping the
-     star tip and "orbit" wordmark on wide viewports). No tint over the
-     image itself anymore -- it's full strength, matching the source file
-     exactly. The side margins left over by "contain" on wide screens are
-     filled with a gradient sampled directly from the logo's own navy
-     background (#3573B4 -> #244280) so the image blends into its
-     surroundings instead of sitting in a plain box. */
+     star tip and "orbit" wordmark on wide viewports). A light wash (0.3)
+     sits over everything below it -- including the icon itself, per
+     request -- so the whole page reads a bit softer without going back to
+     the earlier near-invisible version. The side margins left over by
+     "contain" on wide screens are filled with a gradient sampled from the
+     logo's own navy background (#3573B4 -> #244280) so the image blends
+     into its surroundings instead of sitting in a plain box. */
   background:
+    linear-gradient(168deg, rgba(248, 250, 252, 0.3) 0%, rgba(248, 250, 252, 0.3) 50%, rgba(241, 245, 249, 0.3) 100%),
     radial-gradient(ellipse at 10% -5%, rgba(58, 91, 160, 0.07), transparent 40%),
     radial-gradient(ellipse at 90% 100%, rgba(58, 91, 160, 0.04), transparent 35%),
     url('../icons/icon.png') center / contain no-repeat fixed,
@@ -973,6 +975,98 @@ html, body {
 .sidebar-item.exit-btn:hover {
   background: rgba(224, 72, 88, 0.18);
   border-color: rgba(224, 72, 88, 0.45);
+}
+
+/* A collapsible sidebar group: a header row (the clickable item itself,
+   plus a small arrow toggle) and a sub-list that collapses behind it. */
+.sidebar-group {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.sidebar-group-header-row {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+}
+
+.sidebar-group-header-row > .nav-item,
+.sidebar-group-header-row > .sidebar-item {
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+.sidebar-group-arrow {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 0 0 auto;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: background 140ms ease, color 140ms ease, transform 200ms ease;
+}
+
+.sidebar-group-arrow:hover {
+  background: rgba(17, 24, 39, 0.06);
+  color: var(--text);
+}
+
+.sidebar-group-arrow.expanded {
+  transform: rotate(180deg);
+}
+
+.sidebar-subnav {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  padding-left: 4px;
+}
+
+.sidebar-subnav.hidden {
+  display: none;
+}
+
+.sidebar-subnav-empty {
+  padding: 6px 10px;
+  font-size: 12px;
+  color: var(--text-muted);
+  opacity: 0.7;
+}
+
+.sidebar-subitem {
+  display: block;
+  width: 100%;
+  padding: 6px 10px 6px 20px;
+  border: none;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--text-muted);
+  text-align: left;
+  font-size: 12.5px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: background 140ms ease, color 140ms ease;
+}
+
+.sidebar-subitem:hover {
+  background: rgba(17, 24, 39, 0.05);
+  color: var(--text);
+}
+
+.sidebar-subitem.active {
+  background: rgba(58, 91, 160, 0.12);
+  color: var(--accent-strong);
+  font-weight: 700;
 }
 
 .nav-item {
