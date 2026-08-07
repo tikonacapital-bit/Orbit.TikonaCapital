@@ -704,6 +704,25 @@ button {
   border-top: 1px dashed rgba(17, 24, 39, 0.08);
   padding-top: 8px;
 }
+.completed-toggle,
+.deleted-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.completed-toggle::before,
+.deleted-toggle::before {
+  content: '';
+  width: 0;
+  height: 0;
+  border-left: 4px solid transparent;
+  border-right: 4px solid transparent;
+  border-top: 5px solid currentColor;
+  opacity: 0.55;
+  transition: transform 160ms ease;
+}
+.completed-toggle.expanded::before,
+.deleted-toggle.expanded::before { transform: rotate(-180deg); }
 .completed-toggle {
   background: none;
   border: none;
@@ -1495,7 +1514,9 @@ button.stat-card:hover::before { opacity: 1; }
 .stat-card.medium strong { color: var(--medium); }
 .stat-card.low strong { color: var(--low); }
 .stat-card.open strong { color: var(--accent); }
-.stat-card.done strong { color: var(--accent-warm); }
+/* Orange is reserved for CTAs/alerts elsewhere in the app -- "done" should
+   read as calm/settled, not urgent, so it uses the success token instead. */
+.stat-card.done strong { color: var(--success); }
 
 .viewbar {
   display: flex;
@@ -2095,6 +2116,23 @@ button.stat-card:hover::before { opacity: 1; }
   margin-top: 18px;
   padding: 18px;
   flex-shrink: 0;
+}
+
+/* Its own class (not the generic .section-header used for in-list section
+   blocks) so it can match the "All tasks" title's weight/size/color
+   instead of inheriting that class's small muted uppercase treatment. */
+.project-section-header {
+  display: flex;
+  align-items: center;
+  margin-bottom: 14px;
+}
+
+.project-section-title {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 800;
+  letter-spacing: -0.3px;
+  color: var(--text);
 }
 
 .activity-list {

@@ -2818,8 +2818,9 @@ function renderProjectSection() {
   section.className = 'project-section';
 
   const header = document.createElement('div');
-  header.className = 'section-header';
+  header.className = 'project-section-header';
   const title = document.createElement('h2');
+  title.className = 'project-section-title';
   title.textContent = 'Projects';
   header.appendChild(title);
   section.appendChild(header);
@@ -4287,6 +4288,7 @@ function renderList(list, options = {}) {
   const completedToggle = node.querySelector('.completed-toggle');
   completedToggle.addEventListener('click', () => {
     completedList.classList.toggle('hidden');
+    completedToggle.classList.toggle('expanded', !completedList.classList.contains('hidden'));
   });
 
   // deleted
@@ -4299,6 +4301,7 @@ function renderList(list, options = {}) {
   const deletedToggle = node.querySelector('.deleted-toggle');
   deletedToggle.addEventListener('click', () => {
     deletedList.classList.toggle('hidden');
+    deletedToggle.classList.toggle('expanded', !deletedList.classList.contains('hidden'));
   });
 
   return node;
