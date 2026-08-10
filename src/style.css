@@ -964,21 +964,16 @@ html, body {
 
 /* Positioned off the sidebar's current right edge via the same
    --sidebar-width custom property (inherited from #appSidebar) rather
-   than a fixed "right: -Npx" offset, so both stay reachable at any width
+   than a fixed "right: -Npx" offset, so it stays reachable at any width
    including 0 -- a fixed offset from a 0-width box's edge would land
-   mostly off-screen instead of straddling the visible boundary. Starts
-   below the toggle button (see its top offset below) rather than at 0,
-   so the two never share the same pixels -- with both centered on the
-   same x, a stray click near the boundary between them could otherwise
-   land on the drag handle and register as a zero-distance "drag" instead
-   of a click, which looks exactly like the button silently not working. */
+   mostly off-screen instead of straddling the visible boundary. */
 .sidebar-resize-handle {
   position: absolute;
-  top: 34px;
+  top: 0;
   left: var(--sidebar-width, 232px);
   transform: translateX(-50%);
   width: 6px;
-  height: calc(100% - 34px);
+  height: 100%;
   z-index: 6;
   cursor: ew-resize;
   background: transparent;
@@ -990,34 +985,42 @@ html, body {
   background: rgba(255, 165, 0, 0.5);
 }
 
+/* Lives in the viewbar now (ordinary in-flow content, first item before
+   the page title), not hanging off the sidebar's edge -- it used to be
+   absolutely positioned there, straddling the boundary between the
+   sidebar and the main content and sharing that exact spot with the
+   resize handle above. Reports that the button "only worked from
+   outside" pointed at that overlap, so it was moved somewhere with no
+   competing element at all rather than continuing to fight over z-index. */
 .sidebar-toggle-btn {
-  position: absolute;
-  top: 4px;
-  left: var(--sidebar-width, 232px);
-  transform: translateX(-50%);
-  z-index: 7;
+  flex: 0 0 auto;
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 24px;
-  height: 24px;
+  width: 26px;
+  height: 26px;
   padding: 0;
+  margin-right: 2px;
   border: 1px solid var(--border);
   border-radius: 50%;
   background: var(--bg-elevated);
   color: var(--text-muted);
-  box-shadow: 0 2px 6px rgba(17, 24, 39, 0.12);
+  box-shadow: var(--shadow-xs);
   cursor: pointer;
-  transition: background 140ms ease, color 140ms ease, transform 200ms ease;
+  transition: background 140ms ease, color 140ms ease;
 }
 
 .sidebar-toggle-btn:hover {
-  background: rgba(17, 24, 39, 0.05);
+  background: var(--bg-hover);
   color: var(--text);
 }
 
 .sidebar-toggle-btn svg {
   transition: transform 200ms ease;
+}
+
+.app-sidebar.collapsed ~ main .sidebar-toggle-btn svg {
+  transform: rotate(180deg);
 }
 
 /* "Collapsed" now means fully hidden (0 width), not a shrunk icon rail --
@@ -1028,10 +1031,6 @@ html, body {
   padding-left: 0;
   padding-right: 0;
   overflow: hidden;
-}
-
-.app-sidebar.collapsed .sidebar-toggle-btn svg {
-  transform: rotate(180deg);
 }
 
 .app-sidebar-top {
