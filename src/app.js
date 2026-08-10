@@ -6363,7 +6363,7 @@ function renderCpResults(query) {
   }
 
   // 3. Search Employees
-  const employees = state.employees.filter(e => (e.name || '').toLowerCase().includes(q) || (e.email || '').toLowerCase().includes(q)).slice(0, 3);
+  const employees = state.employees.filter(e => (e.name || '').toLowerCase().includes(q)).slice(0, 3);
   if (employees.length) {
     const groupLabel = document.createElement('div');
     groupLabel.className = 'cp-group-header';
