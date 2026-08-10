@@ -6241,20 +6241,160 @@ document.addEventListener('mouseup', () => {
   if (finalWidth > SIDEBAR_SNAP_THRESHOLD) lastExpandedSidebarWidth = finalWidth;
 });
 
-const searchInputEl = document.getElementById('searchInput');
-const searchClearBtn = document.getElementById('searchClearBtn');
-searchInputEl.addEventListener('input', () => {
-  searchQuery = searchInputEl.value;
-  searchClearBtn.classList.toggle('hidden', !searchQuery);
-  render();
+// --- Command Palette Logic ---
+const searchTriggerBtn = document.getElementById('searchTriggerBtn');
+const cpOverlay = document.getElementById('commandPalette');
+const cpInput = document.getElementById('cpInput');
+const cpCloseBtn = document.getElementById('cpCloseBtn');
+const cpResults = document.getElementById('cpResults');
+
+function openCommandPalette() {
+  cpOverlay.classList.remove('hidden');
+  cpInput.value = '';
+  renderCpResults('');
+  setTimeout(() => cpInput.focus(), 50);
+}
+
+function closeCommandPalette() {
+  cpOverlay.classList.add('hidden');
+  cpInput.value = '';
+}
+
+searchTriggerBtn.addEventListener('click', openCommandPalette);
+cpCloseBtn.addEventListener('click', closeCommandPalette);
+
+// Close on click outside
+cpOverlay.addEventListener('mousedown', (e) => {
+  if (e.target === cpOverlay) closeCommandPalette();
 });
-searchClearBtn.addEventListener('click', () => {
-  searchQuery = '';
-  searchInputEl.value = '';
-  searchClearBtn.classList.add('hidden');
-  searchInputEl.focus();
-  render();
+
+// Cmd+K shortcut
+document.addEventListener('keydown', (e) => {
+  if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
+    e.preventDefault();
+    openCommandPalette();
+  }
+  if (e.key === 'Escape' && !cpOverlay.classList.contains('hidden')) {
+    closeCommandPalette();
+  }
 });
+
+cpInput.addEventListener('input', () => {
+  renderCpResults(cpInput.value);
+});
+
+function highlightText(text, query) {
+  if (!query) return escapeHtml(text);
+  const escapedText = escapeHtml(text);
+  const regex = new RegExp(`(${escapeHtml(query)})`, 'gi');
+  return escapedText.replace(regex, '<span class="cp-highlight">$1</span>');
+}
+
+function renderCpResults(query) {
+  cpResults.innerHTML = '';
+  const q = query.trim().toLowerCase();
+
+  if (!q) {
+    cpResults.innerHTML = `
+      <div class="cp-empty">
+        Type to search for tasks, projects, or employees...<br>
+        <small style="opacity:0.6; margin-top:8px; display:inline-block">You can also try quick filters like "status:done" (coming soon!)</small>
+      </div>`;
+    return;
+  }
+
+  let totalResults = 0;
+
+  // 1. Search Tasks
+  const tasks = state.tasks.filter(t => (t.text || '').toLowerCase().includes(q)).slice(0, 5);
+  if (tasks.length) {
+    const groupLabel = document.createElement('div');
+    groupLabel.className = 'cp-group-header';
+    groupLabel.textContent = 'Tasks';
+    cpResults.appendChild(groupLabel);
+
+    tasks.forEach(task => {
+      const item = document.createElement('div');
+      item.className = 'cp-item';
+      item.innerHTML = `
+        <div class="cp-item-icon">✔️</div>
+        <div class="cp-item-content">
+          <div class="cp-item-title">${highlightText(task.text, q)}</div>
+          <div class="cp-item-subtitle">${task.status || 'open'}</div>
+        </div>
+      `;
+      item.addEventListener('click', () => {
+        closeCommandPalette();
+        searchQuery = task.text; 
+        render();
+      });
+      cpResults.appendChild(item);
+      totalResults++;
+    });
+  }
+
+  // 2. Search Projects
+  const projects = getActiveLists().filter(l => (l.name || '').toLowerCase().includes(q)).slice(0, 3);
+  if (projects.length) {
+    const groupLabel = document.createElement('div');
+    groupLabel.className = 'cp-group-header';
+    groupLabel.textContent = 'Projects';
+    cpResults.appendChild(groupLabel);
+
+    projects.forEach(proj => {
+      const item = document.createElement('div');
+      item.className = 'cp-item';
+      item.innerHTML = `
+        <div class="cp-item-icon">📁</div>
+        <div class="cp-item-content">
+          <div class="cp-item-title">${highlightText(proj.name, q)}</div>
+          <div class="cp-item-subtitle">Project</div>
+        </div>
+      `;
+      item.addEventListener('click', () => {
+        closeCommandPalette();
+        searchQuery = proj.name; 
+        render();
+      });
+      cpResults.appendChild(item);
+      totalResults++;
+    });
+  }
+
+  // 3. Search Employees
+  const employees = state.employees.filter(e => (e.name || '').toLowerCase().includes(q) || (e.email || '').toLowerCase().includes(q)).slice(0, 3);
+  if (employees.length) {
+    const groupLabel = document.createElement('div');
+    groupLabel.className = 'cp-group-header';
+    groupLabel.textContent = 'Employees';
+    cpResults.appendChild(groupLabel);
+
+    employees.forEach(emp => {
+      const item = document.createElement('div');
+      item.className = 'cp-item';
+      item.innerHTML = `
+        <div class="cp-item-icon">👤</div>
+        <div class="cp-item-content">
+          <div class="cp-item-title">${highlightText(emp.name, q)}</div>
+          <div class="cp-item-subtitle">${highlightText(emp.email, q)}</div>
+        </div>
+      `;
+      item.addEventListener('click', () => {
+        closeCommandPalette();
+        activeRegularEmployee = emp.email;
+        activeProjectEmployee = emp.email;
+        render();
+      });
+      cpResults.appendChild(item);
+      totalResults++;
+    });
+  }
+
+  if (totalResults === 0) {
+    cpResults.innerHTML = `<div class="cp-empty">No results found for "${escapeHtml(query)}"</div>`;
+  }
+}
+// ------------------------------
 
 document.querySelectorAll('.view-option').forEach((btn) => {
   btn.addEventListener('click', () => {

@@ -21,11 +21,13 @@
     <img class="brand-logo-img" src="../icons/icon.png" alt="Orbit" />
   </div>
   <p class="topbar-quote">Change your orbit. If you don&rsquo;t change your orbit, you&rsquo;ll end up in the same place.<br>&mdash; Dr. APJ Abdul Kalam</p>
-  <div class="dashboard-search">
-    <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true"><circle cx="8.5" cy="8.5" r="6" fill="none" stroke="currentColor" stroke-width="1.6"/><line x1="13" y1="13" x2="18" y2="18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
-    <input id="searchInput" type="text" placeholder="Search tasks..." autocomplete="off" />
-    <button id="searchClearBtn" type="button" class="search-clear hidden" title="Clear search">&times;</button>
-  </div>
+  <button id="searchTriggerBtn" class="dashboard-search-trigger" type="button">
+    <span class="search-trigger-icon">
+      <svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true"><circle cx="8.5" cy="8.5" r="6" fill="none" stroke="currentColor" stroke-width="1.6"/><line x1="13" y1="13" x2="18" y2="18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    </span>
+    <span class="search-trigger-text">Search anything...</span>
+    <span class="search-trigger-shortcut">⌘K</span>
+  </button>
   <div class="topbar-actions">
     <div id="stats" class="stats"></div>
     <div class="view-menu" aria-label="View menu">
@@ -139,6 +141,20 @@
     </div>
   </div>
 </template>
+
+<!-- Command Palette Modal -->
+<div id="commandPalette" class="command-palette-overlay hidden">
+  <div class="command-palette-modal">
+    <div class="cp-header">
+      <svg class="cp-search-icon" viewBox="0 0 20 20" width="18" height="18" aria-hidden="true"><circle cx="8.5" cy="8.5" r="6" fill="none" stroke="currentColor" stroke-width="1.6"/><line x1="13" y1="13" x2="18" y2="18" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+      <input id="cpInput" type="text" placeholder="Search tasks, projects, employees..." autocomplete="off" />
+      <button id="cpCloseBtn" type="button" title="Close (Esc)">&times;</button>
+    </div>
+    <div id="cpResults" class="cp-results">
+      <!-- Dynamic results injected here -->
+    </div>
+  </div>
+</div>
 
 <script type="module" src="app.js"></script>
 </body>
