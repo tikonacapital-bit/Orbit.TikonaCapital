@@ -364,6 +364,7 @@ function normalizeState(value) {
     lists: lists.map((list) => ({
       id: list.id || uid('list'),
       name: list.name || 'Untitled list',
+      ownerEmail: typeof list.ownerEmail === 'string' && list.ownerEmail ? list.ownerEmail.trim().toLowerCase() : null,
       sections: normalizeSections(list.sections),
       tasks: normalizeTasks(list.tasks),
       deletedTasks: normalizeDeletedTasks(list.deletedTasks),
@@ -955,7 +956,12 @@ function openRegisterPopup() {
     state.employees.push({ name, email, joiningDate, endDate: endDate || '', registeredAt: Date.now() });
 
     const hasList = state.lists.some((l) => !l.archived && sameEmployee(l.name, name));
-    if (!hasList) addList(name);
+    if (!hasList) {
+      addList(name, email);
+    } else {
+      const existing = state.lists.find((l) => !l.archived && sameEmployee(l.name, name));
+      if (existing && !existing.ownerEmail) existing.ownerEmail = email;
+    }
 
     overlay.remove();
     logActivity('register', email, '', navigator.userAgent, name);
@@ -1310,7 +1316,12 @@ function exitEmployee(email) {
   if (empIndex === -1) return;
   const employee = state.employees[empIndex];
 
-  const list = state.lists.find((l) => sameEmployee(l.name, employee.name));
+  // Prefer the robust email link so a renamed list (or a name that no
+  // longer matches after edits) still gets correctly tied to this
+  // employee; only fall back to name-matching for older lists created
+  // before ownerEmail existed.
+  const list = state.lists.find((l) => l.ownerEmail && l.ownerEmail === employee.email)
+    || state.lists.find((l) => !l.ownerEmail && sameEmployee(l.name, employee.name));
 
   const projectMemberships = [];
   state.projects.forEach((project) => {
@@ -5556,8 +5567,8 @@ function permanentlyDeleteTask(list, entryId) {
   render();
 }
 
-function addList(name) {
-  const list = { id: uid('list'), name, sections: [], tasks: [] };
+function addList(name, ownerEmail = null) {
+  const list = { id: uid('list'), name, ownerEmail: ownerEmail || null, sections: [], tasks: [] };
   state.lists.push(list);
   activeListId = list.id;
   persist();
