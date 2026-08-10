@@ -31,7 +31,10 @@ const VIEW_MODES = new Set(['board', 'table', 'stack', 'calendar']);
 
 function loadViewMode() {
   try {
-    return localStorage.getItem('tikona_view_mode_v1') || 'table';
+    // Bumped to v2 so browsers that already had "board" saved from before
+    // the dense-table redesign pick up the new "table" default too,
+    // instead of being stuck on their old preference forever.
+    return localStorage.getItem('tikona_view_mode_v2') || 'table';
   } catch (err) {
     return 'table';
   }
@@ -55,7 +58,7 @@ function saveSidebarCollapsed(collapsed) {
 
 function saveViewMode(mode) {
   try {
-    localStorage.setItem('tikona_view_mode_v1', mode);
+    localStorage.setItem('tikona_view_mode_v2', mode);
   } catch (err) {
     // View selection can still work for the current session if localStorage is unavailable.
   }
