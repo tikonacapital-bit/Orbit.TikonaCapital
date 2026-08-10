@@ -188,7 +188,7 @@ function statusToProgress(status) {
 
 function itemDisplayProgress(item) {
   if (item.done) return 100;
-  const fieldProgress = PROGRESS_STEPS.includes(item.progress) ? item.progress : 0;
+  const fieldProgress = (typeof item.progress === 'number' && item.progress >= 0 && item.progress <= 100) ? item.progress : 0;
   return Math.max(fieldProgress, statusToProgress(item.status));
 }
 const LIST_COLORS = ['#1F4690', '#3A5BA0', '#FFA500', '#0F2A5C', '#E68A00', '#6C8BC4', '#111827', '#C77400'];
@@ -527,7 +527,7 @@ function normalizeProjects(projects) {
       mood: typeof project.mood === 'string' ? project.mood : 'neutral',
       done: Boolean(project.done),
       completedAt: Number.isFinite(project.completedAt) ? project.completedAt : null,
-      progress: PROGRESS_STEPS.includes(project.progress) ? project.progress : 0,
+      progress: (typeof project.progress === 'number' && project.progress >= 0 && project.progress <= 100) ? project.progress : 0,
       category: typeof project.category === 'string' ? project.category : '',
     };
   });
@@ -605,7 +605,7 @@ function normalizeTasks(tasks) {
     assignedTo: typeof task.assignedTo === 'string' ? task.assignedTo : '',
     mood: typeof task.mood === 'string' ? task.mood : 'neutral',
     description: typeof task.description === 'string' ? task.description : '',
-    progress: PROGRESS_STEPS.includes(task.progress) ? task.progress : 0,
+    progress: (typeof task.progress === 'number' && task.progress >= 0 && task.progress <= 100) ? task.progress : 0,
     category: typeof task.category === 'string' ? task.category : '',
   }));
 }
@@ -5241,6 +5241,7 @@ function attachFluidProgressDrag(barEl, currentVal, onCommit) {
   updateVisuals(currentVal);
 
   let isDragging = false;
+  let startY = 0;
   
   const getValFromEvent = (e) => {
     const rect = barEl.getBoundingClientRect();
@@ -5253,14 +5254,16 @@ function attachFluidProgressDrag(barEl, currentVal, onCommit) {
   barEl.addEventListener('pointerdown', (e) => {
     e.stopPropagation();
     isDragging = true;
+    startY = e.clientY;
     barEl.setPointerCapture(e.pointerId);
-    updateVisuals(getValFromEvent(e));
   });
 
   barEl.addEventListener('pointermove', (e) => {
     if (!isDragging) return;
     e.stopPropagation();
-    updateVisuals(getValFromEvent(e));
+    if (Math.abs(e.clientY - startY) > 3) {
+      updateVisuals(getValFromEvent(e));
+    }
   });
 
   barEl.addEventListener('pointerup', (e) => {
@@ -5268,7 +5271,16 @@ function attachFluidProgressDrag(barEl, currentVal, onCommit) {
     e.stopPropagation();
     isDragging = false;
     barEl.releasePointerCapture(e.pointerId);
-    const val = getValFromEvent(e);
+    
+    let val;
+    if (Math.abs(e.clientY - startY) <= 3) {
+      // It was a click, cycle by 25%
+      val = currentVal >= 100 ? 0 : Math.min(100, (Math.floor(currentVal / 25) + 1) * 25);
+    } else {
+      // It was a drag, use the fluid value
+      val = getValFromEvent(e);
+    }
+    
     updateVisuals(val);
     if (onCommit) onCommit(val);
   });
