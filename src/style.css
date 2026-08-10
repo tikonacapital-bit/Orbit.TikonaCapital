@@ -966,14 +966,19 @@ html, body {
    --sidebar-width custom property (inherited from #appSidebar) rather
    than a fixed "right: -Npx" offset, so both stay reachable at any width
    including 0 -- a fixed offset from a 0-width box's edge would land
-   mostly off-screen instead of straddling the visible boundary. */
+   mostly off-screen instead of straddling the visible boundary. Starts
+   below the toggle button (see its top offset below) rather than at 0,
+   so the two never share the same pixels -- with both centered on the
+   same x, a stray click near the boundary between them could otherwise
+   land on the drag handle and register as a zero-distance "drag" instead
+   of a click, which looks exactly like the button silently not working. */
 .sidebar-resize-handle {
   position: absolute;
-  top: 0;
+  top: 34px;
   left: var(--sidebar-width, 232px);
   transform: translateX(-50%);
   width: 6px;
-  height: 100%;
+  height: calc(100% - 34px);
   z-index: 6;
   cursor: ew-resize;
   background: transparent;
@@ -987,7 +992,7 @@ html, body {
 
 .sidebar-toggle-btn {
   position: absolute;
-  top: 18px;
+  top: 4px;
   left: var(--sidebar-width, 232px);
   transform: translateX(-50%);
   z-index: 7;
