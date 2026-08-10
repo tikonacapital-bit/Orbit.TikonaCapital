@@ -444,7 +444,6 @@ function normalizeBin(bin) {
 }
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-const ACTIVITY_RETENTION = 200;
 
 // Real Google Sign-In for check-in/out, so only the actual employee behind
 // that Google account can clock themselves in — not anyone clicking a name
@@ -505,8 +504,7 @@ function normalizeActivity(list) {
       timestamp: Number.isFinite(a.timestamp) ? a.timestamp : Date.now(),
       ip: typeof a.ip === 'string' ? a.ip : '',
       device: typeof a.device === 'string' ? a.device : '',
-    }))
-    .slice(-ACTIVITY_RETENTION);
+    }));
 }
 
 function normalizeProjects(projects) {
@@ -887,7 +885,6 @@ async function fetchClientIp() {
 function logActivity(type, email, ip, device, name = '', extra = {}) {
   state.activity = state.activity || [];
   state.activity.push({ id: uid('act'), type, name, email, timestamp: Date.now(), ip, device, ...extra });
-  if (state.activity.length > ACTIVITY_RETENTION) state.activity = state.activity.slice(-ACTIVITY_RETENTION);
   persist();
   render();
 }
