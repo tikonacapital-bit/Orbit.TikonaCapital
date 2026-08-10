@@ -1550,46 +1550,50 @@ button.stat-card:hover {
   margin-left: auto;
 }
 
-/* Color coding for specific stat cards */
+/* Color coding for specific stat cards -- borders bumped up from ~0.2 to
+   ~0.4 opacity and given a matching tint so each pill reads as its own
+   colored chip at a glance instead of a plain white box with small
+   colored text inside it. */
 .stat-card.overdue {
-  background: rgba(224, 72, 88, 0.05);
-  border-color: rgba(224, 72, 88, 0.2);
+  background: rgba(224, 72, 88, 0.07);
+  border-color: rgba(224, 72, 88, 0.4);
 }
 .stat-card.overdue span { color: var(--danger); }
 .stat-card.overdue strong { color: var(--danger-strong); }
 
 .stat-card.high {
-  background: rgba(224, 72, 88, 0.05);
-  border-color: rgba(224, 72, 88, 0.2);
+  background: rgba(224, 72, 88, 0.07);
+  border-color: rgba(224, 72, 88, 0.4);
 }
 .stat-card.high span { color: var(--danger); }
 .stat-card.high strong { color: var(--danger-strong); }
 
 .stat-card.medium {
-  background: rgba(255, 165, 0, 0.05);
-  border-color: rgba(255, 165, 0, 0.2);
+  background: rgba(255, 165, 0, 0.07);
+  border-color: rgba(255, 165, 0, 0.4);
 }
 .stat-card.medium span { color: var(--medium); }
 .stat-card.medium strong { color: var(--accent-orange-strong); }
 
 .stat-card.low {
-  background: rgba(108, 139, 196, 0.05);
-  border-color: rgba(108, 139, 196, 0.2);
+  background: rgba(108, 139, 196, 0.07);
+  border-color: rgba(108, 139, 196, 0.4);
 }
 .stat-card.low span { color: var(--low); }
 .stat-card.low strong { color: var(--accent); }
 
 .stat-card.open {
-  background: rgba(17, 24, 39, 0.03);
+  background: rgba(17, 24, 39, 0.04);
+  border-color: rgba(17, 24, 39, 0.18);
 }
 .stat-card.open span { color: var(--text-secondary); }
 .stat-card.open strong { color: var(--text); }
 
 .stat-card.done {
-  background: rgba(31, 70, 144, 0.05);
-  border-color: rgba(31, 70, 144, 0.2);
+  background: rgba(31, 70, 144, 0.08);
+  border-color: rgba(31, 70, 144, 0.4);
 }
-.stat-card.done span { color: var(--success); }
+.stat-card.done span { color: var(--primary); }
 .stat-card.done strong { color: var(--primary); }
 
 .viewbar {
@@ -1624,23 +1628,29 @@ button.stat-card:hover {
   color: #1F4690;
 }
 
+/* A faint transparent+dashed style reads fine on plain white, but this
+   bar sits on the page's cream/watermarked background, where that
+   treatment nearly disappears -- an opaque pill with a real border
+   holds up regardless of what's behind it. */
 .tab-add {
   flex: 0 0 auto;
   padding: 6px 14px;
   border-radius: 999px;
-  border: 1.5px dashed rgba(17, 24, 39, 0.12);
-  background: transparent;
-  color: var(--text-muted);
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-secondary);
   font-weight: 600;
   font-size: 13px;
   white-space: nowrap;
+  box-shadow: var(--shadow-xs);
   transition: all 160ms ease;
 }
 
 .tab-add:hover {
-  background: rgba(58, 91, 160, 0.06);
-  color: var(--accent);
-  border-color: rgba(58, 91, 160, 0.3);
+  background: var(--bg-hover);
+  color: var(--accent-strong);
+  border-color: rgba(58, 91, 160, 0.4);
+  box-shadow: var(--shadow-sm);
 }
 
 .view-menu {
