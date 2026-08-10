@@ -3528,7 +3528,9 @@ function renderRegularEmployeeSelector() {
 
 function getActiveRegularSectionTitle() {
   if (activeRegularEmployee && activeRegularEmployee !== 'all') {
-    return `${activeRegularEmployee}'s Regular Tasks`;
+    const emp = (state.employees || []).find(e => e.email === activeRegularEmployee);
+    const displayName = emp && emp.name ? emp.name : activeRegularEmployee;
+    return `${displayName}'s Regular Tasks`;
   }
   return 'Regular Tasks';
 }
