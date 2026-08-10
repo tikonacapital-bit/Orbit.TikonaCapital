@@ -40,22 +40,6 @@ function loadViewMode() {
   }
 }
 
-function loadSidebarCollapsed() {
-  try {
-    return localStorage.getItem('tikona_sidebar_collapsed_v1') === '1';
-  } catch (err) {
-    return false;
-  }
-}
-
-function saveSidebarCollapsed(collapsed) {
-  try {
-    localStorage.setItem('tikona_sidebar_collapsed_v1', collapsed ? '1' : '0');
-  } catch (err) {
-    // Collapse state can still work for the current session if localStorage is unavailable.
-  }
-}
-
 function saveViewMode(mode) {
   try {
     localStorage.setItem('tikona_view_mode_v2', mode);
@@ -5850,17 +5834,87 @@ document.getElementById('globalAddTaskBtn').addEventListener('click', () => {
 // rendered fresh inside renderSidebar() now, with their click handlers
 // attached at creation time -- there's no static element to wire here.
 
+// The sidebar is freely drag-resizable (down to 0 width, i.e. fully
+// hidden) via #sidebarResizeHandle, plus a one-click toggle that jumps
+// between 0 and whatever width was last in use.
+const SIDEBAR_MIN_WIDTH = 0;
+const SIDEBAR_MAX_WIDTH = 480;
+const SIDEBAR_DEFAULT_WIDTH = 232;
+const SIDEBAR_SNAP_THRESHOLD = 28;
+
+function loadSidebarWidth() {
+  try {
+    const stored = localStorage.getItem('tikona_sidebar_width_v1');
+    if (stored === null) return SIDEBAR_DEFAULT_WIDTH;
+    const raw = Number(stored);
+    return Number.isFinite(raw) && raw >= 0 ? raw : SIDEBAR_DEFAULT_WIDTH;
+  } catch (err) {
+    return SIDEBAR_DEFAULT_WIDTH;
+  }
+}
+
+function saveSidebarWidth(px) {
+  try {
+    localStorage.setItem('tikona_sidebar_width_v1', String(px));
+  } catch (err) {
+    // Width just won't persist across reloads if localStorage is unavailable.
+  }
+}
+
 const appSidebarEl = document.getElementById('appSidebar');
 const sidebarToggleBtn = document.getElementById('sidebarToggleBtn');
-function applySidebarCollapsed(collapsed) {
-  appSidebarEl.classList.toggle('collapsed', collapsed);
-  sidebarToggleBtn.title = collapsed ? 'Expand sidebar' : 'Collapse sidebar';
+const sidebarResizeHandle = document.getElementById('sidebarResizeHandle');
+
+function setSidebarWidth(px, { persist = true } = {}) {
+  const clamped = Math.max(SIDEBAR_MIN_WIDTH, Math.min(SIDEBAR_MAX_WIDTH, px));
+  const hidden = clamped <= SIDEBAR_SNAP_THRESHOLD;
+  // Set on :root, not #appSidebar itself -- the resize handle and toggle
+  // button live outside the sidebar now (siblings in .dashboard-shell) so
+  // that positioning them at the sidebar's current edge doesn't get
+  // clipped by the sidebar's own overflow-x: hidden. A :root custom
+  // property is inherited by all three regardless of DOM position.
+  document.documentElement.style.setProperty('--sidebar-width', `${hidden ? 0 : clamped}px`);
+  appSidebarEl.classList.toggle('collapsed', hidden);
+  sidebarToggleBtn.title = hidden ? 'Show sidebar' : 'Hide sidebar';
+  if (persist) saveSidebarWidth(hidden ? 0 : clamped);
+  return hidden ? 0 : clamped;
 }
-applySidebarCollapsed(loadSidebarCollapsed());
+
+let lastExpandedSidebarWidth = SIDEBAR_DEFAULT_WIDTH;
+const initialSidebarWidth = loadSidebarWidth();
+if (initialSidebarWidth > SIDEBAR_SNAP_THRESHOLD) lastExpandedSidebarWidth = initialSidebarWidth;
+setSidebarWidth(initialSidebarWidth, { persist: false });
+
 sidebarToggleBtn.addEventListener('click', () => {
-  const collapsed = !appSidebarEl.classList.contains('collapsed');
-  applySidebarCollapsed(collapsed);
-  saveSidebarCollapsed(collapsed);
+  if (appSidebarEl.classList.contains('collapsed')) {
+    setSidebarWidth(lastExpandedSidebarWidth || SIDEBAR_DEFAULT_WIDTH);
+  } else {
+    lastExpandedSidebarWidth = appSidebarEl.getBoundingClientRect().width || SIDEBAR_DEFAULT_WIDTH;
+    setSidebarWidth(0);
+  }
+});
+
+let sidebarDragging = false;
+sidebarResizeHandle.addEventListener('mousedown', (e) => {
+  e.preventDefault();
+  sidebarDragging = true;
+  appSidebarEl.classList.add('resizing');
+  document.body.style.cursor = 'ew-resize';
+});
+document.addEventListener('mousemove', (e) => {
+  if (!sidebarDragging) return;
+  const left = appSidebarEl.getBoundingClientRect().left;
+  const width = Math.max(0, Math.min(SIDEBAR_MAX_WIDTH, e.clientX - left));
+  document.documentElement.style.setProperty('--sidebar-width', `${width}px`);
+});
+document.addEventListener('mouseup', () => {
+  if (!sidebarDragging) return;
+  sidebarDragging = false;
+  appSidebarEl.classList.remove('resizing');
+  document.body.style.cursor = '';
+  const current = parseFloat(getComputedStyle(appSidebarEl).getPropertyValue('--sidebar-width')) || 0;
+  const finalWidth = setSidebarWidth(current);
+  if (finalWidth > SIDEBAR_SNAP_THRESHOLD) lastExpandedSidebarWidth = finalWidth;
 });
 
 const searchInputEl = document.getElementById('searchInput');
