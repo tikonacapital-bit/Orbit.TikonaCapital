@@ -188,8 +188,13 @@ function statusToProgress(status) {
 
 function itemDisplayProgress(item) {
   if (item.done) return 100;
-  const fieldProgress = (typeof item.progress === 'number' && item.progress >= 0 && item.progress <= 100) ? item.progress : 0;
-  return Math.max(fieldProgress, statusToProgress(item.status));
+  if (typeof item.progress === 'number' && item.progress > 0 && item.progress <= 100) {
+    return item.progress;
+  }
+  return Math.max(
+    typeof item.progress === 'number' ? item.progress : 0, 
+    statusToProgress(item.status)
+  );
 }
 const LIST_COLORS = ['#1F4690', '#3A5BA0', '#FFA500', '#0F2A5C', '#E68A00', '#6C8BC4', '#111827', '#C77400'];
 const VIEW_META = {
