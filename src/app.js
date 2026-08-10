@@ -5,6 +5,8 @@ import { loadState, loadCachedState, saveStateDebounced, startPolling, fetchLate
 const boardEl = document.getElementById('board');
 const statsEl = document.getElementById('stats');
 const dashboardTitleEl = document.getElementById('dashboardTitle');
+const mainViewActionsEl = document.getElementById('mainViewActions');
+const kraViewActionsEl = document.getElementById('kraViewActions');
 const tplList = document.getElementById('tpl-list');
 const tplSection = document.getElementById('tpl-section');
 const tplTask = document.getElementById('tpl-task');
@@ -2035,6 +2037,16 @@ function renderCategoryChip(record, onCommit) {
 const SCROLL_PANEL_SELECTOR = '.regular-grid-panel, .table-panel, .stack-panel';
 let lastRenderKey = null;
 
+// "Archived / + Add / + New list" only makes sense for the main task
+// board -- Tabs gets its own single "+ Add Website" action instead, and
+// Analytics gets none. Only one of the two viewbar-actions containers is
+// ever shown at a time.
+function setViewbarActions(mode) {
+  mainViewActionsEl.classList.toggle('hidden', mode !== 'main');
+  kraViewActionsEl.classList.toggle('hidden', mode !== 'kra');
+  if (mode !== 'kra') kraViewActionsEl.innerHTML = '';
+}
+
 function render() {
   const renderKey = `${activeWorkspace}:${viewMode}:${activeListId}:${activeRegularEmployee}:${activeProjectEmployee}:${activeQuickPriority}:${activeQuickStatus}:${searchQuery}`;
   const preserveScroll = renderKey === lastRenderKey;
@@ -2064,6 +2076,7 @@ function render() {
     renderPinnedState();
 
     if (activeWorkspace === 'charts') {
+      setViewbarActions('none');
       renderChartsDashboardHeader();
       const chartsBoard = renderChartsWorkspace();
       boardEl.innerHTML = '';
@@ -2074,6 +2087,7 @@ function render() {
     }
 
     if (activeWorkspace === 'kra') {
+      setViewbarActions('kra');
       dashboardTitleEl.textContent = 'Tabs';
       statsEl.innerHTML = '';
       boardEl.innerHTML = '';
@@ -2083,6 +2097,7 @@ function render() {
       return;
     }
 
+    setViewbarActions('main');
     renderDashboardHeader();
 
     const boardTop = document.createElement('div');
@@ -4992,15 +5007,18 @@ function renderKraWorkspace() {
 
   if (!activeTab) return wrap;
 
-  const toolbar = document.createElement('div');
-  toolbar.className = 'kra-toolbar';
+  // The add-website action lives in the viewbar itself (see
+  // setViewbarActions), in the same spot Archived/+Add/+New list occupy
+  // for the main board, instead of a second toolbar row inside the
+  // workspace -- that second row was what pushed the actual content down
+  // below where the equivalent main-board content starts.
+  kraViewActionsEl.innerHTML = '';
   const addBtn = document.createElement('button');
   addBtn.type = 'button';
   addBtn.className = 'tab-add has-archived';
   addBtn.textContent = '+ Add Website';
   addBtn.addEventListener('click', () => openAddKraWidgetPopup(activeTab));
-  toolbar.appendChild(addBtn);
-  wrap.appendChild(toolbar);
+  kraViewActionsEl.appendChild(addBtn);
 
   const widgets = activeTab.widgets || [];
   if (!widgets.length) {

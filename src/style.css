@@ -1608,10 +1608,15 @@ button.stat-card:hover {
   padding: 8px 24px 6px;
 }
 
-/* Task-list navigation now lives in the sidebar, so #archivedListsBtn is
-   the first of the three trailing buttons here -- push it (and the two
-   after it) to the right, leaving the title on the left. */
-#archivedListsBtn {
+/* Task-list navigation now lives in the sidebar, so this trailing group
+   is pushed to the right, leaving the title on the left. Only one of
+   #mainViewActions/#kraViewActions is shown at a time -- render() toggles
+   which per the active workspace, since "Archived/+Add/+New list" only
+   makes sense for the main task board, not Tabs or Analytics. */
+.viewbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
   margin-left: auto;
 }
 
@@ -3010,10 +3015,6 @@ button.stat-card:hover {
    KRA widget grid — same drag-to-reorder + native-resize pattern as the
    charts dashboard above, just holding an iframe instead of a chart.
    ========================================================================== */
-.kra-toolbar {
-  margin-bottom: 16px;
-}
-
 .kra-grid {
   display: flex;
   flex-wrap: wrap;
