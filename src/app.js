@@ -6306,7 +6306,8 @@ function renderCpResults(query) {
   let totalResults = 0;
 
   // 1. Search Tasks
-  const tasks = state.tasks.filter(t => (t.text || '').toLowerCase().includes(q)).slice(0, 5);
+  const allTasks = (state.lists || []).flatMap(l => l.tasks || []);
+  const tasks = allTasks.filter(t => (t.text || '').toLowerCase().includes(q)).slice(0, 5);
   if (tasks.length) {
     const groupLabel = document.createElement('div');
     groupLabel.className = 'cp-group-header';
