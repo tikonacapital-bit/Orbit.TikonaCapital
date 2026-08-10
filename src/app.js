@@ -246,25 +246,7 @@ function makeResizable(el, key) {
   });
   observer.observe(el);
 }
-const DEFAULT_REGULAR_TASKS = [
-  { id: 'reg_daily_news', cadence: 'daily', owner: 'Ayush/Intern', title: 'Daily News', time: '09:00', group: 'Daily' },
-  { id: 'reg_macro_news', cadence: 'daily', owner: 'Ayush/Intern', title: 'Macro News', time: '09:00', group: 'Daily' },
-  { id: 'reg_ai_news_tool', cadence: 'daily', owner: 'Kishan/Pratik', title: 'AI News / Tool', time: '09:00', group: 'Daily' },
-  { id: 'reg_portfolio_news', cadence: 'daily', owner: 'Ayush/Intern', title: 'Portfolio News', time: '09:00', group: 'Daily' },
-  { id: 'reg_qtr_results', cadence: 'daily', owner: 'Ayush/Intern', title: 'Qtr Results Calendar', time: '09:00', group: 'Daily' },
-  { id: 'reg_ipo_listing', cadence: 'daily', owner: 'Ayush/Intern', title: 'IPO Companies Listing / Open', time: '09:00', group: 'Daily' },
-  { id: 'reg_daily_assignment', cadence: 'daily', owner: 'Ayush', title: 'Daily Task List Sent by all in Team', time: '09:00', group: 'Daily' },
-  { id: 'reg_fund_performance', cadence: 'daily', owner: 'Ayush/Intern', title: 'Fund Performance', time: '16:00', group: 'Daily' },
-  { id: 'reg_sellside_report', cadence: 'daily', owner: 'Ayush/Intern', title: 'Sell Side Research Report', time: '18:30', group: 'Daily' },
-  { id: 'reg_completion_update', cadence: 'daily', owner: 'Ayush', title: 'Task Completion update', time: '18:45', group: 'Daily' },
-  { id: 'reg_client_returns', cadence: 'weekly', owner: 'Ayush/Intern', title: 'Client Portfolio Returns - Whatsapp', weekday: 1, group: 'Weekly' },
-  { id: 'reg_stocks_review', cadence: 'weekly', owner: 'Ayush/Sumit', title: 'Portfolio Stocks Review', weekday: 1, group: 'Weekly' },
-  { id: 'reg_spreadsheet_review', cadence: 'weekly', owner: 'Ayush/Sumit', title: 'Research spreadsheet review', weekday: 1, group: 'Weekly' },
-  { id: 'reg_fund_review_blog', cadence: 'weekly', owner: 'Ayush/Sumit', title: 'Mutual Fund Review + Blog', weekday: 2, group: 'Weekly' },
-  { id: 'reg_monthly_sip', cadence: 'monthly', owner: 'Ayush', title: 'Monthly SIP and portfolio tracker check', dayOfMonth: 1, group: 'Monthly' },
-  { id: 'reg_monthly_returns', cadence: 'monthly', owner: 'Ayush/Sumit', title: 'Monthly returns dashboard update', dayOfMonth: 5, group: 'Monthly' },
-  { id: 'reg_monthly_research', cadence: 'monthly', owner: 'Kishan/Pratik', title: 'Monthly research archive clean-up', dayOfMonth: 10, group: 'Monthly' },
-];
+const DEFAULT_REGULAR_TASKS = [];
 
 const FILTER_PRIORITIES = ['any', 'none', 'low', 'medium', 'high'];
 const FILTER_STATUSES = ['any', 'open', 'done', 'overdue'];
@@ -568,7 +550,7 @@ function pruneOldCompletions(completions) {
 }
 
 function normalizeRegular(regular) {
-  const sourceTasks = Array.isArray(regular?.tasks) && regular.tasks.length ? regular.tasks : DEFAULT_REGULAR_TASKS;
+  const sourceTasks = Array.isArray(regular?.tasks) ? regular.tasks : [];
   const tasks = sourceTasks.map((task) => ({
     id: task.id || uid('reg'),
     cadence: CADENCE_OPTIONS.includes(task.cadence) ? task.cadence : 'daily',
