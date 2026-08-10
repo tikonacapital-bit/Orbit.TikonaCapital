@@ -2865,8 +2865,9 @@ function renderProjectPersonCard(name) {
   header.appendChild(nameEl);
 
   const projects = getProjectsForPerson(name);
-  const activeProjects = projects.filter((p) => !p.done);
-  const doneProjects = projects.filter((p) => p.done);
+  const activeProjects = projects.filter((p) => !p.done && !p.deleted);
+  const doneProjects = projects.filter((p) => p.done && !p.deleted);
+  const deletedProjects = projects.filter((p) => p.deleted);
 
   const countEl = document.createElement('span');
   countEl.className = 'list-count';
@@ -2900,17 +2901,81 @@ function renderProjectPersonCard(name) {
   toggle.addEventListener('click', () => list.classList.toggle('hidden'));
   card.appendChild(wrap);
 
+  const delWrap = document.createElement('div');
+  delWrap.className = 'deleted-wrap';
+  const delToggle = document.createElement('button');
+  delToggle.type = 'button';
+  delToggle.className = 'deleted-toggle';
+  delToggle.innerHTML = `Deleted (<span class="deleted-count">${deletedProjects.length}</span>)`;
+  delWrap.appendChild(delToggle);
+  const delList = document.createElement('div');
+  delList.className = 'deleted-list hidden';
+  deletedProjects
+    .sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0))
+    .forEach((project) => delList.appendChild(renderDeletedProjectRow(project)));
+  delWrap.appendChild(delList);
+  delToggle.addEventListener('click', () => delList.classList.toggle('hidden'));
+  card.appendChild(delWrap);
+
   return card;
 }
 
-function deleteProject(project) {
+function renderDeletedProjectRow(project) {
+  const row = document.createElement('div');
+  row.className = 'deleted-task-row';
+  
+  const textEl = document.createElement('div');
+  textEl.className = 'deleted-task-text';
+  textEl.textContent = project.name;
+  row.appendChild(textEl);
+  
+  const actions = document.createElement('div');
+  actions.className = 'deleted-task-actions';
+  
+  const restoreBtn = document.createElement('button');
+  restoreBtn.type = 'button';
+  restoreBtn.className = 'icon-btn';
+  restoreBtn.innerHTML = '&#8634;'; // undo icon
+  restoreBtn.title = 'Restore project';
+  restoreBtn.addEventListener('click', () => {
+    project.deleted = false;
+    delete project.deletedAt;
+    persist();
+    render();
+  });
+  actions.appendChild(restoreBtn);
+  
+  const permBtn = document.createElement('button');
+  permBtn.type = 'button';
+  permBtn.className = 'icon-btn';
+  permBtn.innerHTML = '&times;';
+  permBtn.title = 'Permanently delete';
+  permBtn.addEventListener('click', () => {
+    permanentlyDeleteProject(project);
+  });
+  actions.appendChild(permBtn);
+  
+  row.appendChild(actions);
+  return row;
+}
+
+function permanentlyDeleteProject(project) {
+  if (!confirm(`Permanently delete project "${project.name}"?`)) return;
   const idx = state.projects.findIndex((p) => p.id === project.id);
   if (idx === -1) return;
-  const removed = state.projects.splice(idx, 1)[0];
+  state.projects.splice(idx, 1);
   persist();
   render();
-  showToast(`Deleted "${removed.name}"`, () => {
-    state.projects.splice(idx, 0, removed);
+}
+
+function deleteProject(project) {
+  project.deleted = true;
+  project.deletedAt = Date.now();
+  persist();
+  render();
+  showToast(`Deleted "${project.name}"`, () => {
+    project.deleted = false;
+    delete project.deletedAt;
     persist();
     render();
   });
