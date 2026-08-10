@@ -25,15 +25,15 @@
   --accent-soft: #6C8BC4;
   --accent-tint: #E4EAF6;
 
-  /* Status colors. Red is kept deliberately for high-priority/overdue —
-     it's the one non-brand color the app keeps on purpose, since it's
-     the universal "this needs attention now" signal and nothing in the
-     navy/orange system reads as urgently. Everything else (medium
-     priority, done/settled) stays inside the brand system. */
+  /* Status colors. Red (overdue/high) and green (done) are kept as the
+     two non-brand colors the app uses on purpose -- they're universal
+     "needs attention" / "settled" signals that nothing in the navy/orange
+     system reads as clearly. Everything else stays inside the brand
+     system. */
   --accent-warm: var(--accent-orange);
   --danger: #E04858;
   --danger-strong: #DC2626;
-  --success: var(--primary);
+  --success: #1E9E6B;
   --low: var(--accent-soft);
   --medium: var(--accent-orange);
   --high: #E04858;
@@ -150,12 +150,12 @@ button {
   align-items: center;
   justify-content: space-between;
   padding: 10px 24px 10px 16px;
-  background: linear-gradient(100deg, var(--primary) 0%, #295096 40%, var(--secondary) 100%);
-  box-shadow: 0 4px 20px rgba(17, 24, 39, 0.18);
+  background: var(--bg-elevated);
+  box-shadow: 0 1px 3px rgba(17, 24, 39, 0.06);
   position: relative;
   z-index: 10;
-  color: #fff;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+  color: var(--text);
+  border-bottom: 1px solid var(--border);
 }
 
 .brand {
@@ -186,10 +186,9 @@ button {
   font-size: 13.5px;
   line-height: 1.4;
   letter-spacing: 0.2px;
-  color: var(--accent-orange-tint);
+  color: var(--text-secondary);
   text-align: center;
   pointer-events: none;
-  text-shadow: 0 1px 3px rgba(0,0,0,0.4);
 }
 
 @media (max-width: 1100px) {
@@ -305,18 +304,13 @@ button {
   padding: 12px 12px 22px;
 }
 
-/* Bled out to the card's edges and colored navy so every card (All tasks,
-   Projects) shares the same header chrome as the Regular Tasks grid and
-   the Table view -- one dense-table-flavored visual system instead of a
-   plain white bar per card. */
+/* Plain header -- a bold navy name on the card's own white background,
+   not a filled color bar. */
 .list-header {
   display: flex;
   align-items: center;
   gap: 6px;
-  margin: -12px -12px 10px;
-  padding: 9px 10px;
-  background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
-  border-radius: var(--radius-md) var(--radius-md) 0 0;
+  padding: 6px 6px 3px;
 }
 
 .list-name {
@@ -328,37 +322,34 @@ button {
   border-radius: 6px;
   padding: 2px 6px;
   letter-spacing: -0.2px;
-  color: #fff;
+  color: var(--primary);
 }
-.list-name:focus { background: rgba(255, 255, 255, 0.16); }
+.list-name:focus { background: var(--bg-hover); }
 
 .list-count {
-  color: #fff;
+  color: var(--text-muted);
   font-size: 11px;
   font-weight: 600;
   min-width: 20px;
   text-align: center;
-  background: rgba(255, 255, 255, 0.18);
+  background: rgba(58, 91, 160, 0.1);
   border-radius: 6px;
   padding: 2px 6px;
 }
 
-.list-header .icon-btn { color: rgba(255, 255, 255, 0.85); }
-.list-header .icon-btn:hover { background: rgba(255, 255, 255, 0.16); color: #fff; }
-
 .list-header .list-quick-add-btn {
-  background: rgba(255, 255, 255, 0.18);
-  color: #fff;
+  background: rgba(58, 91, 160, 0.1);
+  color: var(--accent);
 }
-.list-header .list-quick-add-btn:hover { background: #fff; color: var(--primary); }
+.list-header .list-quick-add-btn:hover { background: var(--accent); color: #fff; }
 
 .list-header .list-attendance {
-  background: rgba(255, 255, 255, 0.18);
-  color: #fff;
+  background: rgba(58, 91, 160, 0.1);
+  color: var(--accent-strong);
 }
 .list-header .list-attendance.done {
-  background: var(--accent-orange);
-  color: #fff;
+  background: rgba(31, 70, 144, 0.16);
+  color: var(--primary);
 }
 
 .icon-btn {
@@ -573,8 +564,12 @@ button {
   margin-top: 1px;
 }
 .task-priority.low { background: rgba(108, 139, 196, 0.1); color: var(--low); border: 1px solid rgba(108, 139, 196, 0.3); }
-.task-priority.medium { background: rgba(255, 165, 0, 0.1); color: var(--medium); border: 1px solid rgba(255, 165, 0, 0.3); }
-.task-priority.high { background: rgba(224, 72, 88, 0.1); color: var(--danger-strong); border: 1px solid rgba(224, 72, 88, 0.3); }
+.task-priority.medium { background: rgba(255, 165, 0, 0.1); color: var(--accent-orange-strong); border: 1px solid rgba(255, 165, 0, 0.3); }
+/* Solid fill, not just tinted -- high priority is the one that should
+   jump out at a glance the way "overdue" does with red, using orange
+   (importance) instead of red (lateness) so the two read as distinct
+   signals. */
+.task-priority.high { background: var(--accent-orange); color: #fff; border: 1px solid transparent; }
 .task-priority.none { display: none; }
 
 .task-text {
@@ -924,7 +919,7 @@ html, body {
 }
 
 .sidebar-title {
-  color: rgba(255, 229, 180, 0.65);
+  color: rgba(31, 70, 144, 0.7);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.9px;
@@ -944,7 +939,7 @@ html, body {
   justify-content: space-between;
   gap: 16px;
   padding: 16px 12px;
-  background: var(--secondary); /* Match Picture 1 */
+  background: #EEF1FB;
   border-right: none;
   box-shadow: 2px 0 12px rgba(17, 24, 39, 0.04);
   overflow-y: auto;
@@ -1049,7 +1044,7 @@ html, body {
 
 .app-sidebar-divider {
   height: 1px;
-  background: rgba(255, 255, 255, 0.15);
+  background: rgba(31, 70, 144, 0.15);
   margin: 10px 4px;
 }
 
@@ -1063,7 +1058,7 @@ html, body {
   border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
-  color: rgba(255, 229, 180, 0.75);
+  color: rgba(31, 70, 144, 0.8);
   text-align: left;
   font-size: 13px;
   font-weight: 600;
@@ -1075,14 +1070,14 @@ html, body {
 .sidebar-item svg:not([fill="none"]) { fill: currentColor; }
 
 .sidebar-item:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--accent-orange-tint);
+  background: rgba(58, 91, 160, 0.08);
+  color: var(--primary);
   transform: translateX(2px);
 }
 
 .sidebar-item.active {
-  background: rgba(255, 255, 255, 0.15);
-  color: var(--accent-orange-tint);
+  background: rgba(58, 91, 160, 0.14);
+  color: var(--primary);
   font-weight: 700;
   border-radius: 8px;
 }
@@ -1100,7 +1095,7 @@ html, body {
 .sidebar-section-header {
   font-size: 11px;
   font-weight: 700;
-  color: rgba(255, 229, 180, 0.55);
+  color: rgba(31, 70, 144, 0.6);
   text-transform: uppercase;
   letter-spacing: 0.8px;
   margin: var(--space-md) var(--space-sm) var(--space-xs) var(--space-sm);
@@ -1138,14 +1133,14 @@ html, body {
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: rgba(255, 229, 180, 0.6);
+  color: rgba(31, 70, 144, 0.65);
   cursor: pointer;
   transition: background 140ms ease, color 140ms ease, transform 200ms ease;
 }
 
 .sidebar-group-arrow:hover {
-  background: rgba(255, 255, 255, 0.12);
-  color: var(--accent-orange-tint);
+  background: rgba(58, 91, 160, 0.1);
+  color: var(--primary);
 }
 
 .sidebar-group-arrow.expanded {
@@ -1166,7 +1161,7 @@ html, body {
 .sidebar-subnav-empty {
   padding: 6px 10px;
   font-size: 12px;
-  color: rgba(255, 229, 180, 0.55);
+  color: rgba(31, 70, 144, 0.6);
 }
 
 .sidebar-subitem {
@@ -1176,7 +1171,7 @@ html, body {
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: rgba(255, 229, 180, 0.65);
+  color: rgba(31, 70, 144, 0.7);
   text-align: left;
   font-size: 12.5px;
   font-weight: 500;
@@ -1187,13 +1182,13 @@ html, body {
 }
 
 .sidebar-subitem:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--accent-orange-tint);
+  background: rgba(58, 91, 160, 0.08);
+  color: var(--primary);
 }
 
 .sidebar-subitem.active {
-  background: rgba(255, 255, 255, 0.15);
-  color: var(--accent-orange-tint);
+  background: rgba(58, 91, 160, 0.14);
+  color: var(--primary);
   font-weight: 700;
   border-radius: 6px;
 }
@@ -1223,7 +1218,7 @@ html, body {
   border: none;
   border-radius: 50%;
   background: transparent;
-  color: rgba(255, 229, 180, 0.65);
+  color: rgba(31, 70, 144, 0.7);
   font-size: 13px;
   line-height: 1;
   cursor: pointer;
@@ -1240,12 +1235,12 @@ html, body {
 }
 
 .sidebar-subitem-add {
-  color: rgba(255, 229, 180, 0.85);
+  color: rgba(31, 70, 144, 0.85);
   font-weight: 700;
 }
 .sidebar-subitem-add:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--accent-orange-tint);
+  background: rgba(58, 91, 160, 0.08);
+  color: var(--primary);
 }
 
 .nav-item {
@@ -1260,7 +1255,7 @@ html, body {
   border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
-  color: rgba(255, 229, 180, 0.75);
+  color: rgba(31, 70, 144, 0.8);
   text-align: left;
   overflow: hidden;
   transition: transform 160ms ease, background 160ms ease, border-color 160ms ease, color 160ms ease;
@@ -1279,14 +1274,14 @@ html, body {
 }
 
 .nav-item:hover {
-  background: rgba(255, 255, 255, 0.1);
-  color: var(--accent-orange-tint);
+  background: rgba(58, 91, 160, 0.08);
+  color: var(--primary);
   transform: translateX(2px);
 }
 
 .nav-item.active {
-  background: rgba(255, 255, 255, 0.15);
-  color: var(--accent-orange-tint);
+  background: rgba(58, 91, 160, 0.14);
+  color: var(--primary);
   border-left: 3px solid var(--list-accent, var(--accent-orange));
   border-radius: 0 8px 8px 0;
 }
@@ -1321,8 +1316,8 @@ html, body {
   min-width: 24px;
   padding: 2px 7px;
   border-radius: 999px;
-  background: rgba(255, 255, 255, 0.18);
-  color: var(--accent-orange-tint);
+  background: rgba(58, 91, 160, 0.14);
+  color: var(--primary);
   font-size: 12px;
   text-align: center;
 }
@@ -1341,18 +1336,15 @@ html, body {
   flex: 1 1 auto;
   min-width: 0;
   overflow-y: auto;
-  /* A light, subtle circuit-board/graph-paper grid instead of the single
-     centered logo watermark -- a fine dot-grid of line layers, tiled
-     across the whole area rather than one large centered image. */
-  background-color: #F6F9FD;
+  /* Diagonal light-blue-to-cream wash with a faint constellation/network
+     line pattern tiled over it -- thin white connecting lines + dot
+     nodes, low opacity, repeating every 220px. */
   background-image:
-    radial-gradient(circle, rgba(58, 91, 160, 0.28) 1.4px, transparent 1.6px),
-    linear-gradient(90deg, rgba(58, 91, 160, 0.08) 1px, transparent 1px),
-    linear-gradient(rgba(58, 91, 160, 0.08) 1px, transparent 1px);
-  background-size: 40px 40px, 40px 40px, 40px 40px;
-  background-position: -1px -1px, -1px -1px, -1px -1px;
-  background-repeat: repeat;
-  background-attachment: local;
+    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220' viewBox='0 0 220 220'%3E%3Cg fill='none' stroke='%23ffffff' stroke-width='1' opacity='0.55'%3E%3Cpath d='M10 190 L60 120 L130 150 L190 40'/%3E%3Cpath d='M60 120 L20 30'/%3E%3Cpath d='M130 150 L200 195'/%3E%3Cpath d='M190 40 L150 5'/%3E%3C/g%3E%3Cg fill='%23ffffff' opacity='0.7'%3E%3Ccircle cx='60' cy='120' r='2.5'/%3E%3Ccircle cx='130' cy='150' r='2.5'/%3E%3Ccircle cx='190' cy='40' r='2.5'/%3E%3Ccircle cx='20' cy='30' r='2'/%3E%3Ccircle cx='10' cy='190' r='2'/%3E%3Ccircle cx='150' cy='5' r='2'/%3E%3Ccircle cx='200' cy='195' r='2'/%3E%3C/g%3E%3C/svg%3E"),
+    linear-gradient(135deg, #E4EDFB 0%, #FFF4E3 100%);
+  background-repeat: repeat, no-repeat;
+  background-size: 220px 220px, 100% 100%;
+  background-attachment: local, local;
 }
 
 .dashboard-title-compact {
@@ -1376,9 +1368,9 @@ html, body {
   flex: 0 1 220px;
   height: 32px;
   padding: 0 10px;
-  border: 1px solid transparent;
+  border: 1px solid var(--border);
   border-radius: 999px;
-  background: #ffffff;
+  background: var(--bg);
   color: var(--text-muted);
   transition: border-color 140ms ease, box-shadow 140ms ease;
   margin: 0 10px;
@@ -1573,46 +1565,50 @@ button.stat-card:hover {
    colored chip at a glance instead of a plain white box with small
    colored text inside it. */
 .stat-card.overdue {
-  background: rgba(224, 72, 88, 0.07);
-  border-color: rgba(224, 72, 88, 0.4);
+  background: rgba(224, 72, 88, 0.12);
+  border-color: rgba(224, 72, 88, 0.5);
 }
 .stat-card.overdue span { color: var(--danger); }
 .stat-card.overdue strong { color: var(--danger-strong); }
 
+/* The one stat that gets a fully solid fill instead of a tint -- it's
+   the single most urgent number on the page, so it should read as a
+   CTA-weight alert, not just another colored chip. */
 .stat-card.high {
-  background: rgba(224, 72, 88, 0.07);
-  border-color: rgba(224, 72, 88, 0.4);
+  background: var(--accent-orange);
+  border-color: transparent;
+  box-shadow: 0 2px 8px rgba(255, 165, 0, 0.35);
 }
-.stat-card.high span { color: var(--danger); }
-.stat-card.high strong { color: var(--danger-strong); }
+.stat-card.high span { color: rgba(255, 255, 255, 0.85); }
+.stat-card.high strong { color: #fff; }
 
 .stat-card.medium {
-  background: rgba(255, 165, 0, 0.07);
-  border-color: rgba(255, 165, 0, 0.4);
+  background: rgba(255, 165, 0, 0.12);
+  border-color: rgba(255, 165, 0, 0.5);
 }
 .stat-card.medium span { color: var(--medium); }
 .stat-card.medium strong { color: var(--accent-orange-strong); }
 
 .stat-card.low {
-  background: rgba(108, 139, 196, 0.07);
-  border-color: rgba(108, 139, 196, 0.4);
+  background: rgba(108, 139, 196, 0.1);
+  border-color: rgba(108, 139, 196, 0.5);
 }
 .stat-card.low span { color: var(--low); }
 .stat-card.low strong { color: var(--accent); }
 
 .stat-card.open {
-  background: rgba(17, 24, 39, 0.04);
-  border-color: rgba(17, 24, 39, 0.18);
+  background: rgba(58, 91, 160, 0.1);
+  border-color: rgba(58, 91, 160, 0.4);
 }
-.stat-card.open span { color: var(--text-secondary); }
-.stat-card.open strong { color: var(--text); }
+.stat-card.open span { color: var(--secondary); }
+.stat-card.open strong { color: var(--primary); }
 
 .stat-card.done {
-  background: rgba(31, 70, 144, 0.08);
-  border-color: rgba(31, 70, 144, 0.4);
+  background: rgba(30, 158, 107, 0.12);
+  border-color: rgba(30, 158, 107, 0.45);
 }
-.stat-card.done span { color: var(--primary); }
-.stat-card.done strong { color: var(--primary); }
+.stat-card.done span { color: var(--success); }
+.stat-card.done strong { color: var(--success); }
 
 .viewbar {
   display: flex;
@@ -1688,17 +1684,17 @@ button.stat-card:hover {
   height: 36px;
   padding: 0 12px;
   border-radius: var(--radius-sm);
-  background: rgba(255, 255, 255, 0.1);
-  border: 1px solid rgba(255, 255, 255, 0.22);
-  color: var(--accent-orange-tint);
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  color: var(--primary);
   font-weight: 600;
   transition: all 160ms ease;
 }
 
-.view-menu-btn:hover { background: rgba(255, 255, 255, 0.2); border-color: rgba(255, 255, 255, 0.4); }
+.view-menu-btn:hover { background: var(--bg-hover); border-color: var(--border-strong); }
 .view-menu-btn svg { flex: 0 0 auto; }
-.view-menu-btn svg[fill="none"] { stroke: var(--accent-orange-tint); }
-.view-menu-btn svg:not([fill="none"]) { fill: var(--accent-orange-tint); }
+.view-menu-btn svg[fill="none"] { stroke: var(--primary); }
+.view-menu-btn svg:not([fill="none"]) { fill: var(--primary); }
 .view-menu-label { text-align: left; white-space: nowrap; }
 
 .view-dropdown {
@@ -1961,6 +1957,43 @@ button.stat-card:hover {
   background: var(--bg-cream, #FFE5B4);
   font-size: 14px;
   margin: 16px;
+}
+
+.project-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  background: rgba(58, 91, 160, 0.06);
+  border-color: rgba(58, 91, 160, 0.25);
+  padding: 28px 20px;
+}
+
+.project-empty-icon {
+  color: var(--accent-orange);
+}
+
+.project-empty-text {
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.project-empty-add {
+  padding: 9px 20px;
+  border: none;
+  border-radius: 999px;
+  background: var(--primary);
+  color: #fff;
+  font-weight: 700;
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: 0 4px 14px rgba(31, 70, 144, 0.3);
+  transition: all 160ms ease;
+}
+.project-empty-add:hover {
+  background: var(--secondary);
+  transform: translateY(-1px);
+  box-shadow: 0 6px 18px rgba(31, 70, 144, 0.35);
 }
 
 /* ==========================================================================

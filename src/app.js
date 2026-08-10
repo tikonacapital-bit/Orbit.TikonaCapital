@@ -2876,7 +2876,7 @@ function renderProjectPersonCard(name) {
   const body = document.createElement('div');
   body.className = 'tasks-list unsectioned';
   if (!activeProjects.length) {
-    body.appendChild(renderEmptyState('No projects yet.'));
+    body.appendChild(renderProjectEmptyState(name));
   } else {
     activeProjects.forEach((project) => body.appendChild(renderProjectRow(project)));
   }
@@ -4887,6 +4887,37 @@ function renderEmptyState(text) {
   const empty = document.createElement('div');
   empty.className = 'empty-state';
   empty.textContent = text;
+  return empty;
+}
+
+// Opens the normal add-task/project popup, but pre-selects "+ New
+// Project" so submitting the name field creates a project directly --
+// reuses the exact same creation path the "+ New Project" option in
+// that popup's own dropdown already takes.
+function openNewProjectPopup(presetAssignee) {
+  openItemPopup(null, false, presetAssignee);
+  const select = document.getElementById('itemProjectSelect');
+  if (select) select.value = '__new__';
+}
+
+function renderProjectEmptyState(personName) {
+  const empty = document.createElement('div');
+  empty.className = 'empty-state project-empty-state';
+  empty.innerHTML = `
+    <svg class="project-empty-icon" viewBox="0 0 24 24" width="34" height="34" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+      <path d="M4.5 16.5c-1.5 1.26-2 5-2 5s3.74-.5 5-2c.71-.84.7-2.13-.09-2.91a2.18 2.18 0 0 0-2.91-.09z"/>
+      <path d="M12 15l-3-3a22 22 0 0 1 2-3.95A12.88 12.88 0 0 1 22 2c0 2.72-.78 7.5-6 11a22.35 22.35 0 0 1-4 2z"/>
+      <path d="M9 12H4s.55-3.03 2-4c1.62-1.08 5 0 5 0"/>
+      <path d="M12 15v5s3.03-.55 4-2c1.08-1.62 0-5 0-5"/>
+    </svg>
+    <div class="project-empty-text">No projects yet.</div>
+  `;
+  const addBtn = document.createElement('button');
+  addBtn.type = 'button';
+  addBtn.className = 'project-empty-add';
+  addBtn.textContent = '+ Add Project';
+  addBtn.addEventListener('click', () => openNewProjectPopup(personName));
+  empty.appendChild(addBtn);
   return empty;
 }
 
