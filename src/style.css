@@ -1330,6 +1330,14 @@ html, body {
 .dashboard-main {
   display: grid;
   grid-template-rows: auto auto;
+  /* Without this, "auto" grid rows still stretch to fill leftover
+     vertical space by default (align-content: normal ~ stretch) once the
+     content is shorter than the container -- invisible on workspaces
+     with enough content to fill the height on their own (the main task
+     board), but on short ones (Tabs, Analytics with few widgets/charts)
+     it inflated the viewbar row itself, centering the title deep inside
+     a mostly-empty box instead of sitting at the top. */
+  align-content: start;
   flex: 1 1 auto;
   min-width: 0;
   overflow-y: auto;
