@@ -2873,7 +2873,11 @@ function renderProjectSection() {
 
 function getProjectCardNames() {
   const names = getActiveLists().map((l) => l.name);
-  const hasUnassigned = (state.projects || []).some((p) => !p.archived && (!p.owners || !p.owners.length));
+  // Excludes deleted projects -- an employee exit can leave a project
+  // both ownerless and soft-deleted (its last owner just left), and
+  // that alone shouldn't conjure up an "Unassigned" card just to show
+  // a single leftover "Deleted" entry.
+  const hasUnassigned = (state.projects || []).some((p) => !p.archived && !p.deleted && (!p.owners || !p.owners.length));
   return hasUnassigned ? [...names, 'Unassigned'] : names;
 }
 
