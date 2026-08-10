@@ -1336,20 +1336,15 @@ html, body {
   flex: 1 1 auto;
   min-width: 0;
   overflow-y: auto;
-  /* Diagonal light-blue-to-cream wash with two asymmetric geometric
-     line-art clusters (a large radiating "starburst" network top-right,
-     a smaller faceted cluster bottom-left) instead of a small tiled
-     repeat -- closer to a single decorative illustration than a texture.
-     The outer ray-tips are connected into one closed loop (not just
-     spokes) so the star reads as a complete shape, at higher opacity/
-     stroke-width so it's clearly visible instead of a faint hint. */
+  /* Diagonal light-blue-to-cream wash with two soft blurred glow orbs
+     (brand blue top-right, brand orange bottom-left) instead of literal
+     line-art -- a cleaner, more modern "soft gradient mesh" look. */
   background-image:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='900' height='700' viewBox='0 0 900 700'%3E%3Cg fill='none' stroke='%23ffffff' stroke-width='1.6' opacity='0.85'%3E%3Cpath d='M700 150L800 50M700 150L850 130M700 150L860 210M700 150L800 280M700 150L680 300M700 150L600 250M700 150L580 150M700 150L610 60M700 150L660 20'/%3E%3Cpath d='M800 50L850 130L860 210L800 280L680 300L600 250L580 150L610 60L660 20L800 50'/%3E%3Cpath d='M130 580L70 640M130 580L190 620M130 580L110 510M130 580L30 520M70 640L190 620L110 510L30 520L70 640'/%3E%3C/g%3E%3Cg fill='%23ffffff' opacity='0.9'%3E%3Ccircle cx='700' cy='150' r='4'/%3E%3Ccircle cx='800' cy='50' r='3'/%3E%3Ccircle cx='850' cy='130' r='3'/%3E%3Ccircle cx='860' cy='210' r='3'/%3E%3Ccircle cx='800' cy='280' r='3'/%3E%3Ccircle cx='680' cy='300' r='3'/%3E%3Ccircle cx='600' cy='250' r='3'/%3E%3Ccircle cx='580' cy='150' r='3'/%3E%3Ccircle cx='610' cy='60' r='3'/%3E%3Ccircle cx='660' cy='20' r='3'/%3E%3Ccircle cx='130' cy='580' r='3.5'/%3E%3Ccircle cx='70' cy='640' r='3'/%3E%3Ccircle cx='190' cy='620' r='3'/%3E%3Ccircle cx='110' cy='510' r='3'/%3E%3Ccircle cx='30' cy='520' r='2.5'/%3E%3C/g%3E%3C/svg%3E"),
+    radial-gradient(900px circle at 90% 4%, rgba(58, 91, 160, 0.28), transparent 60%),
+    radial-gradient(700px circle at 2% 96%, rgba(255, 165, 0, 0.2), transparent 55%),
     linear-gradient(135deg, #E4EDFB 0%, #FFF4E3 100%);
-  background-repeat: no-repeat, no-repeat;
-  background-size: 66vw 660px, 100% 100%;
-  background-position: top right, top left;
-  background-attachment: local, local;
+  background-repeat: no-repeat, no-repeat, no-repeat;
+  background-attachment: local, local, local;
 }
 
 .dashboard-title-compact {
