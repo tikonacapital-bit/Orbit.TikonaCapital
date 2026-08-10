@@ -662,6 +662,31 @@ function buildListShareText(list) {
   return lines.join('\n');
 }
 
+function buildProjectsShareText(name, projects) {
+  const priorityEmoji = { high: '🔴', medium: '🟠', low: '🔵', none: '⚪' };
+  const items = (projects || []).filter((p) => !p.done);
+
+  const lines = [`📋 *${name}* — Projects`, ''];
+  if (!items.length) {
+    lines.push('_No active projects._');
+  } else {
+    items.forEach((project, i) => {
+      lines.push(`${i + 1}. 📁 *${project.name}*`);
+      const priority = project.priority || 'none';
+      const meta = [`${priorityEmoji[priority] || priorityEmoji.none} ${priority.charAt(0).toUpperCase()}${priority.slice(1)}`];
+      if (project.category) meta.push(`🏷 ${project.category}`);
+      lines.push(`   ${meta.join('   ')}`);
+      const statusLine = [`Status: ${project.status || 'Pending'}`];
+      const dueText = formatDateStrForShare(project.dueDate);
+      if (dueText) statusLine.push(`Due: ${dueText}`);
+      lines.push(`   ${statusLine.join('   |   ')}`);
+      lines.push('');
+    });
+  }
+  lines.push(`_Active: ${items.length}_`);
+  return lines.join('\n');
+}
+
 function copyTextToClipboard(text) {
   if (navigator.clipboard && navigator.clipboard.writeText) {
     return navigator.clipboard.writeText(text);
@@ -2886,93 +2911,85 @@ function renderProjectPersonCard(name) {
   countEl.textContent = activeProjects.length || '';
   header.appendChild(countEl);
 
-  if (name !== 'Unassigned') {
-    const list = state.lists.find(l => l.name === name);
-    if (list) {
-      const menuWrap = document.createElement('div');
-      menuWrap.className = 'list-menu-wrap';
-      
-      const menuBtn = document.createElement('button');
-      menuBtn.className = 'icon-btn list-menu-btn';
-      menuBtn.title = 'List options';
-      menuBtn.innerHTML = '&#8942;';
-      menuWrap.appendChild(menuBtn);
-      
-      const menu = document.createElement('div');
-      menu.className = 'list-menu hidden';
-      
-      const copyBtn = document.createElement('button');
-      copyBtn.dataset.action = 'copy-list';
-      copyBtn.textContent = 'Copy';
-      copyBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        menu.classList.add('hidden');
-        copyTextToClipboard(buildListShareText(list))
-          .then(() => showToast('Copied – paste it in WhatsApp or anywhere'))
-          .catch(() => showToast('Could not copy to clipboard'));
-      });
-      menu.appendChild(copyBtn);
-      
-      const archiveBtn = document.createElement('button');
-      archiveBtn.dataset.action = 'archive-list';
-      archiveBtn.textContent = 'Archive list';
-      archiveBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        list.archived = true;
-        list.archivedAt = Date.now();
-        if (activeListId === list.id) activeListId = 'all';
+  if (name !== 'Unassigned' && activeProjects.length) {
+    const menuWrap = document.createElement('div');
+    menuWrap.className = 'list-menu-wrap';
+
+    const menuBtn = document.createElement('button');
+    menuBtn.className = 'icon-btn list-menu-btn';
+    menuBtn.title = 'Project options';
+    menuBtn.innerHTML = '&#8942;';
+    menuWrap.appendChild(menuBtn);
+
+    const menu = document.createElement('div');
+    menu.className = 'list-menu hidden';
+
+    const copyBtn = document.createElement('button');
+    copyBtn.dataset.action = 'copy-projects';
+    copyBtn.textContent = 'Copy';
+    copyBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      menu.classList.add('hidden');
+      copyTextToClipboard(buildProjectsShareText(name, activeProjects))
+        .then(() => showToast('Copied – paste it in WhatsApp or anywhere'))
+        .catch(() => showToast('Could not copy to clipboard'));
+    });
+    menu.appendChild(copyBtn);
+
+    const archiveBtn = document.createElement('button');
+    archiveBtn.dataset.action = 'archive-projects';
+    archiveBtn.textContent = 'Archive all projects';
+    archiveBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      const toArchive = activeProjects.slice();
+      toArchive.forEach((p) => { p.archived = true; p.archivedAt = Date.now(); });
+      persist();
+      render();
+      showToast(`Archived ${toArchive.length} project${toArchive.length === 1 ? '' : 's'} for "${name}" – find them under Archived to restore`, () => {
+        toArchive.forEach((p) => { p.archived = false; p.archivedAt = null; });
         persist();
         render();
-        showToast(`Archived list "${list.name}" – find it under Archived to restore`, () => {
-          list.archived = false;
-          list.archivedAt = null;
+      });
+      menu.classList.add('hidden');
+    });
+    menu.appendChild(archiveBtn);
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.dataset.action = 'delete-projects';
+    deleteBtn.className = 'danger';
+    deleteBtn.textContent = 'Delete all projects';
+    deleteBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      if (deleteBtn.dataset.armed === '1') {
+        const toDelete = activeProjects.slice();
+        toDelete.forEach((p) => { p.deleted = true; p.deletedAt = Date.now(); });
+        persist();
+        render();
+        showToast(`Deleted ${toDelete.length} project${toDelete.length === 1 ? '' : 's'} for "${name}"`, () => {
+          toDelete.forEach((p) => { p.deleted = false; delete p.deletedAt; });
           persist();
           render();
         });
         menu.classList.add('hidden');
-      });
-      menu.appendChild(archiveBtn);
-      
-      const deleteBtn = document.createElement('button');
-      deleteBtn.dataset.action = 'delete-list';
-      deleteBtn.className = 'danger';
-      deleteBtn.textContent = 'Delete list';
-      deleteBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        if (deleteBtn.dataset.armed === '1') {
-          const idx = state.lists.findIndex((l) => l.id === list.id);
-          if (idx === -1) return;
-          const removed = state.lists.splice(idx, 1)[0];
-          if (activeListId === removed.id) activeListId = 'all';
-          persist();
-          render();
-          showToast(`Deleted list "${removed.name}"`, () => {
-            state.lists.splice(idx, 0, removed);
-            activeListId = removed.id;
-            persist();
-            render();
-          });
-          menu.classList.add('hidden');
-        } else {
-          deleteBtn.dataset.armed = '1';
-          deleteBtn.textContent = 'Click again to confirm';
-          setTimeout(() => {
-            deleteBtn.dataset.armed = '0';
-            deleteBtn.textContent = 'Delete list';
-          }, 3000);
-        }
-      });
-      menu.appendChild(deleteBtn);
-      
-      menuWrap.appendChild(menu);
-      header.appendChild(menuWrap);
-      
-      menuBtn.addEventListener('click', (e) => {
-        e.stopPropagation();
-        document.querySelectorAll('.list-menu').forEach((m) => { if (m !== menu) m.classList.add('hidden'); });
-        menu.classList.toggle('hidden');
-      });
-    }
+      } else {
+        deleteBtn.dataset.armed = '1';
+        deleteBtn.textContent = 'Click again to confirm';
+        setTimeout(() => {
+          deleteBtn.dataset.armed = '0';
+          deleteBtn.textContent = 'Delete all projects';
+        }, 3000);
+      }
+    });
+    menu.appendChild(deleteBtn);
+
+    menuWrap.appendChild(menu);
+    header.appendChild(menuWrap);
+
+    menuBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      document.querySelectorAll('.list-menu').forEach((m) => { if (m !== menu) m.classList.add('hidden'); });
+      menu.classList.toggle('hidden');
+    });
   }
 
   card.appendChild(header);
