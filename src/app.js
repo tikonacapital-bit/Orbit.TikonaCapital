@@ -2316,7 +2316,6 @@ function renderSidebar() {
   });
   top.appendChild(analyticsBtn);
 
-  bottom.appendChild(createSectionHeader('HR / Admin'));
 
   // ---- Bottom-pinned employee actions. ----
   const registerBtn = document.createElement('button');

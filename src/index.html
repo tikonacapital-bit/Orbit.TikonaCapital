@@ -18,7 +18,7 @@
 
 <header class="topbar">
   <div class="brand">
-    <img class="brand-logo-img" src="../icons/icon.png" alt="Orbit" />
+    <img class="brand-logo-img" src="../icons/futuristic_logo.png" alt="Orbit" />
   </div>
   <p class="topbar-quote">Change your orbit. If you don&rsquo;t change your orbit, you&rsquo;ll end up in the same place.<br>&mdash; Dr. APJ Abdul Kalam</p>
   <div class="dashboard-search">
@@ -118,6 +118,13 @@
   <div class="task-row">
     <div class="task-check-col">
       <button class="task-check" title="Mark done"></button>
+      <div class="task-progress-bar" title="Set progress">
+        <button type="button" class="task-progress-btn" data-progress="100"></button>
+        <button type="button" class="task-progress-btn" data-progress="75"></button>
+        <button type="button" class="task-progress-btn" data-progress="50"></button>
+        <button type="button" class="task-progress-btn" data-progress="25"></button>
+        <button type="button" class="task-progress-btn" data-progress="0"></button>
+      </div>
     </div>
     <div class="task-body">
       <div class="task-title-row">
@@ -127,13 +134,6 @@
         <button class="icon-btn task-delete" title="Delete task">&times;</button>
       </div>
       <div class="task-meta">
-        <div class="task-progress-bar" title="Set progress">
-          <button type="button" class="task-progress-btn" data-progress="0"></button>
-          <button type="button" class="task-progress-btn" data-progress="25"></button>
-          <button type="button" class="task-progress-btn" data-progress="50"></button>
-          <button type="button" class="task-progress-btn" data-progress="75"></button>
-          <button type="button" class="task-progress-btn" data-progress="100"></button>
-        </div>
         <span class="task-created"></span>
         <span class="task-status"></span>
         <span class="task-due"></span>
