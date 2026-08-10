@@ -1336,18 +1336,14 @@ html, body {
   flex: 1 1 auto;
   min-width: 0;
   overflow-y: auto;
-  /* Diagonal light-blue-to-cream wash with a scattered blue triangulated
-     node mesh (a broad irregular network of thin lines + dots, denser
-     top-right and thinning toward the bottom-left) instead of a single
-     radiating starburst -- matches the reference's circuit/constellation
-     texture rather than a hub-and-spoke shape. */
-  background-image:
-    url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1000' height='700' viewBox='0 0 1000 700'%3E%3Cg fill='none' stroke='%233A5BA0' stroke-width='1' opacity='0.28'%3E%3Cpath d='M861 331L883 287M861 331L942 329M616 332L592 336M616 332L577 281M883 287L837 232M936 198L891 154M936 198L883 287M609 268L577 281M609 268L616 332M567 92L603 72M567 92L532 43M842 25L884 20M842 25L819 91M942 329L883 287M532 43L603 72M891 154L902 74M787 166L752 199M787 166L817 233M902 74L884 20M902 74L842 25M752 199L817 233M837 232L817 233M819 91L787 166M577 281L592 336M978 45L902 74M978 45L884 20M609 435L559 418M609 435L592 336M401 206L401 233M401 206L417 283M314 465L323 470M314 465L238 488M489 275L417 283M489 275L479 347M417 283L401 233M479 347L417 283M559 418L592 336M452 468L559 418M452 468L479 347M323 470L238 488M238 488L235 481M152 547L150 560M152 547L238 488M316 608L323 470M316 608L314 465M109 656L150 560M109 656L152 547M235 481L314 465'/%3E%3C/g%3E%3Cg fill='%231F4690' opacity='0.35'%3E%3Ccircle cx='861' cy='331' r='3'/%3E%3Ccircle cx='616' cy='332' r='3'/%3E%3Ccircle cx='883' cy='287' r='3'/%3E%3Ccircle cx='936' cy='198' r='3'/%3E%3Ccircle cx='609' cy='268' r='3'/%3E%3Ccircle cx='567' cy='92' r='3'/%3E%3Ccircle cx='842' cy='25' r='3'/%3E%3Ccircle cx='942' cy='329' r='3'/%3E%3Ccircle cx='532' cy='43' r='3'/%3E%3Ccircle cx='891' cy='154' r='3'/%3E%3Ccircle cx='787' cy='166' r='3'/%3E%3Ccircle cx='902' cy='74' r='3'/%3E%3Ccircle cx='752' cy='199' r='3'/%3E%3Ccircle cx='884' cy='20' r='3'/%3E%3Ccircle cx='837' cy='232' r='3'/%3E%3Ccircle cx='819' cy='91' r='3'/%3E%3Ccircle cx='577' cy='281' r='3'/%3E%3Ccircle cx='603' cy='72' r='3'/%3E%3Ccircle cx='817' cy='233' r='3'/%3E%3Ccircle cx='978' cy='45' r='3'/%3E%3Ccircle cx='609' cy='435' r='3'/%3E%3Ccircle cx='401' cy='206' r='3'/%3E%3Ccircle cx='314' cy='465' r='3'/%3E%3Ccircle cx='592' cy='336' r='3'/%3E%3Ccircle cx='489' cy='275' r='3'/%3E%3Ccircle cx='417' cy='283' r='3'/%3E%3Ccircle cx='401' cy='233' r='3'/%3E%3Ccircle cx='479' cy='347' r='3'/%3E%3Ccircle cx='559' cy='418' r='3'/%3E%3Ccircle cx='452' cy='468' r='3'/%3E%3Ccircle cx='323' cy='470' r='3'/%3E%3Ccircle cx='238' cy='488' r='3'/%3E%3Ccircle cx='152' cy='547' r='3'/%3E%3Ccircle cx='316' cy='608' r='3'/%3E%3Ccircle cx='109' cy='656' r='3'/%3E%3Ccircle cx='235' cy='481' r='3'/%3E%3Ccircle cx='150' cy='560' r='3'/%3E%3C/g%3E%3C/svg%3E"),
-    linear-gradient(135deg, #E4EDFB 0%, #FFF4E3 100%);
-  background-repeat: no-repeat, no-repeat;
-  background-size: 78vw 780px, 100% 100%;
-  background-position: top right, top left;
-  background-attachment: local, local;
+  /* User-supplied illustration (blue circuit-board traces, starburst
+     nodes, faceted ribbon shape) used verbatim as the background wash,
+     downsized/re-encoded from the original 6.6MB PNG to a 138KB webp. */
+  background-image: url("../icons/bg-mesh.webp");
+  background-repeat: no-repeat;
+  background-size: cover;
+  background-position: center;
+  background-attachment: local;
 }
 
 .dashboard-title-compact {
