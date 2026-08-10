@@ -5428,49 +5428,39 @@ function chartCadenceProgress() {
   });
 }
 
-function chartDailyCompletions() {
+// Replaces the old daily/weekly/monthly/yearly completions bar-lists --
+// four separate cards showing mostly the same "completions over time"
+// story sliced into different windows read as noise more than signal.
+// One trend line, one weekday histogram, and one activity heatmap cover
+// the same ground more clearly.
+function chartCompletionsTrend(days = 30) {
   const dates = getRegularCompletionDates(activeRegularEmployee);
-  const days = Array.from({ length: 14 }, (_, i) => addDays(new Date(), -(13 - i))).reverse();
-  return days.map((day) => {
+  const range = Array.from({ length: days }, (_, i) => addDays(new Date(), -(days - 1 - i)));
+  return range.map((day) => {
     const key = dateKey(day);
     const count = dates.filter((d) => dateKey(d) === key).length;
     return { label: `${day.getDate()} ${MONTHS[day.getMonth()]}`, value: count };
   });
 }
 
-function chartWeeklyCompletions() {
+const WEEKDAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
+function chartCompletionsByWeekday() {
   const dates = getRegularCompletionDates(activeRegularEmployee);
-  const weeks = Array.from({ length: 8 }, (_, i) => weekStart(addDays(new Date(), -7 * (7 - i)))).reverse();
-  return weeks.map((start) => {
-    const end = addDays(start, 6);
-    const count = dates.filter((d) => d >= start && d <= end).length;
-    return { label: `${start.getDate()} ${MONTHS[start.getMonth()]}`, value: count };
-  });
+  const counts = [0, 0, 0, 0, 0, 0, 0];
+  dates.forEach((d) => { counts[(d.getDay() + 6) % 7] += 1; });
+  return WEEKDAY_LABELS.map((label, i) => ({ label, value: counts[i] }));
 }
 
-function chartMonthlyCompletions() {
+function chartCompletionsHeatmap(weeks = 14) {
   const dates = getRegularCompletionDates(activeRegularEmployee);
-  const year = new Date().getFullYear();
-  const currentMonth = new Date().getMonth();
-  const orderedMonths = [];
-  for (let i = 0; i < 12; i++) {
-    const monthIndex = (currentMonth - i + 12) % 12;
-    orderedMonths.push({ label: MONTHS[monthIndex], monthIndex });
-  }
-  return orderedMonths.map(({ label, monthIndex }) => {
-    const count = dates.filter((d) => d.getFullYear() === year && d.getMonth() === monthIndex).length;
-    return { label, value: count };
+  const counts = new Map();
+  dates.forEach((d) => {
+    const key = dateKey(d);
+    counts.set(key, (counts.get(key) || 0) + 1);
   });
-}
-
-function chartYearlyCompletions() {
-  const dates = getRegularCompletionDates(activeRegularEmployee);
-  if (!dates.length) return [];
-  const years = [...new Set(dates.map((d) => d.getFullYear()))].sort((a, b) => b - a);
-  return years.map((year) => ({
-    label: String(year),
-    value: dates.filter((d) => d.getFullYear() === year).length,
-  }));
+  const start = addDays(weekStart(new Date()), -7 * (weeks - 1));
+  const days = Array.from({ length: weeks * 7 }, (_, i) => addDays(start, i));
+  return days.map((day) => ({ date: day, count: counts.get(dateKey(day)) || 0 }));
 }
 
 function chartPriorityBreakdown() {
@@ -5556,42 +5546,179 @@ function renderChartEmptyState(text = 'No data recorded yet') {
   return empty;
 }
 
-function renderBarChart({ data, color = 'var(--accent)', maxValue, valueFormatter }) {
+// Vertical bars (a proper column chart) instead of the old horizontal
+// label/track/value rows -- reads as an actual chart at a glance instead
+// of a stack of progress bars, and gives Analytics some visual variety
+// alongside the pie/line/heatmap charts.
+function renderColumnChart({ data, color = 'var(--accent)', maxValue, valueFormatter }) {
   const wrap = document.createElement('div');
-  wrap.className = 'bar-chart';
+  wrap.className = 'column-chart';
   if (!data.length) {
-    wrap.appendChild(renderChartEmptyState('No completion data yet.'));
+    wrap.appendChild(renderChartEmptyState('No data recorded yet.'));
     return wrap;
   }
   const max = maxValue != null ? maxValue : Math.max(1, ...data.map((d) => d.value));
   data.forEach((d, i) => {
-    const row = document.createElement('div');
-    row.className = 'bar-row';
-    row.style.animationDelay = `${Math.min(i * 40, 400)}ms`;
+    const col = document.createElement('div');
+    col.className = 'column-item';
+    col.style.animationDelay = `${Math.min(i * 40, 400)}ms`;
 
-    const label = document.createElement('span');
-    label.className = 'bar-label';
-    label.textContent = d.label;
-    row.appendChild(label);
+    const value = document.createElement('span');
+    value.className = 'column-value';
+    value.textContent = valueFormatter ? valueFormatter(d.value) : d.value;
+    col.appendChild(value);
 
     const track = document.createElement('span');
-    track.className = 'bar-track';
+    track.className = 'column-track';
     const fill = document.createElement('span');
-    fill.className = 'bar-fill';
+    fill.className = 'column-fill';
     const pct = max ? Math.max(d.value > 0 ? 2 : 0, (d.value / max) * 100) : 0;
-    fill.style.width = `${pct}%`;
+    fill.style.height = `${pct}%`;
     fill.style.background = d.color || color;
     fill.title = `${d.label}: ${valueFormatter ? valueFormatter(d.value) : d.value}`;
     track.appendChild(fill);
-    row.appendChild(track);
+    col.appendChild(track);
 
-    const value = document.createElement('span');
-    value.className = 'bar-value';
-    value.textContent = valueFormatter ? valueFormatter(d.value) : d.value;
-    row.appendChild(value);
+    const label = document.createElement('span');
+    label.className = 'column-label';
+    label.textContent = d.label;
+    col.appendChild(label);
 
-    wrap.appendChild(row);
+    wrap.appendChild(col);
   });
+  return wrap;
+}
+
+function renderLineChart({ data, color = 'var(--accent)', valueFormatter, width = 520, height = 200 }) {
+  const wrap = document.createElement('div');
+  wrap.className = 'line-chart';
+  if (!data.length || !data.some((d) => d.value > 0)) {
+    wrap.appendChild(renderChartEmptyState('No completion data yet.'));
+    return wrap;
+  }
+
+  const padX = 8;
+  const padY = 16;
+  const max = Math.max(1, ...data.map((d) => d.value));
+  const stepX = data.length > 1 ? (width - padX * 2) / (data.length - 1) : 0;
+  const points = data.map((d, i) => {
+    const x = padX + i * stepX;
+    const y = padY + (1 - d.value / max) * (height - padY * 2);
+    return { x, y, d };
+  });
+
+  const svgNS = 'http://www.w3.org/2000/svg';
+  const svg = document.createElementNS(svgNS, 'svg');
+  svg.setAttribute('viewBox', `0 0 ${width} ${height}`);
+  svg.setAttribute('preserveAspectRatio', 'none');
+  svg.classList.add('line-svg');
+
+  const linePath = points.map((p, i) => `${i === 0 ? 'M' : 'L'}${p.x.toFixed(1)},${p.y.toFixed(1)}`).join(' ');
+  const areaPath = `${linePath} L${points[points.length - 1].x.toFixed(1)},${height - padY} L${points[0].x.toFixed(1)},${height - padY} Z`;
+
+  const area = document.createElementNS(svgNS, 'path');
+  area.setAttribute('d', areaPath);
+  area.classList.add('line-area');
+  area.setAttribute('fill', color);
+  svg.appendChild(area);
+
+  const line = document.createElementNS(svgNS, 'path');
+  line.setAttribute('d', linePath);
+  line.setAttribute('fill', 'none');
+  line.setAttribute('stroke', color);
+  line.classList.add('line-stroke');
+  svg.appendChild(line);
+
+  points.forEach(({ x, y, d }) => {
+    const dot = document.createElementNS(svgNS, 'circle');
+    dot.setAttribute('cx', x.toFixed(1));
+    dot.setAttribute('cy', y.toFixed(1));
+    dot.setAttribute('r', 3);
+    dot.setAttribute('fill', color);
+    dot.classList.add('line-dot');
+    const titleEl = document.createElementNS(svgNS, 'title');
+    titleEl.textContent = `${d.label}: ${valueFormatter ? valueFormatter(d.value) : d.value}`;
+    dot.appendChild(titleEl);
+    svg.appendChild(dot);
+  });
+
+  wrap.appendChild(svg);
+
+  const axis = document.createElement('div');
+  axis.className = 'line-axis';
+  // Only a handful of labels, evenly spaced, so 30 daily points don't
+  // crowd into unreadable text.
+  const labelCount = Math.min(6, data.length);
+  const labelStep = Math.max(1, Math.round((data.length - 1) / (labelCount - 1)));
+  data.forEach((d, i) => {
+    if (i % labelStep !== 0 && i !== data.length - 1) return;
+    const tick = document.createElement('span');
+    tick.textContent = d.label;
+    axis.appendChild(tick);
+  });
+  wrap.appendChild(axis);
+
+  return wrap;
+}
+
+const HEATMAP_LEVEL_COLORS = ['rgba(31, 70, 144, 0.08)', 'rgba(31, 70, 144, 0.32)', 'rgba(31, 70, 144, 0.58)', 'rgba(31, 70, 144, 0.85)', '#1F4690'];
+function renderHeatmap({ data }) {
+  const wrap = document.createElement('div');
+  wrap.className = 'heatmap-chart';
+  if (!data.some((d) => d.count > 0)) {
+    wrap.appendChild(renderChartEmptyState('No completion data yet.'));
+    return wrap;
+  }
+
+  const max = Math.max(1, ...data.map((d) => d.count));
+  const levelFor = (count) => {
+    if (!count) return 0;
+    const frac = count / max;
+    return Math.min(4, Math.max(1, Math.ceil(frac * 4)));
+  };
+
+  const row = document.createElement('div');
+  row.className = 'heatmap-row';
+
+  const weekdayCol = document.createElement('div');
+  weekdayCol.className = 'heatmap-weekdays';
+  ['Mon', '', 'Wed', '', 'Fri', '', ''].forEach((label) => {
+    const span = document.createElement('span');
+    span.textContent = label;
+    weekdayCol.appendChild(span);
+  });
+  row.appendChild(weekdayCol);
+
+  const grid = document.createElement('div');
+  grid.className = 'heatmap-grid';
+  const weeks = data.length / 7;
+  grid.style.gridTemplateColumns = `repeat(${weeks}, 1fr)`;
+  data.forEach(({ date, count }) => {
+    const cell = document.createElement('span');
+    cell.className = 'heatmap-cell';
+    cell.style.background = HEATMAP_LEVEL_COLORS[levelFor(count)];
+    cell.title = `${fmtShort(date.getTime())}: ${count} completion${count === 1 ? '' : 's'}`;
+    grid.appendChild(cell);
+  });
+  row.appendChild(grid);
+  wrap.appendChild(row);
+
+  const legend = document.createElement('div');
+  legend.className = 'heatmap-legend';
+  const lessLabel = document.createElement('span');
+  lessLabel.textContent = 'Less';
+  legend.appendChild(lessLabel);
+  HEATMAP_LEVEL_COLORS.forEach((c) => {
+    const sw = document.createElement('span');
+    sw.className = 'heatmap-swatch';
+    sw.style.background = c;
+    legend.appendChild(sw);
+  });
+  const moreLabel = document.createElement('span');
+  moreLabel.textContent = 'More';
+  legend.appendChild(moreLabel);
+  wrap.appendChild(legend);
+
   return wrap;
 }
 
@@ -5817,15 +5944,14 @@ function renderChartsWorkspace() {
   wrap.appendChild(filterToolbar);
 
   const chartDefinitions = [
-    { id: 'cadence', title: 'Progress by cadence', subtitle: `Regular tasks — daily / weekly / monthly · ${scopeLabel}`, render: () => renderBarChart({ data: chartCadenceProgress(), maxValue: 100, valueFormatter: (v) => `${v}%` }) },
-    { id: 'daily', title: 'Daily completions', subtitle: `Regular tasks — last 14 days · ${scopeLabel}`, render: () => renderBarChart({ data: chartDailyCompletions() }) },
-    { id: 'weekly', title: 'Weekly completions', subtitle: `Regular tasks — last 8 weeks · ${scopeLabel}`, render: () => renderBarChart({ data: chartWeeklyCompletions() }) },
-    { id: 'monthly', title: 'Monthly completions', subtitle: `Regular tasks — ${new Date().getFullYear()} · ${scopeLabel}`, render: () => renderBarChart({ data: chartMonthlyCompletions() }) },
-    { id: 'yearly', title: 'Yearly completions', subtitle: `Regular tasks — all recorded years · ${scopeLabel}`, render: () => renderBarChart({ data: chartYearlyCompletions() }) },
+    { id: 'cadence', title: 'Progress by cadence', subtitle: `Regular tasks — daily / weekly / monthly · ${scopeLabel}`, render: () => renderColumnChart({ data: chartCadenceProgress(), maxValue: 100, valueFormatter: (v) => `${v}%` }) },
+    { id: 'trend', title: 'Completions trend', subtitle: `Regular tasks — last 30 days · ${scopeLabel}`, render: () => renderLineChart({ data: chartCompletionsTrend() }) },
+    { id: 'heatmap', title: 'Activity heatmap', subtitle: `Regular tasks — last 14 weeks · ${scopeLabel}`, render: () => renderHeatmap({ data: chartCompletionsHeatmap() }) },
+    { id: 'weekday', title: 'Completions by weekday', subtitle: `Regular tasks — all-time · ${scopeLabel}`, render: () => renderColumnChart({ data: chartCompletionsByWeekday() }) },
     { id: 'priority', title: 'Tasks by priority', subtitle: 'All lists', render: () => renderPieChart({ data: chartPriorityBreakdown() }) },
     { id: 'status', title: 'Tasks by status', subtitle: 'All lists', render: () => renderPieChart({ data: chartStatusBreakdown() }) },
-    { id: 'perlist', title: 'Tasks per list', subtitle: 'Open tasks', render: () => renderBarChart({ data: chartTasksPerList() }) },
-    { id: 'employee', title: 'Regular tasks by employee', subtitle: `Completion % · ${scopeLabel}`, render: () => renderBarChart({ data: chartEmployeeProgress(), maxValue: 100, valueFormatter: (v) => `${v}%` }) },
+    { id: 'perlist', title: 'Tasks per list', subtitle: 'Open tasks', render: () => renderColumnChart({ data: chartTasksPerList() }) },
+    { id: 'employee', title: 'Regular tasks by employee', subtitle: `Completion % · ${scopeLabel}`, render: () => renderColumnChart({ data: chartEmployeeProgress(), maxValue: 100, valueFormatter: (v) => `${v}%` }) },
   ];
 
   const customOrder = state.chartsOrder?.[employeeKey] || chartDefinitions.map((c) => c.id);
