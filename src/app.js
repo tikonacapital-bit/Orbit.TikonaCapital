@@ -2950,11 +2950,8 @@ function renderProjectRow(project) {
 
   const progress = itemDisplayProgress(project);
   const barEl = node.querySelector('.task-progress-bar');
-  barEl.classList.toggle(`fill-${progress}`, Boolean(progress));
-  barEl.title = `Progress: ${progress}%. Click to advance.`;
-  barEl.addEventListener('click', (e) => {
-    e.stopPropagation();
-    setProjectProgress(project, progress >= 100 ? 0 : progress + 25);
+  attachFluidProgressDrag(barEl, progress, (val) => {
+    setProjectProgress(project, val);
   });
 
   const priorityEl = node.querySelector('.task-priority');
@@ -4393,11 +4390,8 @@ function renderTask(list, task) {
 
   const progress = itemDisplayProgress(task);
   const barEl = node.querySelector('.task-progress-bar');
-  barEl.classList.toggle(`fill-${progress}`, Boolean(progress));
-  barEl.title = `Progress: ${progress}%. Click to advance.`;
-  barEl.addEventListener('click', (e) => {
-    e.stopPropagation();
-    setTaskProgress(list, task, progress >= 100 ? 0 : progress + 25);
+  attachFluidProgressDrag(barEl, progress, (val) => {
+    setTaskProgress(list, task, val);
   });
 
   const priorityEl = node.querySelector('.task-priority');
@@ -5232,6 +5226,59 @@ function addTask(list, sectionId, taskData) {
     category: taskData.category || '',
   });
   persist();
+}
+
+function attachFluidProgressDrag(barEl, currentVal, onCommit) {
+  const updateVisuals = (val) => {
+    barEl.style.setProperty('--p', `${val}%`);
+    let color = '#1F4690';
+    if (val < 40) color = 'var(--medium)';
+    else if (val < 70) color = 'var(--accent)';
+    barEl.style.setProperty('--c', color);
+    barEl.title = `Progress: ${val}% (Drag to adjust)`;
+  };
+
+  updateVisuals(currentVal);
+
+  let isDragging = false;
+  
+  const getValFromEvent = (e) => {
+    const rect = barEl.getBoundingClientRect();
+    let y = e.clientY - rect.top;
+    y = Math.max(0, Math.min(rect.height, y));
+    const percent = 100 - Math.round((y / rect.height) * 100);
+    return percent;
+  };
+
+  barEl.addEventListener('pointerdown', (e) => {
+    e.stopPropagation();
+    isDragging = true;
+    barEl.setPointerCapture(e.pointerId);
+    updateVisuals(getValFromEvent(e));
+  });
+
+  barEl.addEventListener('pointermove', (e) => {
+    if (!isDragging) return;
+    e.stopPropagation();
+    updateVisuals(getValFromEvent(e));
+  });
+
+  barEl.addEventListener('pointerup', (e) => {
+    if (!isDragging) return;
+    e.stopPropagation();
+    isDragging = false;
+    barEl.releasePointerCapture(e.pointerId);
+    const val = getValFromEvent(e);
+    updateVisuals(val);
+    if (onCommit) onCommit(val);
+  });
+
+  barEl.addEventListener('pointercancel', (e) => {
+    if (!isDragging) return;
+    isDragging = false;
+    barEl.releasePointerCapture(e.pointerId);
+    updateVisuals(currentVal); // revert visually
+  });
 }
 
 function toggleDone(list, task) {
