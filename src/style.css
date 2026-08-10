@@ -3748,57 +3748,62 @@ button.stat-card:hover {
   }
 
   .sidebar-item {
-    width: auto;
-  }
-}
-
-@media (max-width: 560px) {
+    width: aut@media (max-width: 768px) {
   .topbar {
-    padding: 6px 10px;
+    padding: 8px 12px;
     flex-wrap: wrap;
+    gap: 8px;
+  }
+
+  .dashboard-search-trigger {
+    flex-basis: 100%;
+    order: 3;
+    width: 100%;
+    margin-top: 4px;
   }
 
   .topbar-actions {
     flex-shrink: 1;
-    flex-basis: 100%;
     min-width: 0;
-    width: 100%;
-    justify-content: flex-start;
+    justify-content: flex-end;
   }
 
-  .brand-logo-img { height: 34px; }
+  .brand-logo-img { height: 32px; }
 
   .viewbar {
-    padding: 6px 10px 4px;
-    flex-direction: column;
-    flex-wrap: nowrap;
-    align-items: stretch;
+    padding: 8px 12px 6px;
+    flex-wrap: wrap;
+    gap: 8px;
   }
 
   .app-sidebar {
-    width: 100%;
+    width: 100% !important;
   }
 
   .dashboard-title-compact {
-    font-size: 14px;
+    font-size: 16px;
   }
 
   .board {
-    padding: 4px 10px 16px;
+    padding: 4px 12px 16px;
   }
 
   .board-top {
-    flex-direction: column;
-    align-items: stretch;
-    overflow-x: hidden;
+    flex-direction: row;
+    overflow-x: auto;
+    scroll-snap-type: x mandatory;
+    gap: 16px;
+    padding-bottom: 24px;
+    scroll-padding: 0 12px;
   }
 
   .list-column,
   .project-person-card,
   .chart-card {
-    width: 100% !important;
-    max-width: 100% !important;
-    min-width: 0;
+    width: 85vw !important;
+    min-width: 85vw !important;
+    max-width: 85vw !important;
+    scroll-snap-align: center;
     resize: none;
   }
 
@@ -3811,48 +3816,51 @@ button.stat-card:hover {
   }
 
   .item-popup,
-  .regular-popup-overlay > div {
-    width: 94% !important;
-    max-width: 94% !important;
-    padding: 14px !important;
+  .regular-popup-overlay > div,
+  .command-palette-modal {
+    width: 95% !important;
+    max-width: 95% !important;
+    max-height: 95vh !important;
+    padding: 16px !important;
   }
 
-  /* Bigger, easier-to-hit controls throughout the board */
-  .list-name { font-size: 17px; }
-  .task-text { font-size: 15px; }
-  .task-meta { font-size: 12.5px; gap: 5px 10px; }
-  .task-description { font-size: 13px; }
+  .cp-search-input {
+    font-size: 16px; /* Prevents iOS auto-zoom */
+  }
 
-  .task-row { padding: 10px 8px; gap: 10px; }
+  .list-name { font-size: 18px; }
+  .task-text { font-size: 16px; }
+  .task-meta { font-size: 13px; gap: 6px 12px; }
+  .task-description { font-size: 14px; }
 
-  .task-check { width: 24px; height: 24px; }
-  .task-priority { width: 13px; height: 13px; margin-top: 6px; }
+  .task-row { padding: 12px 10px; gap: 12px; }
 
-  .task-progress-bar { width: 22px; min-height: 50px; }
+  .task-check { width: 26px; height: 26px; }
+  .task-priority { width: 14px; height: 14px; margin-top: 6px; }
 
-  .icon-btn { width: 32px; height: 32px; }
-  .list-mood-btn { font-size: 22px; }
-  .list-quick-add-btn { width: 24px; height: 24px; font-size: 15px; }
+  .task-progress-bar { width: 24px; min-height: 54px; }
+
+  .icon-btn { width: 36px; height: 36px; }
+  .list-mood-btn { font-size: 24px; }
+  .list-quick-add-btn { width: 28px; height: 28px; font-size: 16px; }
 
   .nav-item,
-  .sidebar-item { min-height: 40px; padding: 8px 16px; font-size: 14px; }
+  .sidebar-item { min-height: 44px; padding: 10px 16px; font-size: 15px; }
 
-  .analytics-btn { width: 40px; height: 40px; }
+  .analytics-btn { width: 44px; height: 44px; }
 
-  .combo-suggestions div { padding: 10px 12px !important; font-size: 14px !important; }
+  .combo-suggestions div { padding: 12px 16px !important; font-size: 15px !important; }
 
   .item-popup label,
-  .regular-popup-overlay label { font-size: 13px !important; }
+  .regular-popup-overlay label { font-size: 14px !important; }
 
   .item-popup input,
   .item-popup select,
   .item-popup textarea,
   .regular-popup-overlay input,
   .regular-popup-overlay select,
-  .regular-popup-overlay textarea { font-size: 15px !important; padding: 10px !important; }
+  .regular-popup-overlay textarea { font-size: 16px !important; padding: 12px !important; }
 
-  /* Edit/delete are hover-only, which touchscreens can't reliably trigger —
-     keep them always visible on narrow/touch layouts. */
   .task-delete,
   .task-edit,
   .project-subtask-delete {
