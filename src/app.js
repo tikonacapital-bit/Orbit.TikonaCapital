@@ -528,6 +528,8 @@ function normalizeProjects(projects) {
       tasks: normalizeTasks(project.tasks),
       archived: Boolean(project.archived),
       archivedAt: project.archivedAt || null,
+      deleted: Boolean(project.deleted),
+      deletedAt: project.deletedAt || null,
       mood: typeof project.mood === 'string' ? project.mood : 'neutral',
       done: Boolean(project.done),
       completedAt: Number.isFinite(project.completedAt) ? project.completedAt : null,
