@@ -31,9 +31,9 @@ const VIEW_MODES = new Set(['board', 'table', 'stack', 'calendar']);
 
 function loadViewMode() {
   try {
-    return localStorage.getItem('tikona_view_mode_v1') || 'board';
+    return localStorage.getItem('tikona_view_mode_v1') || 'table';
   } catch (err) {
-    return 'board';
+    return 'table';
   }
 }
 
@@ -5179,40 +5179,8 @@ function openDatePicker(list, task, dueEl) {
 // ---------- task popup ----------
 
 function getAllEmployees() {
-  const employees = new Set();
-
-  // The main task-board lists ARE the employees — each list is a person, so
-  // this is the most direct source, regardless of whether any individual
-  // task has an assignedTo/owner field filled in.
-  (state.lists || []).forEach((list) => {
-    if (!list.archived && list.name && list.name.trim()) employees.add(list.name.trim());
-    (list.tasks || []).forEach((task) => {
-      if (task.assignedTo && task.assignedTo.trim()) employees.add(task.assignedTo.trim());
-      if (task.owner && task.owner.trim()) employees.add(task.owner.trim());
-    });
-  });
-
-  // From projects: all assigned owners and task assignedTo/owner
-  (state.projects || []).forEach((project) => {
-    (project.owners && project.owners.length ? project.owners : [project.owner]).forEach((o) => {
-      if (o && o.trim() && o !== 'Unassigned') employees.add(o.trim());
-    });
-    (project.tasks || []).forEach((task) => {
-      if (task.assignedTo && task.assignedTo.trim()) employees.add(task.assignedTo.trim());
-      if (task.owner && task.owner.trim()) employees.add(task.owner.trim());
-    });
-  });
-
-  // From regular tasks (owners) and regular.employees list
-  (state.regular?.tasks || []).forEach((task) => {
-    if (task.owner && task.owner.trim()) employees.add(task.owner.trim());
-  });
-  if (Array.isArray(state.regular?.employees)) {
-    state.regular.employees.forEach((e) => { if (e && e.trim()) employees.add(e.trim()); });
-  }
-
-  employees.delete('Unassigned');
-  return Array.from(employees).sort();
+  const employees = getRegisteredEmployees();
+  return employees.map((e) => e.name || e.email).sort();
 }
 
 

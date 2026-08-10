@@ -149,45 +149,47 @@ button {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 8px 24px 8px 14px;
+  padding: 10px 24px 10px 16px;
+  background: linear-gradient(100deg, var(--primary) 0%, #295096 40%, var(--secondary) 100%);
+  box-shadow: 0 4px 20px rgba(17, 24, 39, 0.18);
+  position: relative;
+  z-index: 10;
+  color: #fff;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.1);
 }
 
 .brand {
   display: flex;
-  flex-direction: column;
-  align-items: flex-start;
-  gap: 1px;
+  align-items: center;
   flex-shrink: 0;
 }
 
 .brand-logo-img {
   flex: 0 0 auto;
-  height: 52px;
+  height: 44px;
   width: auto;
-  min-width: 120px;
-  object-fit: cover;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 6px rgba(0,0,0,0.25));
+  transition: transform 0.2s var(--ease);
+}
+.brand-logo-img:hover {
+  transform: scale(1.02);
 }
 
-.topbar-actions { display: flex; align-items: center; gap: 8px; flex-shrink: 0; }
+.topbar-actions { display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
 
 .topbar-quote {
   flex: 1 1 auto;
-  min-width: 0;
-  max-width: 420px;
-  margin: 6px 16px;
+  margin: 0 32px;
   font-style: italic;
-  font-weight: 700;
-  font-size: 12.5px;
+  font-weight: 500;
+  font-size: 13.5px;
   line-height: 1.4;
-  letter-spacing: -0.1px;
+  letter-spacing: 0.2px;
   color: var(--accent-orange-tint);
-  text-align: left;
-  overflow: hidden;
-  display: -webkit-box;
-  -webkit-line-clamp: 3;
-  -webkit-box-orient: vertical;
-  white-space: normal;
+  text-align: center;
   pointer-events: none;
+  text-shadow: 0 1px 3px rgba(0,0,0,0.4);
 }
 
 @media (max-width: 1100px) {
@@ -303,11 +305,18 @@ button {
   padding: 12px 12px 22px;
 }
 
+/* Bled out to the card's edges and colored navy so every card (All tasks,
+   Projects) shares the same header chrome as the Regular Tasks grid and
+   the Table view -- one dense-table-flavored visual system instead of a
+   plain white bar per card. */
 .list-header {
   display: flex;
   align-items: center;
   gap: 6px;
-  padding: 6px 6px 3px;
+  margin: -12px -12px 10px;
+  padding: 9px 10px;
+  background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
+  border-radius: var(--radius-md) var(--radius-md) 0 0;
 }
 
 .list-name {
@@ -319,18 +328,37 @@ button {
   border-radius: 6px;
   padding: 2px 6px;
   letter-spacing: -0.2px;
+  color: #fff;
 }
-.list-name:focus { background: var(--bg-hover); }
+.list-name:focus { background: rgba(255, 255, 255, 0.16); }
 
 .list-count {
-  color: var(--text-muted);
+  color: #fff;
   font-size: 11px;
   font-weight: 600;
   min-width: 20px;
   text-align: center;
-  background: rgba(17, 24, 39, 0.06);
+  background: rgba(255, 255, 255, 0.18);
   border-radius: 6px;
   padding: 2px 6px;
+}
+
+.list-header .icon-btn { color: rgba(255, 255, 255, 0.85); }
+.list-header .icon-btn:hover { background: rgba(255, 255, 255, 0.16); color: #fff; }
+
+.list-header .list-quick-add-btn {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+.list-header .list-quick-add-btn:hover { background: #fff; color: var(--primary); }
+
+.list-header .list-attendance {
+  background: rgba(255, 255, 255, 0.18);
+  color: #fff;
+}
+.list-header .list-attendance.done {
+  background: var(--accent-orange);
+  color: #fff;
 }
 
 .icon-btn {
@@ -879,15 +907,6 @@ html, body {
     linear-gradient(to bottom left, #3573B4 0%, #2F5695 50%, #244280 100%);
 }
 
-.topbar {
-  /* Dark chrome, light canvas — matches the company's own site (navy
-     hero sections, white content cards) while keeping the dense
-     workspace below in a light theme for readability during real use. */
-  background: linear-gradient(135deg, var(--primary) 0%, var(--secondary) 100%);
-  box-shadow: 0 4px 20px rgba(17, 24, 39, 0.18);
-  position: relative;
-  z-index: 10;
-}
 
 .btn-primary {
   background: linear-gradient(135deg, var(--accent-strong), var(--accent));
@@ -904,7 +923,7 @@ html, body {
 }
 
 .sidebar-title {
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.6);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.9px;
@@ -923,8 +942,8 @@ html, body {
   justify-content: space-between;
   gap: 16px;
   padding: 16px 12px;
-  background: var(--bg-elevated);
-  border-right: 1px solid var(--border);
+  background: var(--secondary); /* Match Picture 1 */
+  border-right: none;
   box-shadow: 2px 0 12px rgba(17, 24, 39, 0.04);
   overflow-y: auto;
   overflow-x: hidden;
@@ -1016,7 +1035,7 @@ html, body {
   border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.7);
   text-align: left;
   font-size: 13px;
   font-weight: 600;
@@ -1028,17 +1047,16 @@ html, body {
 .sidebar-item svg:not([fill="none"]) { fill: currentColor; }
 
 .sidebar-item:hover {
-  background: var(--bg-hover);
-  color: var(--text);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
   transform: translateX(2px);
 }
 
 .sidebar-item.active {
-  background: rgba(58, 91, 160, 0.08);
-  color: var(--text);
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
   font-weight: 700;
-  border-left: 3px solid var(--accent);
-  border-radius: 0 8px 8px 0;
+  border-radius: 8px;
 }
 
 .sidebar-item.exit-btn {
@@ -1131,7 +1149,7 @@ html, body {
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.6);
   text-align: left;
   font-size: 12.5px;
   font-weight: 500;
@@ -1142,16 +1160,15 @@ html, body {
 }
 
 .sidebar-subitem:hover {
-  background: var(--bg-hover);
-  color: var(--text);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
 }
 
 .sidebar-subitem.active {
-  background: rgba(58, 91, 160, 0.08);
-  color: var(--text);
+  background: rgba(255, 255, 255, 0.15);
+  color: #fff;
   font-weight: 700;
-  border-left: 3px solid var(--accent);
-  border-radius: 0 6px 6px 0;
+  border-radius: 6px;
 }
 
 /* Each tab in the Tabs sub-list pairs its clickable name with a
@@ -1179,7 +1196,7 @@ html, body {
   border: none;
   border-radius: 50%;
   background: transparent;
-  color: var(--text-muted);
+  color: rgba(255, 255, 255, 0.6);
   font-size: 13px;
   line-height: 1;
   cursor: pointer;
@@ -1191,17 +1208,17 @@ html, body {
 }
 
 .sidebar-subitem-remove:hover {
-  background: rgba(224, 72, 88, 0.15);
-  color: var(--danger);
+  background: rgba(224, 72, 88, 0.2);
+  color: #fff;
 }
 
 .sidebar-subitem-add {
-  color: var(--accent);
+  color: rgba(255, 255, 255, 0.8);
   font-weight: 700;
 }
 .sidebar-subitem-add:hover {
-  background: rgba(58, 91, 160, 0.08);
-  color: var(--accent-strong);
+  background: rgba(255, 255, 255, 0.1);
+  color: #fff;
 }
 
 .nav-item {
@@ -1289,6 +1306,12 @@ html, body {
   flex: 1 1 auto;
   min-width: 0;
   overflow-y: auto;
+  background-color: var(--accent-orange-tint);
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 500 500'%3E%3Cpath fill='%233A5BA0' opacity='0.6' d='M250 0L275 175L425 25L325 200L500 250L325 300L425 475L275 325L250 500L225 325L75 475L175 300L0 250L175 200L75 25L225 175Z'/%3E%3Ccircle cx='250' cy='250' r='50' fill='none' stroke='%233A5BA0' stroke-width='15' opacity='0.6'/%3E%3Cpath d='M250 250 L0 500' stroke='%233A5BA0' stroke-width='25' opacity='0.6'/%3E%3C/svg%3E");
+  background-position: center right -10%;
+  background-repeat: no-repeat;
+  background-size: 110vh;
+  background-attachment: local;
 }
 
 .dashboard-title-compact {
@@ -1732,7 +1755,8 @@ button.stat-card:hover {
 
 .task-table th,
 .task-table td {
-  padding: 12px 14px;
+  padding: 10px 14px;
+  border-right: 1px solid rgba(17, 24, 39, 0.06);
   border-bottom: 1px solid var(--border);
   text-align: center;
   vertical-align: middle;
@@ -1748,15 +1772,21 @@ button.stat-card:hover {
   text-align: center;
 }
 
+/* Navy header bar -- matches the Regular Tasks grid's chrome so the whole
+   app's dense-table views (this one, Projects, Regular Tasks) read as one
+   consistent system instead of three different table styles. */
 .task-table th {
   position: sticky;
   top: 0;
   z-index: 1;
-  background: #eef4fd;
-  color: var(--text-muted);
+  background: var(--primary);
+  color: #fff;
+  font-weight: 700;
   font-size: 11px;
   letter-spacing: 0.6px;
   text-transform: uppercase;
+  border-right-color: rgba(255, 255, 255, 0.14);
+  border-bottom-color: var(--primary);
 }
 
 .task-table tr {
@@ -2851,6 +2881,92 @@ button.stat-card:hover {
   opacity: 0.5;
   transform: scale(1.02);
   box-shadow: 0 25px 50px -12px rgba(17, 24, 39, 0.25);
+}
+
+/* ==========================================================================
+   KRA Tabs navigation
+   ========================================================================== */
+.kra-nav {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 12px 24px;
+  background: var(--bg-elevated);
+  border-bottom: 1px solid var(--border);
+  margin: -24px -24px 24px -24px; /* Pull out to edges assuming 24px padding on parent */
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+.kra-nav::-webkit-scrollbar { display: none; }
+
+.kra-tab {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 6px 14px;
+  background: var(--accent-orange-tint);
+  border: 1px solid transparent;
+  border-radius: var(--radius-btn);
+  font-size: 13.5px;
+  font-weight: 500;
+  color: #6B3F00; /* Dark orange/brown for contrast */
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.2s var(--ease);
+}
+.kra-tab:hover {
+  background: #FDE0A6; /* Slightly darker cream */
+  border-color: rgba(255, 165, 0, 0.3);
+}
+.kra-tab.active {
+  background: var(--primary);
+  color: #fff;
+  border-color: var(--primary);
+  box-shadow: var(--shadow-sm);
+}
+
+.kra-tab-name {
+  user-select: none;
+}
+
+.kra-tab-remove {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  border: none;
+  background: transparent;
+  color: currentColor;
+  font-size: 14px;
+  line-height: 1;
+  opacity: 0.6;
+  transition: all 0.2s;
+  padding: 0;
+}
+.kra-tab-remove:hover {
+  opacity: 1;
+  background: rgba(0,0,0,0.1);
+}
+.kra-tab.active .kra-tab-remove:hover {
+  background: rgba(255,255,255,0.2);
+}
+
+.kra-tab-add {
+  padding: 6px 12px;
+  background: transparent;
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-btn);
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--text-muted);
+  transition: all 0.2s;
+}
+.kra-tab-add:hover {
+  border-color: var(--primary);
+  color: var(--primary);
+  background: rgba(31, 70, 144, 0.05);
 }
 
 /* ==========================================================================
