@@ -2069,10 +2069,10 @@ function renderCategoryChip(record, onCommit) {
 const SCROLL_PANEL_SELECTOR = '.regular-grid-panel, .table-panel, .stack-panel';
 let lastRenderKey = null;
 
-// "Archived / + Add / + New list" only makes sense for the main task
-// board -- Tabs gets its own single "+ Add Website" action instead, and
-// Analytics gets none. Only one of the two viewbar-actions containers is
-// ever shown at a time.
+// "Archived / + Add" only makes sense for the main task board -- Tabs
+// gets its own single "+ Add Website" action instead, and Analytics
+// gets none. Only one of the two viewbar-actions containers is ever
+// shown at a time.
 function setViewbarActions(mode) {
   mainViewActionsEl.classList.toggle('hidden', mode !== 'main');
   kraViewActionsEl.classList.toggle('hidden', mode !== 'kra');
@@ -5575,11 +5575,6 @@ function addList(name, ownerEmail = null) {
   render();
 }
 
-function promptAddList() {
-  const name = prompt('New list name (e.g. a person or category):');
-  if (name && name.trim()) addList(name.trim());
-}
-
 function openArchivedListsMenu(anchorEl) {
   document.querySelectorAll('.archived-lists-popup').forEach((m) => m.remove());
 
@@ -6336,10 +6331,6 @@ if (viewMenuBtn && viewDropdown) {
   });
   viewDropdown.addEventListener('click', (e) => e.stopPropagation());
 }
-
-document.getElementById('topAddListBtn').addEventListener('click', () => {
-  promptAddList();
-});
 
 document.getElementById('archivedListsBtn').addEventListener('click', (e) => {
   e.stopPropagation();
