@@ -3062,6 +3062,14 @@ button.stat-card:hover {
   max-width: 240px;
   line-height: 1.35;
 }
+
+/* This selector had gone missing, leaving its declarations as an orphaned,
+   selector-less block -- which silently broke CSS parsing for the very
+   next rule (.chart-card) too, dropping its border/padding/background/
+   sizing entirely. That's why the Analytics cards rendered as plain
+   unstyled text with no card boundaries, reading as if sections were
+   overlapping each other. */
+.charts-grid {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
