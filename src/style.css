@@ -924,7 +924,7 @@ html, body {
 }
 
 .sidebar-title {
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(255, 229, 180, 0.65);
   font-size: 12px;
   font-weight: 700;
   letter-spacing: 0.9px;
@@ -1063,7 +1063,7 @@ html, body {
   border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(255, 229, 180, 0.75);
   text-align: left;
   font-size: 13px;
   font-weight: 600;
@@ -1076,13 +1076,13 @@ html, body {
 
 .sidebar-item:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  color: var(--accent-orange-tint);
   transform: translateX(2px);
 }
 
 .sidebar-item.active {
   background: rgba(255, 255, 255, 0.15);
-  color: #fff;
+  color: var(--accent-orange-tint);
   font-weight: 700;
   border-radius: 8px;
 }
@@ -1100,7 +1100,7 @@ html, body {
 .sidebar-section-header {
   font-size: 11px;
   font-weight: 700;
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 229, 180, 0.55);
   text-transform: uppercase;
   letter-spacing: 0.8px;
   margin: var(--space-md) var(--space-sm) var(--space-xs) var(--space-sm);
@@ -1138,14 +1138,14 @@ html, body {
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.55);
+  color: rgba(255, 229, 180, 0.6);
   cursor: pointer;
   transition: background 140ms ease, color 140ms ease, transform 200ms ease;
 }
 
 .sidebar-group-arrow:hover {
   background: rgba(255, 255, 255, 0.12);
-  color: #fff;
+  color: var(--accent-orange-tint);
 }
 
 .sidebar-group-arrow.expanded {
@@ -1166,7 +1166,7 @@ html, body {
 .sidebar-subnav-empty {
   padding: 6px 10px;
   font-size: 12px;
-  color: rgba(255, 255, 255, 0.5);
+  color: rgba(255, 229, 180, 0.55);
 }
 
 .sidebar-subitem {
@@ -1176,7 +1176,7 @@ html, body {
   border: none;
   border-radius: 6px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(255, 229, 180, 0.65);
   text-align: left;
   font-size: 12.5px;
   font-weight: 500;
@@ -1188,12 +1188,12 @@ html, body {
 
 .sidebar-subitem:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  color: var(--accent-orange-tint);
 }
 
 .sidebar-subitem.active {
   background: rgba(255, 255, 255, 0.15);
-  color: #fff;
+  color: var(--accent-orange-tint);
   font-weight: 700;
   border-radius: 6px;
 }
@@ -1223,7 +1223,7 @@ html, body {
   border: none;
   border-radius: 50%;
   background: transparent;
-  color: rgba(255, 255, 255, 0.6);
+  color: rgba(255, 229, 180, 0.65);
   font-size: 13px;
   line-height: 1;
   cursor: pointer;
@@ -1240,12 +1240,12 @@ html, body {
 }
 
 .sidebar-subitem-add {
-  color: rgba(255, 255, 255, 0.8);
+  color: rgba(255, 229, 180, 0.85);
   font-weight: 700;
 }
 .sidebar-subitem-add:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  color: var(--accent-orange-tint);
 }
 
 .nav-item {
@@ -1260,7 +1260,7 @@ html, body {
   border: 1px solid transparent;
   border-radius: 8px;
   background: transparent;
-  color: rgba(255, 255, 255, 0.7);
+  color: rgba(255, 229, 180, 0.75);
   text-align: left;
   overflow: hidden;
   transition: transform 160ms ease, background 160ms ease, border-color 160ms ease, color 160ms ease;
@@ -1280,13 +1280,13 @@ html, body {
 
 .nav-item:hover {
   background: rgba(255, 255, 255, 0.1);
-  color: #fff;
+  color: var(--accent-orange-tint);
   transform: translateX(2px);
 }
 
 .nav-item.active {
   background: rgba(255, 255, 255, 0.15);
-  color: #fff;
+  color: var(--accent-orange-tint);
   border-left: 3px solid var(--list-accent, var(--accent-orange));
   border-radius: 0 8px 8px 0;
 }
@@ -1322,7 +1322,7 @@ html, body {
   padding: 2px 7px;
   border-radius: 999px;
   background: rgba(255, 255, 255, 0.18);
-  color: #fff;
+  color: var(--accent-orange-tint);
   font-size: 12px;
   text-align: center;
 }
@@ -1341,11 +1341,17 @@ html, body {
   flex: 1 1 auto;
   min-width: 0;
   overflow-y: auto;
-  background-color: var(--accent-orange-tint);
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 500 500'%3E%3Cpath fill='%233A5BA0' opacity='0.6' d='M250 0L275 175L425 25L325 200L500 250L325 300L425 475L275 325L250 500L225 325L75 475L175 300L0 250L175 200L75 25L225 175Z'/%3E%3Ccircle cx='250' cy='250' r='50' fill='none' stroke='%233A5BA0' stroke-width='15' opacity='0.6'/%3E%3Cpath d='M250 250 L0 500' stroke='%233A5BA0' stroke-width='25' opacity='0.6'/%3E%3C/svg%3E");
-  background-position: center right -10%;
-  background-repeat: no-repeat;
-  background-size: 110vh;
+  /* A light, subtle circuit-board/graph-paper grid instead of the single
+     centered logo watermark -- a fine dot-grid of line layers, tiled
+     across the whole area rather than one large centered image. */
+  background-color: #F6F9FD;
+  background-image:
+    radial-gradient(circle, rgba(58, 91, 160, 0.28) 1.4px, transparent 1.6px),
+    linear-gradient(90deg, rgba(58, 91, 160, 0.08) 1px, transparent 1px),
+    linear-gradient(rgba(58, 91, 160, 0.08) 1px, transparent 1px);
+  background-size: 40px 40px, 40px 40px, 40px 40px;
+  background-position: -1px -1px, -1px -1px, -1px -1px;
+  background-repeat: repeat;
   background-attachment: local;
 }
 
@@ -1684,15 +1690,15 @@ button.stat-card:hover {
   border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.22);
-  color: #fff;
+  color: var(--accent-orange-tint);
   font-weight: 600;
   transition: all 160ms ease;
 }
 
 .view-menu-btn:hover { background: rgba(255, 255, 255, 0.2); border-color: rgba(255, 255, 255, 0.4); }
 .view-menu-btn svg { flex: 0 0 auto; }
-.view-menu-btn svg[fill="none"] { stroke: #fff; }
-.view-menu-btn svg:not([fill="none"]) { fill: #fff; }
+.view-menu-btn svg[fill="none"] { stroke: var(--accent-orange-tint); }
+.view-menu-btn svg:not([fill="none"]) { fill: var(--accent-orange-tint); }
 .view-menu-label { text-align: left; white-space: nowrap; }
 
 .view-dropdown {
