@@ -154,8 +154,8 @@ window.addEventListener('unhandledrejection', (event) => {
   showFatal('An unexpected error occurred.', event.reason);
 });
 
-const MONTHS = ['Jan','Feb','Mar','Apr','May','Jun','Jul','Aug','Sep','Oct','Nov','Dec'];
-const WEEKDAYS = ['Sun','Mon','Tue','Wed','Thu','Fri','Sat'];
+const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const PRIORITY_ORDER = ['none', 'low', 'medium', 'high'];
 const PROGRESS_STEPS = [0, 25, 50, 75, 100];
 const STATUS_OPTIONS = ['Pending', 'In Progress', 'Done'];
@@ -300,11 +300,11 @@ function shortenDevice(ua) {
 
 function todayStr() {
   const d = new Date();
-  return `${d.getFullYear()}-${String(d.getMonth()+1).padStart(2,'0')}-${String(d.getDate()).padStart(2,'0')}`;
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
 }
 
 function dateKey(date) {
-  return `${date.getFullYear()}-${String(date.getMonth()+1).padStart(2,'0')}-${String(date.getDate()).padStart(2,'0')}`;
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
 }
 
 function firstDayOfMonth(date) {
@@ -331,9 +331,9 @@ function daysInMonth(date) {
 function dueLabel(due) {
   if (!due) return { text: '', cls: '' };
   const today = todayStr();
-  const [y,m,dd] = due.split('-').map(Number);
-  const label = `Due ${MONTHS[m-1]} ${dd}`;
-  if (due < today) return { text: `Overdue ${MONTHS[m-1]} ${dd}`, cls: 'overdue' };
+  const [y, m, dd] = due.split('-').map(Number);
+  const label = `Due ${MONTHS[m - 1]} ${dd}`;
+  if (due < today) return { text: `Overdue ${MONTHS[m - 1]} ${dd}`, cls: 'overdue' };
   if (due === today) return { text: 'Due today', cls: 'due-today' };
   return { text: label, cls: '' };
 }
@@ -5136,19 +5136,19 @@ function openDatePicker(list, task, dueEl) {
   input.addEventListener('change', () => {
     const newDue = input.value || null;
     const oldDue = task.due;
-    
+
     // Check if due date is actually changing
     if (newDue !== oldDue) {
       const changeCount = (task.dueChangeCount || 0) + 1;
       const container = list.container || 'lists';
       const context = container === 'projects' ? 'project' : 'task';
-      
+
       const confirmed = confirm(
         `Due date change count for this ${context}: ${changeCount}\n\n` +
         `You are about to change the due date from "${oldDue || 'none'}" to "${newDue || 'none'}".\n\n` +
         `Do you want to proceed with this change?`
       );
-      
+
       if (confirmed) {
         task.due = newDue;
         task.dueChangeCount = changeCount;
@@ -5156,7 +5156,7 @@ function openDatePicker(list, task, dueEl) {
         render();
       }
     }
-    
+
     input.remove();
   });
   input.addEventListener('blur', () => setTimeout(() => input.remove(), 200));
@@ -5172,7 +5172,7 @@ function getAllEmployees() {
 
 
 function escapeHtml(str) {
-  return String(str || '').replace(/[&<>"]/g, (s) => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[s]));
+  return String(str || '').replace(/[&<>"]/g, (s) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[s]));
 }
 
 // ---------- mutations ----------
@@ -5541,11 +5541,26 @@ function renderChartCard(title, subtitle, contentEl) {
   return card;
 }
 
+function renderChartEmptyState(text = 'No data recorded yet') {
+  const empty = document.createElement('div');
+  empty.className = 'chart-empty-state';
+  empty.innerHTML = `
+    <div class="chart-empty-icon">
+      <svg viewBox="0 0 24 24" width="28" height="28" fill="none" stroke="var(--secondary)" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+        <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/><line x1="6" y1="20" x2="6" y2="14"/>
+      </svg>
+    </div>
+    <div class="chart-empty-text">${escapeHtml(text)}</div>
+    <div class="chart-empty-hint">Metrics will automatically update as tasks and completions are recorded</div>
+  `;
+  return empty;
+}
+
 function renderBarChart({ data, color = 'var(--accent)', maxValue, valueFormatter }) {
   const wrap = document.createElement('div');
   wrap.className = 'bar-chart';
   if (!data.length) {
-    wrap.appendChild(renderEmptyState('No data yet.'));
+    wrap.appendChild(renderChartEmptyState('No completion data yet.'));
     return wrap;
   }
   const max = maxValue != null ? maxValue : Math.max(1, ...data.map((d) => d.value));
@@ -5585,7 +5600,7 @@ function renderPieChart({ data, size = 148, thickness = 26 }) {
   wrap.className = 'pie-chart';
   const total = data.reduce((sum, d) => sum + d.value, 0);
   if (!total) {
-    wrap.appendChild(renderEmptyState('No data yet.'));
+    wrap.appendChild(renderChartEmptyState('No task data recorded yet.'));
     return wrap;
   }
 
@@ -5664,22 +5679,22 @@ function renderPieChart({ data, size = 148, thickness = 26 }) {
   data.forEach((d) => {
     const item = document.createElement('div');
     item.className = 'pie-legend-item';
-    
+
     const leftWrap = document.createElement('div');
     leftWrap.style.display = 'flex';
     leftWrap.style.alignItems = 'center';
     leftWrap.style.gap = '8px';
-    
+
     const swatch = document.createElement('span');
     swatch.className = 'pie-swatch';
     swatch.style.background = d.color;
     leftWrap.appendChild(swatch);
-    
+
     const labelSpan = document.createElement('span');
     labelSpan.className = 'legend-label';
     labelSpan.textContent = d.label;
     leftWrap.appendChild(labelSpan);
-    
+
     item.appendChild(leftWrap);
 
     const valSpan = document.createElement('strong');
@@ -5702,6 +5717,105 @@ function renderChartsWorkspace() {
   const scopeLabel = activeRegularEmployee === 'all' ? 'All employees' : activeRegularEmployee;
   const employeeKey = activeRegularEmployee === 'all' ? 'all' : activeRegularEmployee;
 
+  // --- Executive KPI Summary Cards ---
+  const allMainTasks = (state.lists || []).flatMap((l) => l.sections ? l.sections.flatMap((s) => s.tasks || []) : (l.tasks || []));
+  const projectTasks = (state.projects || []).flatMap((p) => p.tasks || []);
+  const allTasks = [...allMainTasks, ...projectTasks];
+  const completedTasksCount = allTasks.filter((t) => t.completed || t.status === 'done').length;
+  const totalTasksCount = allTasks.length;
+  const completionRatePct = totalTasksCount ? Math.round((completedTasksCount / totalTasksCount) * 100) : 0;
+
+  const regularDates = getRegularDates();
+  const regTasks = (state.regular?.tasks || []).filter((task) => activeRegularEmployee === 'all' || sameEmployee(task.owner, activeRegularEmployee));
+  const regProgress = regTasks.reduce((acc, t) => {
+    const p = regularTaskProgress(t, regularDates);
+    acc.done += p.done;
+    acc.total += p.total;
+    return acc;
+  }, { done: 0, total: 0 });
+  const regEfficiencyPct = regProgress.total ? Math.round((regProgress.done / regProgress.total) * 100) : 0;
+  const registeredEmpsCount = (state.employees || []).length;
+
+  const kpiGrid = document.createElement('div');
+  kpiGrid.className = 'analytics-kpi-grid';
+  kpiGrid.innerHTML = `
+    <div class="analytics-kpi-card accent-primary">
+      <div class="kpi-icon-wrap">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 11.08V12a10 10 0 1 1-5.93-9.14"/><polyline points="22 4 12 14.01 9 11.01"/></svg>
+      </div>
+      <div class="kpi-info">
+        <span class="kpi-label">Completion Rate</span>
+        <div class="kpi-val-row">
+          <span class="kpi-value">${completionRatePct}%</span>
+          <span class="kpi-pill ${completionRatePct >= 50 ? 'success' : 'neutral'}">${completedTasksCount} / ${totalTasksCount} Done</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="analytics-kpi-card accent-secondary">
+      <div class="kpi-icon-wrap">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><line x1="9" y1="9" x2="15" y2="9"/><line x1="9" y1="15" x2="15" y2="15"/></svg>
+      </div>
+      <div class="kpi-info">
+        <span class="kpi-label">Total Task Volume</span>
+        <div class="kpi-val-row">
+          <span class="kpi-value">${totalTasksCount}</span>
+          <span class="kpi-pill neutral">${state.lists.length} lists · ${(state.projects || []).length} projects</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="analytics-kpi-card accent-orange">
+      <div class="kpi-icon-wrap">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      </div>
+      <div class="kpi-info">
+        <span class="kpi-label">Regular Task Efficiency</span>
+        <div class="kpi-val-row">
+          <span class="kpi-value">${regEfficiencyPct}%</span>
+          <span class="kpi-pill warning">${regTasks.length} Cadences</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="analytics-kpi-card accent-slate">
+      <div class="kpi-icon-wrap">
+        <svg viewBox="0 0 24 24" width="20" height="20" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 1 0 3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg>
+      </div>
+      <div class="kpi-info">
+        <span class="kpi-label">Registered Team</span>
+        <div class="kpi-val-row">
+          <span class="kpi-value">${registeredEmpsCount}</span>
+          <span class="kpi-pill neutral">Active Members</span>
+        </div>
+      </div>
+    </div>
+  `;
+  wrap.appendChild(kpiGrid);
+
+  // --- Dynamic Filter Controls Toolbar ---
+  const filterToolbar = document.createElement('div');
+  filterToolbar.className = 'analytics-filter-toolbar';
+
+  const registeredEmps = getAllEmployees();
+  const empSelectOptions = registeredEmps.map((e) => `<option value="${escapeHtml(e)}" ${activeRegularEmployee === e ? 'selected' : ''}>${escapeHtml(e)}</option>`).join('');
+
+  filterToolbar.innerHTML = `
+    <div class="analytics-filter-group">
+      <label for="analyticsEmpSelect" class="analytics-filter-label">Filter Analytics by Member:</label>
+      <select id="analyticsEmpSelect" class="analytics-select-input">
+        <option value="all" ${activeRegularEmployee === 'all' ? 'selected' : ''}>All Team Members</option>
+        ${empSelectOptions}
+      </select>
+    </div>
+  `;
+
+  filterToolbar.querySelector('#analyticsEmpSelect').addEventListener('change', (e) => {
+    activeRegularEmployee = e.target.value;
+    render();
+  });
+  wrap.appendChild(filterToolbar);
+
   const chartDefinitions = [
     { id: 'cadence', title: 'Progress by cadence', subtitle: `Regular tasks — daily / weekly / monthly · ${scopeLabel}`, render: () => renderBarChart({ data: chartCadenceProgress(), maxValue: 100, valueFormatter: (v) => `${v}%` }) },
     { id: 'daily', title: 'Daily completions', subtitle: `Regular tasks — last 14 days · ${scopeLabel}`, render: () => renderBarChart({ data: chartDailyCompletions() }) },
@@ -5714,13 +5828,13 @@ function renderChartsWorkspace() {
     { id: 'employee', title: 'Regular tasks by employee', subtitle: `Completion % · ${scopeLabel}`, render: () => renderBarChart({ data: chartEmployeeProgress(), maxValue: 100, valueFormatter: (v) => `${v}%` }) },
   ];
 
-  const customOrder = state.chartsOrder?.[employeeKey] || chartDefinitions.map(c => c.id);
+  const customOrder = state.chartsOrder?.[employeeKey] || chartDefinitions.map((c) => c.id);
   const orderedCharts = [];
-  customOrder.forEach(id => {
-    const chart = chartDefinitions.find(c => c.id === id);
+  customOrder.forEach((id) => {
+    const chart = chartDefinitions.find((c) => c.id === id);
     if (chart) orderedCharts.push(chart);
   });
-  chartDefinitions.forEach(chart => {
+  chartDefinitions.forEach((chart) => {
     if (!customOrder.includes(chart.id)) orderedCharts.push(chart);
   });
 
@@ -5733,43 +5847,43 @@ function renderChartsWorkspace() {
     makeResizable(card, `chart:${chartDef.id}`);
     card.draggable = true;
     card.style.cursor = 'grab';
-    
+
     card.addEventListener('dragstart', (e) => {
       e.dataTransfer.setData('text/plain', chartDef.id);
       e.dataTransfer.effectAllowed = 'move';
       card.classList.add('dragging');
     });
-    
+
     card.addEventListener('dragend', () => {
       card.classList.remove('dragging');
     });
-    
+
     card.addEventListener('dragover', (e) => {
       e.preventDefault();
       e.dataTransfer.dropEffect = 'move';
     });
-    
+
     card.addEventListener('drop', (e) => {
       e.preventDefault();
       const fromId = e.dataTransfer.getData('text/plain');
       if (fromId === chartDef.id) return;
-      
-      const currentOrder = orderedCharts.map(c => c.id);
+
+      const currentOrder = orderedCharts.map((c) => c.id);
       const fromIndex = currentOrder.indexOf(fromId);
       const toIndex = currentOrder.indexOf(chartDef.id);
-      
+
       if (fromIndex === -1 || toIndex === -1) return;
-      
+
       const newOrder = [...currentOrder];
       newOrder.splice(fromIndex, 1);
       newOrder.splice(toIndex, 0, fromId);
-      
+
       if (!state.chartsOrder) state.chartsOrder = {};
       state.chartsOrder[employeeKey] = newOrder;
       persist();
       render();
     });
-    
+
     grid.appendChild(card);
   });
 

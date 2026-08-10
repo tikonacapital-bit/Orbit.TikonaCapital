@@ -2896,10 +2896,172 @@ button.stat-card:hover {
 .charts-shell {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: 16px;
 }
 
-.charts-grid {
+/* Executive KPI Summary Cards Header */
+.analytics-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+  margin-bottom: 2px;
+}
+
+.analytics-kpi-card {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 14px 18px;
+  background: var(--bg-elevated, #ffffff);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 16px);
+  box-shadow: var(--shadow-sm);
+  transition: transform 0.2s var(--ease), box-shadow 0.2s var(--ease);
+}
+.analytics-kpi-card:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 24px -6px rgba(17, 24, 39, 0.08);
+}
+
+.analytics-kpi-card.accent-primary { border-left: 4px solid var(--primary); }
+.analytics-kpi-card.accent-secondary { border-left: 4px solid var(--secondary); }
+.analytics-kpi-card.accent-orange { border-left: 4px solid var(--accent-orange); }
+.analytics-kpi-card.accent-slate { border-left: 4px solid #64748B; }
+
+.kpi-icon-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  background: var(--bg-hover, #F1F5F9);
+  color: var(--primary);
+  flex-shrink: 0;
+}
+.accent-secondary .kpi-icon-wrap { color: var(--secondary); background: rgba(58, 91, 160, 0.1); }
+.accent-orange .kpi-icon-wrap { color: var(--accent-orange-strong); background: rgba(255, 165, 0, 0.12); }
+.accent-slate .kpi-icon-wrap { color: #475569; background: #F1F5F9; }
+
+.kpi-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.kpi-label {
+  font-size: 11.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  color: var(--text-muted);
+}
+
+.kpi-val-row {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.kpi-value {
+  font-size: 22px;
+  font-weight: 800;
+  color: var(--text);
+  line-height: 1.1;
+}
+
+.kpi-pill {
+  font-size: 11px;
+  font-weight: 600;
+  padding: 2px 8px;
+  border-radius: 12px;
+  white-space: nowrap;
+}
+.kpi-pill.success { background: rgba(31, 70, 144, 0.1); color: var(--primary); }
+.kpi-pill.warning { background: rgba(255, 165, 0, 0.15); color: #B45309; }
+.kpi-pill.neutral { background: var(--bg-hover); color: var(--text-secondary); }
+
+/* Filter Toolbar */
+.analytics-filter-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 16px;
+  background: var(--bg-elevated, #ffffff);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md, 12px);
+  box-shadow: var(--shadow-xs);
+}
+
+.analytics-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.analytics-filter-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+}
+
+.analytics-select-input {
+  padding: 6px 12px;
+  border: 1px solid var(--border-strong);
+  border-radius: var(--radius-btn, 8px);
+  background: var(--bg-elevated);
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 500;
+  outline: none;
+  cursor: pointer;
+  transition: border-color 0.2s, box-shadow 0.2s;
+}
+.analytics-select-input:focus {
+  border-color: var(--primary);
+  box-shadow: var(--focus-ring);
+}
+
+/* Modern Empty State inside Charts */
+.chart-empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 28px 16px;
+  text-align: center;
+  background: rgba(255, 255, 255, 0.7);
+  border: 1px dashed var(--border-strong);
+  border-radius: var(--radius-md, 12px);
+  margin: 6px 0;
+}
+
+.chart-empty-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(58, 91, 160, 0.08);
+  margin-bottom: 10px;
+}
+
+.chart-empty-text {
+  font-size: 13.5px;
+  font-weight: 600;
+  color: var(--text);
+  margin-bottom: 4px;
+}
+
+.chart-empty-hint {
+  font-size: 12px;
+  color: var(--text-muted);
+  max-width: 240px;
+  line-height: 1.35;
+}
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
