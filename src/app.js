@@ -2949,17 +2949,13 @@ function renderProjectRow(project) {
   });
 
   const progress = itemDisplayProgress(project);
-  node.querySelectorAll('.task-progress-btn').forEach((btn) => {
-    const val = Number(btn.dataset.progress);
-    btn.title = `${val}%`;
-    btn.classList.toggle('current', val === progress);
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      setProjectProgress(project, val);
-    });
-  });
   const barEl = node.querySelector('.task-progress-bar');
   barEl.classList.toggle(`fill-${progress}`, Boolean(progress));
+  barEl.title = `Progress: ${progress}%. Click to advance.`;
+  barEl.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setProjectProgress(project, progress >= 100 ? 0 : progress + 25);
+  });
 
   const priorityEl = node.querySelector('.task-priority');
   priorityEl.classList.add(project.priority || 'none');
@@ -4396,17 +4392,13 @@ function renderTask(list, task) {
   checkBtn.addEventListener('click', () => toggleDone(list, task));
 
   const progress = itemDisplayProgress(task);
-  node.querySelectorAll('.task-progress-btn').forEach((btn) => {
-    const val = Number(btn.dataset.progress);
-    btn.title = `${val}%`;
-    btn.classList.toggle('current', val === progress);
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      setTaskProgress(list, task, val);
-    });
-  });
   const barEl = node.querySelector('.task-progress-bar');
   barEl.classList.toggle(`fill-${progress}`, Boolean(progress));
+  barEl.title = `Progress: ${progress}%. Click to advance.`;
+  barEl.addEventListener('click', (e) => {
+    e.stopPropagation();
+    setTaskProgress(list, task, progress >= 100 ? 0 : progress + 25);
+  });
 
   const priorityEl = node.querySelector('.task-priority');
   priorityEl.classList.add(task.priority || 'none');
