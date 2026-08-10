@@ -1295,6 +1295,10 @@ function exitEmployee(email) {
       if (sameEmployee(project.owner, employee.name)) {
         project.owner = project.owners[0] || 'Unassigned';
       }
+      if (project.owners.length === 0) {
+        project.deleted = true;
+        project.deletedAt = Date.now();
+      }
     }
   });
 
@@ -1338,16 +1342,24 @@ function restoreEmployee(binId) {
     state.lists.push(entry.list);
   }
 
-  entry.projectMemberships.forEach(({ projectId, projectName }) => {
-    const project = state.projects.find((p) => p.id === projectId) || state.projects.find((p) => p.name === projectName);
-    if (project) {
-      project.owners = project.owners || [];
-      if (!project.owners.some((o) => sameEmployee(o, entry.employee.name))) {
-        project.owners.push(entry.employee.name);
+  if (entry.projectMemberships) {
+    entry.projectMemberships.forEach((pm) => {
+      const p = state.projects.find((pr) => pr.id === pm.projectId) || state.projects.find((pr) => pr.name === pm.projectName);
+      if (p) {
+        p.owners = p.owners || [];
+        if (!p.owners.some((o) => sameEmployee(o, entry.employee.name))) {
+          p.owners.push(entry.employee.name);
+        }
+        if (!p.owner || p.owner === 'Unassigned') {
+          p.owner = entry.employee.name;
+        }
+        if (p.deleted && p.owners.length > 0) {
+          p.deleted = false;
+          delete p.deletedAt;
+        }
       }
-      if (!project.owner || project.owner === 'Unassigned') project.owner = entry.employee.name;
-    }
-  });
+    });
+  }
 
   state.regular.tasks = state.regular.tasks || [];
   entry.regularTasks.forEach((task) => {
