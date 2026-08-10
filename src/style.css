@@ -46,11 +46,16 @@
   --shadow-lg: 0 20px 50px rgba(17, 24, 39, 0.12);
   --shadow-xl: 0 24px 64px -12px rgba(17, 24, 39, 0.28);
 
-  /* Shape + motion */
+  /* Shape, motion + spacing */
   --radius-sm: 8px;
   --radius-btn: 10px;
   --radius-md: 12px;
   --radius-lg: 16px;
+  --space-xs: 4px;
+  --space-sm: 8px;
+  --space-md: 12px;
+  --space-lg: 16px;
+  --space-xl: 24px;
   --focus-ring: 0 0 0 3px rgba(58, 91, 160, 0.35);
   --ease: cubic-bezier(0.16, 1, 0.3, 1);
   --duration-fast: 140ms;
@@ -475,39 +480,27 @@ button {
 .task-progress-bar {
   position: relative;
   display: flex;
-  flex-direction: column;
-  width: 16px;
-  flex: 1 1 auto;
-  min-height: 40px;
+  flex-direction: row;
+  width: 60px;
+  height: 8px;
+  flex: 0 0 auto;
   border-radius: 4px;
   border: 1px solid #c0cde0;
   background: #eef1f6;
   box-shadow: inset 0 1px 3px rgba(17, 24, 39, 0.1);
   overflow: hidden;
   transition: background 260ms ease;
+  margin-right: 8px;
 }
-/* The colored fill is painted as a background-gradient on this element
-   itself, not as a height-percentage on an absolutely-positioned child —
-   percentage heights on abspos descendants of a flex-grow-sized item are
-   unreliable on mobile WebKit (the fill silently failed to render on
-   phones even though the same markup worked on desktop Chrome). A
-   gradient always resolves against the element's own already-computed
-   box, so it isn't affected by that bug. Each stop pair carves out a
-   thin lighter "water surface" line at the top of the filled portion. */
+
 .task-progress-bar.fill-25 {
-  background:
-    linear-gradient(to top, var(--medium) 0%, var(--medium) 22%, rgba(255, 255, 255, 0.65) 22%, rgba(255, 255, 255, 0.65) 25%, transparent 25%),
-    #eef1f6;
+  background: linear-gradient(to right, var(--medium) 0%, var(--medium) 25%, transparent 25%), #eef1f6;
 }
 .task-progress-bar.fill-50 {
-  background:
-    linear-gradient(to top, var(--accent) 0%, var(--accent) 47%, rgba(255, 255, 255, 0.65) 47%, rgba(255, 255, 255, 0.65) 50%, transparent 50%),
-    #eef1f6;
+  background: linear-gradient(to right, var(--accent) 0%, var(--accent) 50%, transparent 50%), #eef1f6;
 }
 .task-progress-bar.fill-75 {
-  background:
-    linear-gradient(to top, #1F4690 0%, #1F4690 72%, rgba(255, 255, 255, 0.65) 72%, rgba(255, 255, 255, 0.65) 75%, transparent 75%),
-    #eef1f6;
+  background: linear-gradient(to right, #1F4690 0%, #1F4690 75%, transparent 75%), #eef1f6;
 }
 .task-progress-bar.fill-100 { background: #1F4690; }
 
@@ -515,7 +508,7 @@ button {
   position: relative;
   z-index: 1;
   flex: 1 1 0;
-  width: 100%;
+  height: 100%;
   padding: 0;
   border: none;
   background: transparent;
@@ -526,11 +519,6 @@ button {
 }
 .task-progress-btn:hover { background: rgba(58, 91, 160, 0.16); }
 
-.task-row.progress-25 { border-left-color: var(--medium); }
-.task-row.progress-50 { border-left-color: var(--accent); }
-.task-row.progress-75 { border-left-color: #1F4690; }
-.task-row.overdue-bar { border-left-color: var(--danger); }
-
 .project-list-card.progress-25 { border-color: var(--medium); }
 .project-list-card.progress-50 { border-color: var(--accent); }
 .project-list-card.progress-75 { border-color: #1F4690; }
@@ -540,18 +528,23 @@ button {
 .task-title-row { display: flex; align-items: flex-start; gap: 6px; }
 
 .task-priority {
-  width: 10px;
-  height: 10px;
-  border-radius: 50%;
-  margin-top: 5px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  text-transform: uppercase;
+  padding: 2px 6px;
+  border-radius: 4px;
   flex: 0 0 auto;
-  border: 1.5px solid #c0cde0;
-  background: transparent;
+  cursor: pointer;
   transition: all 140ms ease;
+  margin-top: 1px;
 }
-.task-priority.low { background: var(--low); border-color: var(--low); box-shadow: 0 0 0 3px rgba(108, 139, 196, 0.15); }
-.task-priority.medium { background: var(--medium); border-color: var(--medium); box-shadow: 0 0 0 3px rgba(255, 165, 0, 0.15); }
-.task-priority.high { background: var(--high); border-color: var(--high); box-shadow: 0 0 0 3px rgba(224, 72, 88, 0.15); }
+.task-priority.low { background: rgba(108, 139, 196, 0.1); color: var(--low); border: 1px solid rgba(108, 139, 196, 0.3); }
+.task-priority.medium { background: rgba(255, 165, 0, 0.1); color: var(--medium); border: 1px solid rgba(255, 165, 0, 0.3); }
+.task-priority.high { background: rgba(224, 72, 88, 0.1); color: var(--danger-strong); border: 1px solid rgba(224, 72, 88, 0.3); }
+.task-priority.none { display: none; }
 
 .task-text {
   flex: 1;
@@ -1032,15 +1025,17 @@ html, body {
 .sidebar-item svg:not([fill="none"]) { fill: currentColor; }
 
 .sidebar-item:hover {
-  background: rgba(17, 24, 39, 0.05);
+  background: var(--bg-hover);
   color: var(--text);
   transform: translateX(2px);
 }
 
 .sidebar-item.active {
-  background: linear-gradient(135deg, rgba(58, 91, 160, 0.18), rgba(31, 70, 144, 0.1));
-  border-color: rgba(58, 91, 160, 0.35);
+  background: rgba(58, 91, 160, 0.08);
   color: var(--text);
+  font-weight: 700;
+  border-left: 3px solid var(--accent);
+  border-radius: 0 8px 8px 0;
 }
 
 .sidebar-item.exit-btn {
@@ -1051,6 +1046,15 @@ html, body {
 .sidebar-item.exit-btn:hover {
   background: rgba(224, 72, 88, 0.18);
   border-color: rgba(224, 72, 88, 0.45);
+}
+
+.sidebar-section-header {
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--text-muted);
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  margin: var(--space-md) var(--space-sm) var(--space-xs) var(--space-sm);
 }
 
 /* A collapsible sidebar group: a header row (the clickable item itself,
@@ -1135,14 +1139,16 @@ html, body {
 }
 
 .sidebar-subitem:hover {
-  background: rgba(17, 24, 39, 0.05);
+  background: var(--bg-hover);
   color: var(--text);
 }
 
 .sidebar-subitem.active {
-  background: rgba(58, 91, 160, 0.12);
-  color: var(--accent-strong);
+  background: rgba(58, 91, 160, 0.08);
+  color: var(--text);
   font-weight: 700;
+  border-left: 3px solid var(--accent);
+  border-radius: 0 6px 6px 0;
 }
 
 /* Each tab in the Tabs sub-list pairs its clickable name with a
@@ -1226,16 +1232,16 @@ html, body {
 }
 
 .nav-item:hover {
-  background: rgba(17, 24, 39, 0.05);
+  background: var(--bg-hover);
   color: var(--text);
   transform: translateX(2px);
 }
 
 .nav-item.active {
-  background: linear-gradient(135deg, color-mix(in srgb, var(--list-accent, var(--accent)) 20%, transparent), rgba(31, 70, 144, 0.1));
-  border-color: color-mix(in srgb, var(--list-accent, var(--accent)) 45%, transparent);
+  background: rgba(58, 91, 160, 0.08);
   color: var(--text);
-  box-shadow: 0 6px 18px -8px color-mix(in srgb, var(--list-accent, var(--accent)) 55%, transparent);
+  border-left: 3px solid var(--list-accent, var(--accent));
+  border-radius: 0 8px 8px 0;
 }
 
 .nav-dot {
@@ -1347,53 +1353,39 @@ html, body {
 
 .stats {
   display: flex;
-  gap: 5px;
+  gap: var(--space-sm);
   width: auto;
+  margin-right: var(--space-md);
 }
 
 .stat-card {
   display: flex;
   align-items: center;
-  gap: 4px;
+  gap: 6px;
   width: auto;
   height: 36px;
   box-sizing: border-box;
-  border: 1px solid transparent;
+  border: 1px solid var(--border);
   border-radius: var(--radius-sm);
-  background: #ffffff;
-  padding: 0 9px;
-  box-shadow: 0 1px 3px rgba(17, 24, 39, 0.08);
+  background: var(--bg-elevated);
+  padding: 0 12px;
+  box-shadow: var(--shadow-xs);
   text-align: left;
   position: relative;
   overflow: hidden;
-  transition: transform 180ms ease, box-shadow 180ms ease, border-color 180ms ease;
-}
-
-.stat-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: linear-gradient(90deg, var(--accent), #6C8BC4);
-  opacity: 0;
-  transition: opacity 200ms ease;
+  transition: transform var(--duration) var(--ease), box-shadow var(--duration) var(--ease), border-color var(--duration) var(--ease), background var(--duration) var(--ease);
 }
 
 button.stat-card:hover {
-  transform: translateY(-2px);
-  box-shadow: 0 8px 28px rgba(17, 24, 39, 0.12);
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+  background: var(--bg-hover);
 }
-
-button.stat-card:hover::before { opacity: 1; }
 
 .stat-card.active {
-  border-color: rgba(58, 91, 160, 0.3);
-  box-shadow: 0 0 0 2px rgba(58, 91, 160, 0.15), 0 8px 24px rgba(17, 24, 39, 0.1);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px rgba(58, 91, 160, 0.15), var(--shadow-sm);
 }
-
-.stat-card.active::before { opacity: 1; }
 
 .priority-card {
   position: relative;
@@ -1502,21 +1494,54 @@ button.stat-card:hover::before { opacity: 1; }
 }
 
 .stat-card strong {
-  display: inline;
-  margin-top: 0;
-  font-size: 13px;
+  font-size: 14px;
   font-weight: 800;
-  letter-spacing: -0.3px;
+  line-height: 1;
+  color: var(--text);
+  margin-left: auto;
 }
 
-.stat-card.overdue strong,
-.stat-card.high strong { color: var(--danger); }
-.stat-card.medium strong { color: var(--medium); }
-.stat-card.low strong { color: var(--low); }
-.stat-card.open strong { color: var(--accent); }
-/* Orange is reserved for CTAs/alerts elsewhere in the app -- "done" should
-   read as calm/settled, not urgent, so it uses the success token instead. */
-.stat-card.done strong { color: var(--success); }
+/* Color coding for specific stat cards */
+.stat-card.overdue {
+  background: rgba(224, 72, 88, 0.05);
+  border-color: rgba(224, 72, 88, 0.2);
+}
+.stat-card.overdue span { color: var(--danger); }
+.stat-card.overdue strong { color: var(--danger-strong); }
+
+.stat-card.high {
+  background: rgba(224, 72, 88, 0.05);
+  border-color: rgba(224, 72, 88, 0.2);
+}
+.stat-card.high span { color: var(--danger); }
+.stat-card.high strong { color: var(--danger-strong); }
+
+.stat-card.medium {
+  background: rgba(255, 165, 0, 0.05);
+  border-color: rgba(255, 165, 0, 0.2);
+}
+.stat-card.medium span { color: var(--medium); }
+.stat-card.medium strong { color: var(--accent-orange-strong); }
+
+.stat-card.low {
+  background: rgba(108, 139, 196, 0.05);
+  border-color: rgba(108, 139, 196, 0.2);
+}
+.stat-card.low span { color: var(--low); }
+.stat-card.low strong { color: var(--accent); }
+
+.stat-card.open {
+  background: rgba(17, 24, 39, 0.03);
+}
+.stat-card.open span { color: var(--text-secondary); }
+.stat-card.open strong { color: var(--text); }
+
+.stat-card.done {
+  background: rgba(31, 70, 144, 0.05);
+  border-color: rgba(31, 70, 144, 0.2);
+}
+.stat-card.done span { color: var(--success); }
+.stat-card.done strong { color: var(--primary); }
 
 .viewbar {
   display: flex;
@@ -1577,10 +1602,10 @@ button.stat-card:hover::before { opacity: 1; }
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
+  gap: 6px;
   height: 36px;
-  padding: 0;
-  border-radius: 50%;
+  padding: 0 12px;
+  border-radius: var(--radius-sm);
   background: rgba(255, 255, 255, 0.1);
   border: 1px solid rgba(255, 255, 255, 0.22);
   color: #fff;
@@ -1839,13 +1864,14 @@ button.stat-card:hover::before { opacity: 1; }
 }
 
 .empty-state {
-  border: 1.5px dashed rgba(17, 24, 39, 0.1);
+  border: 1px dashed rgba(58, 91, 160, 0.3);
   border-radius: var(--radius-md);
-  padding: 32px;
+  padding: 40px 24px;
   color: var(--text-muted);
   text-align: center;
-  background: rgba(240, 246, 255, 0.4);
-  font-size: 13px;
+  background: var(--bg-cream, #FFE5B4);
+  font-size: 14px;
+  margin: 16px;
 }
 
 /* ==========================================================================
@@ -2306,7 +2332,7 @@ button.stat-card:hover::before { opacity: 1; }
 .project-chip.priority-medium { background: rgba(255, 165, 0, 0.16); color: var(--medium); }
 .project-chip.priority-high { background: rgba(224, 72, 88, 0.14); color: var(--high); }
 .project-chip.project-status-chip { background: rgba(58, 91, 160, 0.1); color: var(--accent-strong); }
-.project-chip.category-chip { background: rgba(31, 70, 144, 0.08); color: var(--primary); }
+.project-chip.category-chip { background: var(--bg-cream, #FFE5B4); color: var(--accent-orange-strong, #CC8400); }
 .project-chip.category-chip.editable-chip {
   cursor: pointer;
   outline: none;
@@ -3251,20 +3277,17 @@ button.stat-card:hover::before { opacity: 1; }
   border-radius: 999px;
   padding: 2px 8px;
   font-weight: 600;
-  font-size: 10px;
-  letter-spacing: 0.2px;
-  display: inline-block;
-  background: rgba(58, 91, 160, 0.1);
-  color: var(--accent-strong);
-  user-select: none;
+  border-radius: 4px;
   cursor: pointer;
-  transition: transform 120ms ease, box-shadow 120ms ease;
+  background: rgba(31, 70, 144, 0.08);
+  color: var(--primary);
+  transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease, color 120ms ease;
 }
 .task-status:hover { transform: translateY(-1px); box-shadow: 0 2px 8px rgba(17, 24, 39, 0.12); }
 
-.task-status.status-pending { background: rgba(148, 163, 184, 0.18); color: #64748b; }
-.task-status.status-in-progress { background: rgba(255, 165, 0, 0.16); color: var(--medium); }
-.task-status.status-done { background: rgba(31, 70, 144, 0.16); color: #1F4690; }
+.task-status.status-pending { background: rgba(31, 70, 144, 0.04); color: var(--text-muted); }
+.task-status.status-in-progress { background: rgba(31, 70, 144, 0.15); color: var(--primary); }
+.task-status.status-done { background: var(--primary); color: #ffffff; }
 
 .project-chip.project-status-chip.status-pending { background: rgba(148, 163, 184, 0.18); color: #64748b; }
 .project-chip.project-status-chip.status-in-progress { background: rgba(255, 165, 0, 0.16); color: var(--medium); }

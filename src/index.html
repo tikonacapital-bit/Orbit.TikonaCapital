@@ -31,6 +31,7 @@
     <div class="view-menu" aria-label="View menu">
       <button class="view-menu-btn" type="button" title="Change view">
         <svg class="view-menu-icon" viewBox="0 0 20 20" width="16" height="16" aria-hidden="true"><rect x="1" y="3" width="5" height="14" rx="1.5"/><rect x="7.5" y="3" width="5" height="14" rx="1.5"/><rect x="14" y="3" width="5" height="14" rx="1.5"/></svg>
+        <span class="view-menu-label">Horizontal</span>
       </button>
       <div class="view-dropdown" role="menu">
         <button class="view-option" data-view="board" type="button">
@@ -117,22 +118,22 @@
   <div class="task-row">
     <div class="task-check-col">
       <button class="task-check" title="Mark done"></button>
-      <div class="task-progress-bar" title="Set progress">
-        <button type="button" class="task-progress-btn" data-progress="100"></button>
-        <button type="button" class="task-progress-btn" data-progress="75"></button>
-        <button type="button" class="task-progress-btn" data-progress="50"></button>
-        <button type="button" class="task-progress-btn" data-progress="25"></button>
-        <button type="button" class="task-progress-btn" data-progress="0"></button>
-      </div>
     </div>
     <div class="task-body">
       <div class="task-title-row">
-        <span class="task-priority" title="Click to set priority"></span>
+        <span class="task-priority" title="Click to cycle priority"></span>
         <span class="task-text" contenteditable="true" spellcheck="false"></span>
         <button class="icon-btn task-edit" title="Edit task">&#9998;</button>
         <button class="icon-btn task-delete" title="Delete task">&times;</button>
       </div>
       <div class="task-meta">
+        <div class="task-progress-bar" title="Set progress">
+          <button type="button" class="task-progress-btn" data-progress="0"></button>
+          <button type="button" class="task-progress-btn" data-progress="25"></button>
+          <button type="button" class="task-progress-btn" data-progress="50"></button>
+          <button type="button" class="task-progress-btn" data-progress="75"></button>
+          <button type="button" class="task-progress-btn" data-progress="100"></button>
+        </div>
         <span class="task-created"></span>
         <span class="task-status"></span>
         <span class="task-due"></span>

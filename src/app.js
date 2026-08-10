@@ -2173,6 +2173,15 @@ function renderSidebar() {
   top.innerHTML = '';
   bottom.innerHTML = '';
 
+  const createSectionHeader = (title) => {
+    const header = document.createElement('div');
+    header.className = 'sidebar-section-header';
+    header.textContent = title;
+    return header;
+  };
+
+  top.appendChild(createSectionHeader('Workspace'));
+
   // ---- All tasks group: "All tasks" always visible, the per-employee
   // list beneath it collapses behind its own arrow. ----
   const activeLists = getActiveLists();
@@ -2220,9 +2229,7 @@ function renderSidebar() {
   tasksGroup.appendChild(tasksSubnav);
   top.appendChild(tasksGroup);
 
-  const divider = document.createElement('div');
-  divider.className = 'app-sidebar-divider';
-  top.appendChild(divider);
+  top.appendChild(createSectionHeader('Lists'));
 
   // ---- Tabs group: same collapse pattern, sub-list is the actual Tabs
   // workspace's tabs (state.kraTabs) so you can jump straight to one. ----
@@ -2308,6 +2315,8 @@ function renderSidebar() {
     render();
   });
   top.appendChild(analyticsBtn);
+
+  bottom.appendChild(createSectionHeader('HR / Admin'));
 
   // ---- Bottom-pinned employee actions. ----
   const registerBtn = document.createElement('button');
@@ -2969,15 +2978,9 @@ function renderProjectRow(project) {
   const barEl = node.querySelector('.task-progress-bar');
   barEl.classList.toggle(`fill-${progress}`, Boolean(progress));
 
-  const projectOverdue = !project.done && project.dueDate && project.dueDate < todayStr();
-  if (projectOverdue) {
-    node.classList.add('overdue-bar');
-  } else if (!project.done) {
-    node.classList.add(`progress-${progress}`);
-  }
-
   const priorityEl = node.querySelector('.task-priority');
   priorityEl.classList.add(project.priority || 'none');
+  priorityEl.textContent = project.priority === 'high' ? 'High' : project.priority === 'medium' ? 'Med' : project.priority === 'low' ? 'Low' : '';
   priorityEl.title = 'Click to cycle priority';
   priorityEl.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -2990,6 +2993,15 @@ function renderProjectRow(project) {
   const textEl = node.querySelector('.task-text');
   textEl.textContent = project.name;
   textEl.contentEditable = !project.done;
+
+  const iconEl = document.createElement('span');
+  iconEl.className = 'project-icon';
+  iconEl.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="currentColor"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>';
+  iconEl.style.color = 'var(--text-muted)';
+  iconEl.style.display = 'inline-flex';
+  iconEl.style.alignItems = 'center';
+  textEl.parentNode.insertBefore(iconEl, textEl);
+
   textEl.addEventListener('keydown', (e) => {
     if (e.key === 'Enter') { e.preventDefault(); textEl.blur(); }
     if (e.key === 'Escape') { e.preventDefault(); textEl.textContent = project.name; textEl.blur(); }
@@ -3074,7 +3086,8 @@ function renderProjectSubtaskRow(project, task) {
   row.appendChild(check);
 
   const priorityEl = document.createElement('span');
-  priorityEl.className = `project-subtask-priority ${task.priority || 'none'}`;
+  priorityEl.className = `task-priority ${task.priority || 'none'}`;
+  priorityEl.textContent = task.priority === 'high' ? 'High' : task.priority === 'medium' ? 'Med' : task.priority === 'low' ? 'Low' : '';
   priorityEl.title = 'Click to cycle priority';
   priorityEl.addEventListener('click', (e) => {
     e.stopPropagation();
@@ -4111,7 +4124,7 @@ function renderViewTabs() {
   const meta = VIEW_META[viewMode] || VIEW_META.board;
   const btn = document.querySelector('.view-menu-btn');
   if (btn) {
-    btn.innerHTML = meta.icon;
+    btn.innerHTML = `${meta.icon}<span class="view-menu-label">${meta.label}</span>`;
     btn.title = `Change view (currently ${meta.label})`;
   }
 
@@ -4412,15 +4425,9 @@ function renderTask(list, task) {
   const barEl = node.querySelector('.task-progress-bar');
   barEl.classList.toggle(`fill-${progress}`, Boolean(progress));
 
-  const isOverdue = !task.done && dueLabel(task.due).cls === 'overdue';
-  if (isOverdue) {
-    node.classList.add('overdue-bar');
-  } else if (!task.done) {
-    node.classList.add(`progress-${progress}`);
-  }
-
   const priorityEl = node.querySelector('.task-priority');
   priorityEl.classList.add(task.priority || 'none');
+  priorityEl.textContent = task.priority === 'high' ? 'High' : task.priority === 'medium' ? 'Med' : task.priority === 'low' ? 'Low' : '';
   priorityEl.title = 'Click to cycle priority';
   priorityEl.addEventListener('click', (e) => {
     e.stopPropagation();
