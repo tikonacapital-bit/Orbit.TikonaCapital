@@ -6609,6 +6609,10 @@ if (mobileNavBtns.length) {
           activeListId = 'all';
           render();
           break;
+        case 'tabs':
+          activeWorkspace = 'kra';
+          render();
+          break;
         case 'regular':
           // "Regular Tasks" isn't its own workspace -- it's a section
           // within the main "tasks" board (alongside Projects/
@@ -6633,6 +6637,13 @@ if (mobileNavBtns.length) {
           break;
       }
     });
+  });
+}
+
+const mobileFabAddBtn = document.getElementById('mobileFabAdd');
+if (mobileFabAddBtn) {
+  mobileFabAddBtn.addEventListener('click', () => {
+    openItemPopup();
   });
 }
 

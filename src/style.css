@@ -3700,8 +3700,12 @@ button.stat-card:hover {
   to { opacity: 1; }
 }
 
-/* Mobile Bottom Nav (hidden on desktop) */
+/* Mobile Bottom Nav + floating add button (hidden on desktop) */
 .mobile-bottom-nav {
+  display: none;
+}
+
+.mobile-fab-add {
   display: none;
 }
 
@@ -3826,7 +3830,7 @@ button.stat-card:hover {
     bottom: 0;
     left: 0;
     right: 0;
-    height: 70px;
+    height: 64px;
     background: rgba(255, 255, 255, 0.85);
     backdrop-filter: blur(16px);
     border-top: 1px solid var(--border);
@@ -3836,19 +3840,23 @@ button.stat-card:hover {
     z-index: 1000;
   }
 
+  /* Seven items now share the strip -- flex instead of a fixed width so
+     they divide the viewport evenly instead of overflowing/wrapping. */
   .mobile-nav-btn {
     display: flex;
+    flex: 1 1 0;
+    min-width: 0;
     flex-direction: column;
     align-items: center;
     justify-content: center;
-    gap: 4px;
+    gap: 3px;
     background: transparent;
     border: none;
     color: var(--text-muted);
-    font-size: 10px;
+    font-size: 9px;
     font-weight: 600;
-    width: 60px;
     height: 100%;
+    padding: 0 2px;
     cursor: pointer;
   }
 
@@ -3857,7 +3865,44 @@ button.stat-card:hover {
   }
 
   .mobile-nav-btn svg {
-    margin-bottom: 2px;
+    width: 18px;
+    height: 18px;
+    margin-bottom: 1px;
+  }
+
+  .mobile-nav-btn span {
+    max-width: 100%;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  /* Floating "+" action -- the only way to add a plain task/project on
+     mobile now that .viewbar (and its "+ Add" button) is hidden below
+     this breakpoint. Sits just above the bottom nav, clear of its
+     safe-area padding, and stays put while the board scrolls under it. */
+  .mobile-fab-add {
+    display: flex;
+    position: fixed;
+    right: 18px;
+    bottom: calc(64px + env(safe-area-inset-bottom) + 16px);
+    width: 52px;
+    height: 52px;
+    border-radius: 50%;
+    align-items: center;
+    justify-content: center;
+    background: var(--accent-orange);
+    color: #fff;
+    border: none;
+    box-shadow: 0 6px 16px rgba(255, 165, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.15);
+    cursor: pointer;
+    z-index: 1001;
+    transition: transform 120ms ease, box-shadow 120ms ease;
+  }
+
+  .mobile-fab-add:active {
+    transform: scale(0.92);
+    box-shadow: 0 3px 10px rgba(255, 165, 0, 0.4);
   }
 
   .charts-grid {
