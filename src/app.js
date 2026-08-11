@@ -3444,15 +3444,9 @@ function openItemPopup(existingItem = null, existingIsProject = false, presetAss
       <div>
         <label style="${FIELD_LABEL_STYLE}">Priority</label>
         <div style="display: flex; gap: 5px;">
-          <button type="button" class="item-priority-btn" data-priority="low" title="Low" style="flex: 1; padding: 7px; border: 2px solid #ddd; border-radius: 6px; background: white; cursor: pointer;">
-            <span style="display: inline-block; width: 10px; height: 10px; background: #6C8BC4; border-radius: 50%;"></span>
-          </button>
-          <button type="button" class="item-priority-btn" data-priority="medium" title="Medium" style="flex: 1; padding: 7px; border: 2px solid #ddd; border-radius: 6px; background: white; cursor: pointer;">
-            <span style="display: inline-block; width: 10px; height: 10px; background: #FFA500; border-radius: 50%;"></span>
-          </button>
-          <button type="button" class="item-priority-btn" data-priority="high" title="High" style="flex: 1; padding: 7px; border: 2px solid #ddd; border-radius: 6px; background: white; cursor: pointer;">
-            <span style="display: inline-block; width: 10px; height: 10px; background: #E04858; border-radius: 50%;"></span>
-          </button>
+          <button type="button" class="item-priority-btn" data-priority="low" title="Low" style="flex: 1; padding: 7px; border: 2px solid #ddd; border-radius: 6px; background: white; cursor: pointer; font-size: 12.5px; font-weight: 600; color: #6C8BC4;">Low</button>
+          <button type="button" class="item-priority-btn" data-priority="medium" title="Medium" style="flex: 1; padding: 7px; border: 2px solid #ddd; border-radius: 6px; background: white; cursor: pointer; font-size: 12.5px; font-weight: 600; color: #B36A00;">Medium</button>
+          <button type="button" class="item-priority-btn" data-priority="high" title="High" style="flex: 1; padding: 7px; border: 2px solid #ddd; border-radius: 6px; background: white; cursor: pointer; font-size: 12.5px; font-weight: 600; color: #E04858;">High</button>
         </div>
       </div>
     </div>
