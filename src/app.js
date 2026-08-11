@@ -6593,6 +6593,44 @@ document.querySelectorAll('.view-option').forEach((btn) => {
   });
 });
 
+// ---------- Mobile Bottom Navigation ----------
+const mobileNavBtns = document.querySelectorAll('.mobile-nav-btn');
+if (mobileNavBtns.length) {
+  mobileNavBtns.forEach(btn => {
+    btn.addEventListener('click', () => {
+      const action = btn.dataset.action;
+      
+      mobileNavBtns.forEach(b => b.classList.remove('active'));
+      btn.classList.add('active');
+
+      switch (action) {
+        case 'tasks':
+          activeWorkspace = 'tasks';
+          activeListId = 'all';
+          render();
+          break;
+        case 'regular':
+          activeWorkspace = 'kra';
+          render();
+          break;
+        case 'log':
+          openAttendancePopup();
+          break;
+        case 'projects':
+          openNewProjectPopup('');
+          break;
+        case 'analytics':
+          activeWorkspace = 'charts';
+          render();
+          break;
+        case 'hr':
+          openRegisterPopup();
+          break;
+      }
+    });
+  });
+}
+
 // ---------- boot ----------
 
 function ensureDefaultList() {
