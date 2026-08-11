@@ -3331,7 +3331,13 @@ function openItemPopup(existingItem = null, existingIsProject = false, presetAss
   const titleText = isEdit ? `Edit ${isProjectItem ? 'Project' : 'Task'}` : 'Add New Task/Project';
 
   popup.innerHTML = `
-    <h2 style="margin: 0 0 12px 0; font-size: 17px; font-weight: 600;">${titleText}</h2>
+    <div style="display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 10px; margin-bottom: 14px;">
+      <h2 style="margin: 0; font-size: 17px; font-weight: 600;">${titleText}</h2>
+      <div style="display: flex; gap: 8px; flex: 0 0 auto;">
+        <button type="button" id="cancelItemBtn" style="padding: 7px 16px; border: 1px solid #ddd; border-radius: 999px; background: white; cursor: pointer; font-size: 13px; font-weight: 500;">Cancel</button>
+        <button type="button" id="saveItemBtn" style="padding: 7px 18px; border: none; border-radius: 999px; background: #FFA500; color: white; cursor: pointer; font-size: 13px; font-weight: 600; box-shadow: 0 2px 8px rgba(255, 165, 0, 0.35);">${isEdit ? 'Save Changes' : 'Add'}</button>
+      </div>
+    </div>
 
     <div class="popup-2col" style="display: grid; grid-template-columns: 1.2fr 1fr; gap: 10px; margin-bottom: 10px;">
       <div>
@@ -3400,12 +3406,6 @@ function openItemPopup(existingItem = null, existingIsProject = false, presetAss
       </div>
     </div>
 
-    <div style="display: flex; align-items: center; justify-content: flex-end;">
-      <div style="display: flex; gap: 10px;">
-        <button type="button" id="cancelItemBtn" style="padding: 8px 20px; border: 1px solid #ddd; border-radius: 999px; background: white; cursor: pointer; font-size: 13.5px; font-weight: 500;">Cancel</button>
-        <button type="button" id="saveItemBtn" style="padding: 8px 22px; border: none; border-radius: 999px; background: #FFA500; color: white; cursor: pointer; font-size: 13.5px; font-weight: 600; box-shadow: 0 2px 8px rgba(255, 165, 0, 0.35);">${isEdit ? 'Save Changes' : 'Add'}</button>
-      </div>
-    </div>
   `;
 
   overlay.appendChild(popup);
@@ -6615,9 +6615,6 @@ if (mobileNavBtns.length) {
           break;
         case 'log':
           openAttendancePopup();
-          break;
-        case 'projects':
-          openNewProjectPopup('');
           break;
         case 'analytics':
           activeWorkspace = 'charts';
