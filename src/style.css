@@ -3040,7 +3040,7 @@ button.stat-card:hover {
 .charts-shell {
   display: flex;
   flex-direction: column;
-  gap: 16px;
+  gap: 10px;
 }
 
 /* Executive KPI Summary Cards Header */
@@ -3054,8 +3054,8 @@ button.stat-card:hover {
 .analytics-kpi-card {
   display: flex;
   align-items: center;
-  gap: 14px;
-  padding: 14px 18px;
+  gap: 10px;
+  padding: 8px 12px;
   background: var(--bg-elevated, #ffffff);
   border: 1px solid var(--border);
   border-radius: var(--radius-lg, 16px);
@@ -3132,7 +3132,7 @@ button.stat-card:hover {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  padding: 10px 16px;
+  padding: 6px 12px;
   background: var(--bg-elevated, #ffffff);
   border: 1px solid var(--border);
   border-radius: var(--radius-md, 12px);
@@ -3218,8 +3218,8 @@ button.stat-card:hover {
   display: flex;
   flex-wrap: wrap;
   align-items: flex-start;
-  gap: 16px;
-  padding-bottom: 12px;
+  gap: 10px;
+  padding-bottom: 8px;
 }
 
 /* Sized to land two per row at typical widths (each ~50% minus half the
@@ -3233,7 +3233,7 @@ button.stat-card:hover {
   border-radius: 16px;
   background: #ffffff;
   box-shadow: 0 10px 30px -5px rgba(17, 24, 39, 0.05), 0 1px 3px rgba(17, 24, 39, 0.02);
-  padding: 20px;
+  padding: 12px;
   display: flex;
   flex-direction: column;
   transition: transform 200ms ease, box-shadow 200ms ease;
@@ -3449,7 +3449,7 @@ button.stat-card:hover {
   display: flex;
   flex-direction: column;
   gap: 2px;
-  margin-bottom: 16px;
+  margin-bottom: 8px;
 }
 
 .chart-card-head h3 {
