@@ -6610,8 +6610,13 @@ if (mobileNavBtns.length) {
           render();
           break;
         case 'regular':
-          activeWorkspace = 'kra';
+          // "Regular Tasks" isn't its own workspace -- it's a section
+          // within the main "tasks" board (alongside Projects/
+          // Attendance/Activity) -- so switch there and scroll to it,
+          // same as the sidebar's Tabs link switches to 'kra'.
+          activeWorkspace = 'tasks';
           render();
+          document.querySelector('.regular-grid-panel')?.scrollIntoView({ behavior: 'smooth', block: 'start' });
           break;
         case 'log':
           openAttendancePopup();
