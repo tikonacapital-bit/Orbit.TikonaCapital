@@ -2258,9 +2258,16 @@ button.stat-card:hover {
 
 /* Read-only -- attendance is set by the employee's own check-in/out,
    not editable from this calendar, so no click handler and no hover
-   lift. Blue = checked in, green = checked in and out for the day. */
+   lift. Blue = checked in, green = checked in and out for the day.
+   Two lines (name, then in-out times) instead of the base pill's
+   single-line ellipsis truncation, so the actual times are visible
+   without needing to hover for the title tooltip. */
 .calendar-pill.attendance-calendar-pill {
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
   cursor: default;
+  white-space: normal;
   border-left-color: var(--secondary);
   background: rgba(58, 91, 160, 0.1);
   color: var(--secondary);
@@ -2273,6 +2280,32 @@ button.stat-card:hover {
   border-left-color: var(--success);
   background: rgba(30, 158, 107, 0.14);
   color: #146B48;
+}
+
+.attendance-pill-name {
+  font-size: 10.5px;
+  font-weight: 700;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.attendance-pill-times {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+  font-size: 9px;
+  font-weight: 600;
+}
+
+.attendance-pill-sep {
+  opacity: 0.5;
+}
+
+.attendance-calendar-pill .attendance-time.in,
+.attendance-calendar-pill .attendance-time.out {
+  font-size: 9px;
+  font-weight: 600;
 }
 
 .calendar-more {

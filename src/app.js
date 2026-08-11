@@ -2752,10 +2752,17 @@ function renderAttendanceCalendarView() {
         .filter(({ checkin }) => checkin);
 
       dayRecords.slice(0, maxPerDay).forEach(({ emp, checkin, checkout }) => {
+        const inTime = fmtTimeOnly(checkin.timestamp);
+        const outTime = checkout ? fmtTimeOnly(checkout.timestamp) : null;
         const pill = document.createElement('div');
         pill.className = `calendar-pill attendance-calendar-pill${checkout ? ' checked-out' : ''}`;
-        pill.textContent = emp.name || emp.email;
-        pill.title = `${emp.name || emp.email} — In ${fmtTimeOnly(checkin.timestamp)}${checkout ? `, Out ${fmtTimeOnly(checkout.timestamp)}` : ' (not checked out yet)'}`;
+        pill.title = `${emp.name || emp.email} — In ${inTime}${outTime ? `, Out ${outTime}` : ' (not checked out yet)'}`;
+        pill.innerHTML = `
+          <span class="attendance-pill-name">${escapeHtml(emp.name || emp.email)}</span>
+          <span class="attendance-pill-times">
+            <span class="attendance-time in">${inTime}</span><span class="attendance-pill-sep">–</span><span class="attendance-time out">${outTime || '—'}</span>
+          </span>
+        `;
         cell.appendChild(pill);
       });
 
