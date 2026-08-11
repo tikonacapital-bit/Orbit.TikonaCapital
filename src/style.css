@@ -3964,6 +3964,51 @@ button.stat-card:hover {
   .project-subtask-delete {
     visibility: visible;
   }
+
+  /* Regular Tasks / Attendance grids: table-layout:fixed + width:100%
+     meant the ~26-31 day columns had to share whatever was left after
+     the sticky info columns (Employee/Task/Time/Status, ~300px) ate
+     into a ~330px-wide phone screen -- they were collapsing to well
+     under 1px, rendering as a blank sliver instead of a usable grid.
+     Give the table a real min-width (sticky columns + a workable size
+     per day column) so table-layout:fixed has room to work with, and
+     let .regular-grid-panel's existing overflow:auto scroll it
+     horizontally -- same pattern as .task-table's min-width already
+     uses for the main task table on mobile. The first two columns
+     stay sticky (already handled elsewhere), so employee/task context
+     never scrolls out of view while swiping through the days. */
+  .regular-grid {
+    width: auto;
+    /* Regular Tasks shows every calendar day (not just weekdays), so
+       size for the true worst case -- a 31-day month -- otherwise an
+       under-count here makes table-layout:fixed compress even the
+       sticky columns to fit. */
+    min-width: calc(300px + 30px * 31);
+  }
+
+  .attendance-grid {
+    /* Attendance only shows weekdays (getAttendanceDates() drops
+       weekends), so 24 comfortably covers the worst-case month
+       without meaningfully over-inflating column widths. */
+    min-width: calc(204px + 46px * 24);
+  }
+
+  .regular-grid th:nth-child(n+5),
+  .regular-grid td:nth-child(n+5) {
+    width: 30px;
+    min-width: 30px;
+  }
+
+  .attendance-grid th:nth-child(n+3),
+  .attendance-grid td:nth-child(n+3) {
+    width: 46px;
+    min-width: 46px;
+  }
+
+  .regular-grid th small,
+  .regular-grid th span {
+    font-size: 9px;
+  }
 }
 
 @media (hover: none) and (pointer: coarse) {
