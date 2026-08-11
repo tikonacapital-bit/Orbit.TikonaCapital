@@ -2256,6 +2256,25 @@ button.stat-card:hover {
 .calendar-pill.regular-calendar-pill.done { border-left-color: var(--low); background: rgba(96, 165, 250, 0.14); }
 .calendar-pill.regular-calendar-pill:disabled { cursor: not-allowed; opacity: 0.5; }
 
+/* Read-only -- attendance is set by the employee's own check-in/out,
+   not editable from this calendar, so no click handler and no hover
+   lift. Blue = checked in, green = checked in and out for the day. */
+.calendar-pill.attendance-calendar-pill {
+  cursor: default;
+  border-left-color: var(--secondary);
+  background: rgba(58, 91, 160, 0.1);
+  color: var(--secondary);
+}
+.calendar-pill.attendance-calendar-pill:hover {
+  transform: none;
+  box-shadow: none;
+}
+.calendar-pill.attendance-calendar-pill.checked-out {
+  border-left-color: var(--success);
+  background: rgba(30, 158, 107, 0.14);
+  color: #146B48;
+}
+
 .calendar-more {
   font-size: 10px;
   font-weight: 600;

@@ -26,6 +26,7 @@ let attendanceMonth = firstDayOfMonth(new Date());
 let calendarMonth = firstDayOfMonth(new Date());
 let regularViewMode = 'grid';
 let regularCalendarMonth = firstDayOfMonth(new Date());
+let attendanceViewMode = 'grid';
 let sidebarTasksExpanded = true;
 let sidebarTabsExpanded = false;
 let viewMode = loadViewMode();
@@ -2675,11 +2676,103 @@ function renderAttendanceSection() {
   const title = document.createElement('h2');
   title.textContent = 'Attendance';
   header.appendChild(title);
+
+  const viewToggle = document.createElement('div');
+  viewToggle.className = 'regular-view-toggle';
+  [['grid', 'Grid'], ['calendar', 'Calendar']].forEach(([mode, label]) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `btn small${attendanceViewMode === mode ? ' active' : ''}`;
+    btn.textContent = label;
+    btn.addEventListener('click', () => {
+      if (attendanceViewMode === mode) return;
+      attendanceViewMode = mode;
+      render();
+    });
+    viewToggle.appendChild(btn);
+  });
+  header.appendChild(viewToggle);
   section.appendChild(header);
 
-  section.appendChild(renderAttendanceToolbar());
-  section.appendChild(renderAttendanceTable());
+  if (attendanceViewMode === 'calendar') {
+    section.appendChild(renderAttendanceCalendarView());
+  } else {
+    section.appendChild(renderAttendanceToolbar());
+    section.appendChild(renderAttendanceTable());
+  }
   return section;
+}
+
+function renderAttendanceCalendarView() {
+  const wrap = document.createElement('div');
+  wrap.className = 'calendar-view-panel attendance-calendar-panel';
+
+  wrap.appendChild(renderCalendarToolbar(attendanceMonth, (next) => {
+    attendanceMonth = next;
+    render();
+  }));
+
+  const grid = document.createElement('div');
+  grid.className = 'calendar-grid';
+
+  const weekdayRow = document.createElement('div');
+  weekdayRow.className = 'calendar-weekdays';
+  WEEKDAYS.forEach((w) => {
+    const cell = document.createElement('div');
+    cell.textContent = w;
+    weekdayRow.appendChild(cell);
+  });
+  grid.appendChild(weekdayRow);
+
+  const days = document.createElement('div');
+  days.className = 'calendar-days';
+
+  const month = attendanceMonth;
+  const startOfGrid = addDays(month, -month.getDay());
+  const today = todayStr();
+  const employees = getRegisteredEmployees();
+  const maxPerDay = 4;
+
+  for (let i = 0; i < 42; i++) {
+    const date = addDays(startOfGrid, i);
+    const key = dateKey(date);
+    const inMonth = date.getMonth() === month.getMonth();
+
+    const cell = document.createElement('div');
+    cell.className = `calendar-cell${inMonth ? '' : ' outside'}${key === today ? ' today' : ''}`;
+
+    const dayNum = document.createElement('div');
+    dayNum.className = 'calendar-day-num';
+    dayNum.textContent = date.getDate();
+    cell.appendChild(dayNum);
+
+    if (inMonth) {
+      const dayRecords = employees
+        .map((emp) => ({ emp, ...getAttendanceRecord(emp.email, key) }))
+        .filter(({ checkin }) => checkin);
+
+      dayRecords.slice(0, maxPerDay).forEach(({ emp, checkin, checkout }) => {
+        const pill = document.createElement('div');
+        pill.className = `calendar-pill attendance-calendar-pill${checkout ? ' checked-out' : ''}`;
+        pill.textContent = emp.name || emp.email;
+        pill.title = `${emp.name || emp.email} — In ${fmtTimeOnly(checkin.timestamp)}${checkout ? `, Out ${fmtTimeOnly(checkout.timestamp)}` : ' (not checked out yet)'}`;
+        cell.appendChild(pill);
+      });
+
+      if (dayRecords.length > maxPerDay) {
+        const more = document.createElement('div');
+        more.className = 'calendar-more';
+        more.textContent = `+${dayRecords.length - maxPerDay} more`;
+        cell.appendChild(more);
+      }
+    }
+
+    days.appendChild(cell);
+  }
+
+  grid.appendChild(days);
+  wrap.appendChild(grid);
+  return wrap;
 }
 
 function renderAttendanceToolbar() {
