@@ -920,6 +920,7 @@ function logActivity(type, email, ip, device, name = '', extra = {}) {
 
 function openRegisterPopup() {
   const today = todayStr();
+  const configured = isGoogleSignInConfigured();
   const { overlay, popup, confirmBtn } = openRegularPopup('Register Employee', `
     <div class="popup-2col" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
       <div>
@@ -928,8 +929,13 @@ function openRegisterPopup() {
       </div>
       <div>
         <label style="${FIELD_LABEL_STYLE}">Email address *</label>
-        <input type="email" id="registerEmail" placeholder="you@company.com" style="${FIELD_STYLE}">
+        <input type="email" id="registerEmail" placeholder="you@company.com" style="${FIELD_STYLE}" ${configured ? 'readonly' : ''}>
       </div>
+    </div>
+    <div style="margin-bottom:10px;">
+      <div id="registerEmailSignIn" style="${configured ? '' : 'display:none;'}"></div>
+      <div id="registerEmailStatus" style="display:none;padding:8px 10px;border-radius:8px;font-size:12.5px;font-weight:600;"></div>
+      ${configured ? '' : '<p style="margin:0;font-size:12px;color:#8a94a6;">Google Sign-In isn’t configured yet (see GOOGLE_CLIENT_ID in app.js) — the typed email won’t be verified.</p>'}
     </div>
     <div class="popup-2col" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
       <div>
@@ -945,12 +951,50 @@ function openRegisterPopup() {
 
   popup.querySelector('#registerName').focus();
 
+  const emailInput = popup.querySelector('#registerEmail');
+  const signInWrap = popup.querySelector('#registerEmailSignIn');
+  const statusEl = popup.querySelector('#registerEmailStatus');
+  let verifiedEmail = null;
+
+  function showStatus(text, tone) {
+    statusEl.style.display = 'block';
+    statusEl.textContent = text;
+    statusEl.style.background = tone === 'ok' ? 'rgba(30,158,107,0.14)' : 'rgba(230,138,0,0.14)';
+    statusEl.style.color = tone === 'ok' ? '#146B48' : '#E68A00';
+  }
+
+  if (configured) {
+    google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: async (response) => {
+        signInWrap.style.display = 'none';
+        showStatus('Verifying with Google…', 'pending');
+        const email = await verifyGoogleIdToken(response.credential);
+        if (!email) {
+          signInWrap.style.display = '';
+          showStatus('Could not verify that Google sign-in. Please try again.', 'warn');
+          return;
+        }
+        if (isEmailRegistered(email)) {
+          signInWrap.style.display = '';
+          showStatus(`${email} is already registered.`, 'warn');
+          return;
+        }
+        verifiedEmail = email;
+        emailInput.value = email;
+        showStatus(`Verified ${email} ✓`, 'ok');
+      },
+    });
+    google.accounts.id.renderButton(signInWrap, { theme: 'outline', size: 'medium', width: 240 });
+  }
+
   confirmBtn.addEventListener('click', () => {
     const name = popup.querySelector('#registerName').value.trim();
-    const email = popup.querySelector('#registerEmail').value.trim().toLowerCase();
     const joiningDate = popup.querySelector('#registerJoiningDate').value;
     const endDate = popup.querySelector('#registerEndDate').value;
     if (!name) { alert("Please enter the employee's name."); return; }
+    if (configured && !verifiedEmail) { alert('Please verify the email address with Google before registering.'); return; }
+    const email = (verifiedEmail || emailInput.value.trim().toLowerCase());
     if (!EMAIL_RE.test(email)) { alert('Please enter a valid email address.'); return; }
     if (!joiningDate) { alert('Please select a joining date.'); return; }
     if (isEmailRegistered(email)) { alert('This email is already registered.'); return; }
@@ -5292,8 +5336,44 @@ function renderKraWorkspace() {
   wrap.className = 'kra-workspace';
 
   const activeTab = getActiveKraTab();
-  // Tab navigation (switch/rename/remove/add) now lives entirely in the
-  // sidebar's Tabs group -- no need to duplicate it here too.
+  // Tab navigation (switch/rename/remove/add) lives in the sidebar's Tabs
+  // group on desktop -- but the sidebar is hidden on mobile entirely, so
+  // mobile got no way to switch tabs, see what other tabs exist, or add
+  // one. This strip duplicates just that (switch/add/remove) inline,
+  // CSS-gated to only show up at the same breakpoint the sidebar disappears.
+  const mobileStrip = document.createElement('div');
+  mobileStrip.className = 'kra-mobile-tabstrip';
+  (state.kraTabs || []).forEach((tab) => {
+    const pillWrap = document.createElement('div');
+    pillWrap.className = 'kra-mobile-tab-pill-wrap';
+    const pill = document.createElement('button');
+    pill.type = 'button';
+    pill.className = `kra-mobile-tab-pill${activeTab && tab.id === activeTab.id ? ' active' : ''}`;
+    pill.textContent = tab.name;
+    pill.addEventListener('click', () => switchKraTab(tab.id));
+    pillWrap.appendChild(pill);
+    if ((state.kraTabs || []).length > 1) {
+      const removeBtn = document.createElement('button');
+      removeBtn.type = 'button';
+      removeBtn.className = 'kra-mobile-tab-remove';
+      removeBtn.innerHTML = '&times;';
+      removeBtn.title = 'Remove tab';
+      removeBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        removeKraTab(tab);
+      });
+      pillWrap.appendChild(removeBtn);
+    }
+    mobileStrip.appendChild(pillWrap);
+  });
+  const addTabPill = document.createElement('button');
+  addTabPill.type = 'button';
+  addTabPill.className = 'kra-mobile-tab-pill kra-mobile-tab-add';
+  addTabPill.textContent = '+ New tab';
+  addTabPill.addEventListener('click', () => addKraTab());
+  mobileStrip.appendChild(addTabPill);
+  wrap.appendChild(mobileStrip);
+
   dashboardTitleEl.textContent = activeTab ? `Tabs — ${activeTab.name}` : 'Tabs';
 
   if (!activeTab) return wrap;
@@ -5302,7 +5382,9 @@ function renderKraWorkspace() {
   // setViewbarActions), in the same spot Archived/+Add/+New list occupy
   // for the main board, instead of a second toolbar row inside the
   // workspace -- that second row was what pushed the actual content down
-  // below where the equivalent main-board content starts.
+  // below where the equivalent main-board content starts. Mobile hides
+  // the viewbar entirely though, so it also gets its own copy of this
+  // button (CSS-gated the same way as the tab strip above).
   kraViewActionsEl.innerHTML = '';
   const addBtn = document.createElement('button');
   addBtn.type = 'button';
@@ -5310,6 +5392,13 @@ function renderKraWorkspace() {
   addBtn.textContent = '+ Add Website';
   addBtn.addEventListener('click', () => openAddKraWidgetPopup(activeTab));
   kraViewActionsEl.appendChild(addBtn);
+
+  const mobileAddBtn = document.createElement('button');
+  mobileAddBtn.type = 'button';
+  mobileAddBtn.className = 'kra-mobile-add-website';
+  mobileAddBtn.textContent = '+ Add Website';
+  mobileAddBtn.addEventListener('click', () => openAddKraWidgetPopup(activeTab));
+  wrap.appendChild(mobileAddBtn);
 
   const widgets = activeTab.widgets || [];
   if (!widgets.length) {

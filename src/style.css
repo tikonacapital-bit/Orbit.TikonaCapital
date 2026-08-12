@@ -3394,6 +3394,16 @@ button.stat-card:hover {
   background: rgba(31, 70, 144, 0.05);
 }
 
+/* Mobile-only stand-ins for the sidebar's Tabs group (switch/add/remove)
+   and the viewbar's "+ Add Website" -- both live outside .kra-workspace
+   normally, but are hidden entirely below the 768px breakpoint with
+   nothing else replacing them. Hidden by default; shown in the mobile
+   media query further down. */
+.kra-mobile-tabstrip,
+.kra-mobile-add-website {
+  display: none;
+}
+
 /* ==========================================================================
    KRA widget grid — same drag-to-reorder + native-resize pattern as the
    charts dashboard above, just holding an iframe instead of a chart.
@@ -4060,6 +4070,81 @@ button.stat-card:hover {
   .regular-grid th small,
   .regular-grid th span {
     font-size: 9px;
+  }
+
+  /* Stand-ins for the now-hidden sidebar Tabs group + viewbar "+ Add
+     Website" -- see the .kra-mobile-* rules near .kra-grid for why. */
+  .kra-mobile-tabstrip {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    overflow-x: auto;
+    padding-bottom: 10px;
+    margin-bottom: 12px;
+    border-bottom: 1px solid var(--border);
+  }
+
+  .kra-mobile-tab-pill-wrap {
+    display: flex;
+    align-items: center;
+    flex: 0 0 auto;
+    border-radius: 999px;
+    background: var(--bg-elevated);
+    border: 1px solid var(--border);
+  }
+
+  .kra-mobile-tab-pill-wrap:has(.kra-mobile-tab-pill.active) {
+    border-color: var(--primary);
+  }
+
+  .kra-mobile-tab-pill {
+    flex: 0 0 auto;
+    white-space: nowrap;
+    padding: 7px 12px;
+    border: none;
+    background: transparent;
+    border-radius: 999px;
+    font-size: 12.5px;
+    font-weight: 600;
+    color: var(--text-muted);
+    cursor: pointer;
+  }
+
+  .kra-mobile-tab-pill.active {
+    color: var(--primary);
+  }
+
+  .kra-mobile-tab-remove {
+    flex: 0 0 auto;
+    width: 20px;
+    height: 20px;
+    margin-right: 4px;
+    border: none;
+    background: transparent;
+    border-radius: 50%;
+    color: var(--text-muted);
+    font-size: 14px;
+    line-height: 1;
+    cursor: pointer;
+  }
+
+  .kra-mobile-tab-add {
+    background: var(--bg-elevated);
+    border: 1px dashed var(--border);
+    color: var(--primary);
+  }
+
+  .kra-mobile-add-website {
+    display: block;
+    margin-bottom: 12px;
+    padding: 9px 16px;
+    border: none;
+    border-radius: 999px;
+    background: var(--primary);
+    color: #fff;
+    font-size: 13px;
+    font-weight: 600;
+    cursor: pointer;
   }
 }
 
