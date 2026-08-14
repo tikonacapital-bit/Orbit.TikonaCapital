@@ -3094,37 +3094,20 @@ button.stat-card:hover {
   overflow-y: auto;
 }
 
-.productivity-toolbar {
-  display: flex;
-  align-items: flex-start;
-  gap: 14px;
-}
-
+/* Sits in the viewbar (see #productivityViewActions in index.html),
+   so it inherits .tab-add's pill look -- same as "Archived / + Add"
+   and "+ Add Website" in that same spot for the other workspaces.
+   This just adds the icon+label layout and a disabled state on top. */
 .productivity-download-btn {
-  display: flex;
+  display: inline-flex;
   align-items: center;
   gap: 6px;
-  flex: 0 0 auto;
-  padding: 10px 16px;
-  margin-top: 22px;
-  border: none;
-  border-radius: 999px;
-  background: var(--primary);
-  color: #fff;
-  font-size: 13px;
-  font-weight: 600;
-  cursor: pointer;
-  white-space: nowrap;
-}
-
-.productivity-download-btn:hover:not(:disabled) {
-  background: var(--secondary);
 }
 
 .productivity-download-btn:disabled {
-  background: rgba(100, 116, 139, 0.25);
-  color: rgba(100, 116, 139, 0.8);
+  opacity: 0.5;
   cursor: not-allowed;
+  pointer-events: none;
 }
 
 .productivity-print-header {
@@ -3260,13 +3243,6 @@ button.stat-card:hover {
   .productivity-summary-grid {
     grid-template-columns: 1fr;
   }
-  .productivity-toolbar {
-    flex-direction: column;
-  }
-  .productivity-download-btn {
-    margin-top: 0;
-    align-self: flex-start;
-  }
 }
 
 /* Printing (the Productivity report's "Download PDF" button calls
@@ -3318,7 +3294,7 @@ button.stat-card:hover {
   .mobile-bottom-nav,
   .mobile-fab-add,
   .viewbar,
-  .productivity-toolbar {
+  .productivity-filters {
     display: none !important;
   }
 

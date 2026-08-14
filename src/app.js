@@ -7,6 +7,7 @@ const statsEl = document.getElementById('stats');
 const dashboardTitleEl = document.getElementById('dashboardTitle');
 const mainViewActionsEl = document.getElementById('mainViewActions');
 const kraViewActionsEl = document.getElementById('kraViewActions');
+const productivityViewActionsEl = document.getElementById('productivityViewActions');
 const tplList = document.getElementById('tpl-list');
 const tplSection = document.getElementById('tpl-section');
 const tplTask = document.getElementById('tpl-task');
@@ -2121,13 +2122,15 @@ const SCROLL_PANEL_SELECTOR = '.regular-grid-panel, .table-panel, .stack-panel';
 let lastRenderKey = null;
 
 // "Archived / + Add" only makes sense for the main task board -- Tabs
-// gets its own single "+ Add Website" action instead, and Analytics
-// gets none. Only one of the two viewbar-actions containers is ever
-// shown at a time.
+// gets its own single "+ Add Website" action instead, Productivity
+// gets its "Download PDF" button, and Analytics gets none. Only one of
+// the viewbar-actions containers is ever shown at a time.
 function setViewbarActions(mode) {
   mainViewActionsEl.classList.toggle('hidden', mode !== 'main');
   kraViewActionsEl.classList.toggle('hidden', mode !== 'kra');
+  productivityViewActionsEl.classList.toggle('hidden', mode !== 'productivity');
   if (mode !== 'kra') kraViewActionsEl.innerHTML = '';
+  if (mode !== 'productivity') productivityViewActionsEl.innerHTML = '';
 }
 
 function render() {
@@ -2170,7 +2173,7 @@ function render() {
     }
 
     if (activeWorkspace === 'productivity') {
-      setViewbarActions('none');
+      setViewbarActions('productivity');
       dashboardTitleEl.textContent = 'Productivity';
       statsEl.innerHTML = '';
       boardEl.innerHTML = '';
@@ -6528,9 +6531,6 @@ function renderProductivityWorkspace() {
   const wrap = document.createElement('div');
   wrap.className = 'productivity-workspace';
 
-  const toolbar = document.createElement('div');
-  toolbar.className = 'productivity-toolbar';
-
   const filters = document.createElement('div');
   filters.className = 'productivity-filters';
 
@@ -6574,20 +6574,22 @@ function renderProductivityWorkspace() {
   toField.appendChild(toInput);
   filters.appendChild(toField);
 
-  toolbar.appendChild(filters);
+  wrap.appendChild(filters);
 
+  // Lives in the viewbar (top of the page, next to the "Productivity"
+  // title) rather than inline with the filters below -- same spot
+  // "Archived / + Add" occupies for the main task board and
+  // "+ Add Website" occupies for Tabs.
   const ready = Boolean(productivityEmployee && productivityFrom && productivityTo && productivityFrom <= productivityTo);
-
   const downloadBtn = document.createElement('button');
   downloadBtn.type = 'button';
-  downloadBtn.className = 'productivity-download-btn';
+  downloadBtn.className = 'tab-add productivity-download-btn';
   downloadBtn.disabled = !ready;
   downloadBtn.title = ready ? 'Download this report as a PDF' : 'Choose an employee and a date range first';
-  downloadBtn.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg><span>Download PDF</span>';
+  downloadBtn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg><span>Download PDF</span>';
   downloadBtn.addEventListener('click', () => window.print());
-  toolbar.appendChild(downloadBtn);
-
-  wrap.appendChild(toolbar);
+  productivityViewActionsEl.innerHTML = '';
+  productivityViewActionsEl.appendChild(downloadBtn);
 
   if (!productivityEmployee || !productivityFrom || !productivityTo) {
     wrap.appendChild(renderEmptyState('Choose an employee and a date range to see their performance report.'));
