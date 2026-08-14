@@ -27,6 +27,10 @@ let calendarMonth = firstDayOfMonth(new Date());
 let regularViewMode = 'grid';
 let regularCalendarMonth = firstDayOfMonth(new Date());
 let attendanceViewMode = 'grid';
+let productivityEmployee = '';
+let productivityCategory = '';
+let productivityFrom = '';
+let productivityTo = '';
 let sidebarTasksExpanded = true;
 let sidebarTabsExpanded = false;
 let viewMode = loadViewMode();
@@ -2165,6 +2169,17 @@ function render() {
       return;
     }
 
+    if (activeWorkspace === 'productivity') {
+      setViewbarActions('none');
+      dashboardTitleEl.textContent = 'Productivity';
+      statsEl.innerHTML = '';
+      boardEl.innerHTML = '';
+      boardEl.className = 'board';
+      boardEl.appendChild(renderProductivityWorkspace());
+      lastRenderKey = renderKey;
+      return;
+    }
+
     if (activeWorkspace === 'kra') {
       setViewbarActions('kra');
       dashboardTitleEl.textContent = 'Tabs';
@@ -2396,6 +2411,19 @@ function renderSidebar() {
     render();
   });
   top.appendChild(analyticsBtn);
+
+  // ---- Productivity: no sub-list, plain link, same pattern as Analytics. ----
+  const productivityBtn = document.createElement('button');
+  productivityBtn.type = 'button';
+  productivityBtn.id = 'productivityBtn';
+  productivityBtn.className = `sidebar-item${activeWorkspace === 'productivity' ? ' active' : ''}`;
+  productivityBtn.title = 'Productivity';
+  productivityBtn.innerHTML = '<svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l3-3 3 3 6-6"/><path d="M13 3h4v4"/></svg><span class="nav-label">Productivity</span>';
+  productivityBtn.addEventListener('click', () => {
+    activeWorkspace = 'productivity';
+    render();
+  });
+  top.appendChild(productivityBtn);
 
 
   // ---- Bottom-pinned employee actions. ----
@@ -4427,7 +4455,7 @@ function regularScheduleLabel(task) {
 
 function renderViewTabs() {
   const viewMenu = document.querySelector('.view-menu');
-  if (activeWorkspace === 'regular' || activeWorkspace === 'charts' || activeWorkspace === 'kra') {
+  if (activeWorkspace === 'regular' || activeWorkspace === 'charts' || activeWorkspace === 'kra' || activeWorkspace === 'productivity') {
     if (viewMenu) viewMenu.style.display = 'none';
     return;
   }
@@ -6291,6 +6319,252 @@ function renderPieChart({ data, size = 148, thickness = 26 }) {
     legend.appendChild(item);
   });
   wrap.appendChild(legend);
+
+  return wrap;
+}
+
+// ---------- Productivity report ----------
+
+function productivityDateStrDiffDays(laterStr, earlierStr) {
+  const later = new Date(`${laterStr}T00:00:00`);
+  const earlier = new Date(`${earlierStr}T00:00:00`);
+  return Math.round((later - earlier) / 86400000);
+}
+
+function productivityResultLabel(item) {
+  if (item.done) return 'Completed';
+  if (itemDisplayProgress(item) > 0) return 'In Progress';
+  return 'Not Started';
+}
+
+function productivityDeliveryInfo(item) {
+  const due = item.due || item.dueDate || null;
+  if (!item.done || !due || !item.completedAt) return { text: '—', cls: 'neutral' };
+  const completedKey = dateKey(new Date(item.completedAt));
+  const diff = productivityDateStrDiffDays(completedKey, due);
+  if (diff === 0) return { text: 'On time', cls: 'ontime' };
+  if (diff > 0) return { text: `${diff} day${diff === 1 ? '' : 's'} late`, cls: 'late' };
+  const early = Math.abs(diff);
+  return { text: `${early} day${early === 1 ? '' : 's'} early`, cls: 'early' };
+}
+
+function productivityInRange(item, from, to) {
+  const due = item.due || item.dueDate || null;
+  const start = item.startDate || null;
+  if (due) return due >= from && due <= to;
+  if (start) return start >= from && start <= to;
+  return false;
+}
+
+function buildProductivityRows(employee, category, from, to) {
+  const matchesCategory = (item) => !category || item.category === category;
+
+  const taskRows = state.lists.flatMap((list) => list.tasks)
+    .filter((t) => sameEmployee(t.assignedTo, employee) && matchesCategory(t) && productivityInRange(t, from, to))
+    .map((t) => ({ kind: 'task', name: t.text, startDate: t.startDate, due: t.due, done: t.done, progress: t.progress, status: t.status, completedAt: t.completedAt }));
+
+  const projectRows = (state.projects || [])
+    .filter((p) => !p.archived && !p.deleted && (p.owners || []).some((o) => sameEmployee(o, employee)) && matchesCategory(p) && productivityInRange(p, from, to))
+    .map((p) => ({ kind: 'project', name: p.name, startDate: p.startDate, due: p.dueDate, done: p.done, progress: p.progress, status: p.status, completedAt: p.completedAt }));
+
+  return [...taskRows, ...projectRows].sort((a, b) => (a.due || '9999-99-99').localeCompare(b.due || '9999-99-99'));
+}
+
+function productivityDateRangeArray(from, to) {
+  const fromDate = new Date(`${from}T00:00:00`);
+  const toDate = new Date(`${to}T00:00:00`);
+  const days = Math.max(0, Math.round((toDate - fromDate) / 86400000)) + 1;
+  return Array.from({ length: days }, (_, i) => addDays(fromDate, i));
+}
+
+function buildProductivitySummary(employee, category, from, to) {
+  const matchesCategory = (item) => !category || item.category === category;
+
+  const tasks = state.lists.flatMap((list) => list.tasks)
+    .filter((t) => sameEmployee(t.assignedTo, employee) && matchesCategory(t) && productivityInRange(t, from, to));
+  const taskStats = { done: tasks.filter((t) => t.done).length, total: tasks.length };
+
+  const projects = (state.projects || [])
+    .filter((p) => !p.archived && !p.deleted && (p.owners || []).some((o) => sameEmployee(o, employee)) && matchesCategory(p) && productivityInRange(p, from, to));
+  const projectStats = { done: projects.filter((p) => p.done).length, total: projects.length };
+
+  const dates = productivityDateRangeArray(from, to);
+  const regularTasks = (state.regular?.tasks || []).filter((t) => sameEmployee(t.owner, employee) && matchesCategory(t));
+  const regularStats = regularTasks.reduce((acc, task) => {
+    const p = regularTaskProgress(task, dates);
+    acc.done += p.done;
+    acc.total += p.total;
+    return acc;
+  }, { done: 0, total: 0 });
+
+  return [
+    { label: 'Tasks', ...taskStats },
+    { label: 'Projects', ...projectStats },
+    { label: 'Regular Tasks', ...regularStats },
+  ];
+}
+
+function renderProductivityTable(rows) {
+  const panel = document.createElement('div');
+  panel.className = 'table-panel productivity-table-panel';
+
+  if (!rows.length) {
+    panel.appendChild(renderEmptyState('No tasks or projects match these filters.'));
+    return panel;
+  }
+
+  const table = document.createElement('table');
+  table.className = 'task-table productivity-table';
+  const thead = document.createElement('thead');
+  const headRow = document.createElement('tr');
+  ['Task', 'Start Date', 'Due Date', 'Status', 'Result', 'Delivery'].forEach((label) => {
+    const th = document.createElement('th');
+    th.textContent = label;
+    headRow.appendChild(th);
+  });
+  thead.appendChild(headRow);
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  rows.forEach((item) => {
+    const tr = document.createElement('tr');
+
+    const nameTd = document.createElement('td');
+    nameTd.className = 'productivity-task-name';
+    if (item.kind === 'project') {
+      const icon = document.createElement('span');
+      icon.className = 'project-icon';
+      icon.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>';
+      icon.style.cssText = 'display:inline-flex;align-items:center;color:var(--text-muted);margin-right:6px;';
+      nameTd.appendChild(icon);
+    }
+    nameTd.appendChild(document.createTextNode(item.name || 'Untitled'));
+    tr.appendChild(nameTd);
+
+    tr.appendChild(textCell(item.startDate ? fmtShort(new Date(`${item.startDate}T00:00:00`).getTime()) : '—'));
+    tr.appendChild(textCell(item.due ? fmtShort(new Date(`${item.due}T00:00:00`).getTime()) : '—'));
+
+    const statusTd = document.createElement('td');
+    const pct = itemDisplayProgress(item);
+    const statusPill = document.createElement('span');
+    statusPill.className = `productivity-status-pill${pct >= 100 ? ' full' : pct > 0 ? ' partial' : ' empty'}`;
+    statusPill.textContent = `${pct}%`;
+    statusTd.appendChild(statusPill);
+    tr.appendChild(statusTd);
+
+    const resultTd = document.createElement('td');
+    const result = productivityResultLabel(item);
+    const resultPill = document.createElement('span');
+    resultPill.className = `productivity-result-pill result-${result.toLowerCase().replace(/\s+/g, '-')}`;
+    resultPill.textContent = result;
+    resultTd.appendChild(resultPill);
+    tr.appendChild(resultTd);
+
+    const delivery = productivityDeliveryInfo(item);
+    const deliveryTd = document.createElement('td');
+    deliveryTd.className = `productivity-delivery ${delivery.cls}`;
+    deliveryTd.textContent = delivery.text;
+    tr.appendChild(deliveryTd);
+
+    tbody.appendChild(tr);
+  });
+  table.appendChild(tbody);
+  panel.appendChild(table);
+  return panel;
+}
+
+function renderProductivitySummary(summary) {
+  const wrap = document.createElement('div');
+  wrap.className = 'productivity-summary';
+
+  const heading = document.createElement('h3');
+  heading.className = 'productivity-summary-heading';
+  heading.textContent = 'Completion summary';
+  wrap.appendChild(heading);
+
+  const grid = document.createElement('div');
+  grid.className = 'productivity-summary-grid';
+  summary.forEach(({ label, done, total }) => {
+    const pct = total ? Math.round((done / total) * 100) : 0;
+    const card = document.createElement('div');
+    card.className = 'productivity-summary-card';
+    card.innerHTML = `
+      <div class="productivity-summary-label">${escapeHtml(label)}</div>
+      <div class="productivity-summary-pct">${pct}%</div>
+      <div class="productivity-summary-frac">${done}/${total} completed</div>
+      <div class="productivity-summary-bar"><div class="productivity-summary-bar-fill" style="width:${pct}%"></div></div>
+    `;
+    grid.appendChild(card);
+  });
+  wrap.appendChild(grid);
+
+  return wrap;
+}
+
+function renderProductivityWorkspace() {
+  const wrap = document.createElement('div');
+  wrap.className = 'productivity-workspace';
+
+  const filters = document.createElement('div');
+  filters.className = 'productivity-filters';
+
+  const empField = document.createElement('div');
+  empField.className = 'productivity-field';
+  empField.innerHTML = '<label>Employee</label>';
+  const empSelect = document.createElement('select');
+  const employeeNames = getAllEmployees();
+  empSelect.innerHTML = `<option value="">Select employee…</option>${employeeNames.map((name) => `<option value="${escapeHtml(name)}"${name === productivityEmployee ? ' selected' : ''}>${escapeHtml(name)}</option>`).join('')}`;
+  empSelect.addEventListener('change', () => { productivityEmployee = empSelect.value; render(); });
+  empField.appendChild(empSelect);
+  filters.appendChild(empField);
+
+  const catField = document.createElement('div');
+  catField.className = 'productivity-field';
+  catField.innerHTML = '<label>Category</label>';
+  const catSelect = document.createElement('select');
+  const categories = state.categories || [];
+  catSelect.innerHTML = `<option value="">All categories</option>${categories.map((c) => `<option value="${escapeHtml(c)}"${c === productivityCategory ? ' selected' : ''}>${escapeHtml(c)}</option>`).join('')}`;
+  catSelect.addEventListener('change', () => { productivityCategory = catSelect.value; render(); });
+  catField.appendChild(catSelect);
+  filters.appendChild(catField);
+
+  const fromField = document.createElement('div');
+  fromField.className = 'productivity-field';
+  fromField.innerHTML = '<label>From</label>';
+  const fromInput = document.createElement('input');
+  fromInput.type = 'date';
+  fromInput.value = productivityFrom;
+  fromInput.addEventListener('change', () => { productivityFrom = fromInput.value; render(); });
+  fromField.appendChild(fromInput);
+  filters.appendChild(fromField);
+
+  const toField = document.createElement('div');
+  toField.className = 'productivity-field';
+  toField.innerHTML = '<label>To</label>';
+  const toInput = document.createElement('input');
+  toInput.type = 'date';
+  toInput.value = productivityTo;
+  toInput.addEventListener('change', () => { productivityTo = toInput.value; render(); });
+  toField.appendChild(toInput);
+  filters.appendChild(toField);
+
+  wrap.appendChild(filters);
+
+  if (!productivityEmployee || !productivityFrom || !productivityTo) {
+    wrap.appendChild(renderEmptyState('Choose an employee and a date range to see their performance report.'));
+    return wrap;
+  }
+
+  if (productivityFrom > productivityTo) {
+    wrap.appendChild(renderEmptyState('The "From" date is after the "To" date — please fix the range.'));
+    return wrap;
+  }
+
+  const rows = buildProductivityRows(productivityEmployee, productivityCategory, productivityFrom, productivityTo);
+  wrap.appendChild(renderProductivityTable(rows));
+
+  const summary = buildProductivitySummary(productivityEmployee, productivityCategory, productivityFrom, productivityTo);
+  wrap.appendChild(renderProductivitySummary(summary));
 
   return wrap;
 }
