@@ -6528,6 +6528,9 @@ function renderProductivityWorkspace() {
   const wrap = document.createElement('div');
   wrap.className = 'productivity-workspace';
 
+  const toolbar = document.createElement('div');
+  toolbar.className = 'productivity-toolbar';
+
   const filters = document.createElement('div');
   filters.className = 'productivity-filters';
 
@@ -6571,7 +6574,20 @@ function renderProductivityWorkspace() {
   toField.appendChild(toInput);
   filters.appendChild(toField);
 
-  wrap.appendChild(filters);
+  toolbar.appendChild(filters);
+
+  const ready = Boolean(productivityEmployee && productivityFrom && productivityTo && productivityFrom <= productivityTo);
+
+  const downloadBtn = document.createElement('button');
+  downloadBtn.type = 'button';
+  downloadBtn.className = 'productivity-download-btn';
+  downloadBtn.disabled = !ready;
+  downloadBtn.title = ready ? 'Download this report as a PDF' : 'Choose an employee and a date range first';
+  downloadBtn.innerHTML = '<svg viewBox="0 0 24 24" width="15" height="15" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg><span>Download PDF</span>';
+  downloadBtn.addEventListener('click', () => window.print());
+  toolbar.appendChild(downloadBtn);
+
+  wrap.appendChild(toolbar);
 
   if (!productivityEmployee || !productivityFrom || !productivityTo) {
     wrap.appendChild(renderEmptyState('Choose an employee and a date range to see their performance report.'));
@@ -6582,6 +6598,19 @@ function renderProductivityWorkspace() {
     wrap.appendChild(renderEmptyState('The "From" date is after the "To" date — please fix the range.'));
     return wrap;
   }
+
+  // Print-only summary of the active filters -- the interactive
+  // dropdowns/date inputs above are hidden in the print stylesheet
+  // (form controls don't print meaningfully), so this plain-text line
+  // is what actually identifies the report in the PDF/printout.
+  const printHeader = document.createElement('div');
+  printHeader.className = 'productivity-print-header';
+  const rangeText = `${fmtShort(new Date(`${productivityFrom}T00:00:00`).getTime())} – ${fmtShort(new Date(`${productivityTo}T00:00:00`).getTime())}, ${productivityFrom.slice(0, 4)}`;
+  printHeader.innerHTML = `
+    <h2>Productivity Report</h2>
+    <p><strong>Employee:</strong> ${escapeHtml(productivityEmployee)} &nbsp;·&nbsp; <strong>Category:</strong> ${escapeHtml(productivityCategory || 'All')} &nbsp;·&nbsp; <strong>Range:</strong> ${rangeText}</p>
+  `;
+  wrap.appendChild(printHeader);
 
   const taskRows = buildProductivityTaskRows(productivityEmployee, productivityCategory, productivityFrom, productivityTo);
   wrap.appendChild(renderProductivityTable('Tasks', taskRows, 'No tasks match these filters.'));

@@ -3094,8 +3094,46 @@ button.stat-card:hover {
   overflow-y: auto;
 }
 
+.productivity-toolbar {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+}
+
+.productivity-download-btn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex: 0 0 auto;
+  padding: 10px 16px;
+  margin-top: 22px;
+  border: none;
+  border-radius: 999px;
+  background: var(--primary);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.productivity-download-btn:hover:not(:disabled) {
+  background: var(--secondary);
+}
+
+.productivity-download-btn:disabled {
+  background: rgba(100, 116, 139, 0.25);
+  color: rgba(100, 116, 139, 0.8);
+  cursor: not-allowed;
+}
+
+.productivity-print-header {
+  display: none;
+}
+
 .productivity-filters {
   display: flex;
+  flex: 1 1 auto;
   flex-wrap: wrap;
   gap: 14px;
   padding: 16px;
@@ -3221,6 +3259,110 @@ button.stat-card:hover {
   }
   .productivity-summary-grid {
     grid-template-columns: 1fr;
+  }
+  .productivity-toolbar {
+    flex-direction: column;
+  }
+  .productivity-download-btn {
+    margin-top: 0;
+    align-self: flex-start;
+  }
+}
+
+/* Printing (the Productivity report's "Download PDF" button calls
+   window.print(), then the browser's own "Save as PDF" does the rest)
+   -- strip away everything that isn't the report itself: sidebar,
+   topbar, mobile chrome, decorative background, the interactive
+   filter controls (a printed <select>/<input type=date> isn't
+   meaningful), and the download button. The plain-text
+   .productivity-print-header takes over identifying what was
+   filtered for, since the dropdowns/date inputs above are gone. */
+@page {
+  size: landscape;
+  margin: 12mm;
+}
+
+@media print {
+  html, body {
+    background: #fff !important;
+  }
+
+  /* Chrome/Edge omit background colors and box-shadows when printing
+     unless told otherwise -- without this the navy table headers and
+     the Status/Result colored pills all print as plain white/black. */
+  .productivity-workspace, .productivity-workspace * {
+    -webkit-print-color-adjust: exact !important;
+    print-color-adjust: exact !important;
+  }
+
+  /* .task-table's min-width:860px (needed on screen so the sticky-
+     column pattern's horizontal scroll works on narrow viewports) is
+     wider than a printable page, silently clipping the rightmost
+     (Delivery) column off the page. Drop it here and let the table
+     compress to the actual page width instead. */
+  .productivity-table {
+    min-width: 0 !important;
+    width: 100% !important;
+    table-layout: auto !important;
+    font-size: 11px;
+  }
+
+  .productivity-table th,
+  .productivity-table td {
+    padding: 6px 8px !important;
+  }
+
+  .app-sidebar,
+  .sidebar-resize-handle,
+  .topbar,
+  .mobile-bottom-nav,
+  .mobile-fab-add,
+  .viewbar,
+  .productivity-toolbar {
+    display: none !important;
+  }
+
+  .dashboard-shell,
+  .dashboard-main,
+  .board,
+  .productivity-workspace {
+    background: #fff !important;
+    background-image: none !important;
+    overflow: visible !important;
+    height: auto !important;
+    padding: 0 !important;
+    margin: 0 !important;
+    display: block !important;
+  }
+
+  .productivity-print-header {
+    display: block !important;
+    margin-bottom: 16px;
+  }
+
+  .productivity-print-header h2 {
+    margin: 0 0 4px;
+    font-size: 18px;
+  }
+
+  .productivity-print-header p {
+    margin: 0;
+    font-size: 12.5px;
+    color: #444;
+  }
+
+  .productivity-table-section,
+  .productivity-summary {
+    break-inside: avoid;
+    margin-bottom: 16px;
+  }
+
+  .productivity-table-panel {
+    overflow: visible !important;
+  }
+
+  .productivity-summary-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
   }
 }
 
