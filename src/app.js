@@ -6356,18 +6356,38 @@ function productivityInRange(item, from, to) {
   return false;
 }
 
-function buildProductivityRows(employee, category, from, to) {
+function buildProductivityTaskRows(employee, category, from, to) {
   const matchesCategory = (item) => !category || item.category === category;
-
-  const taskRows = state.lists.flatMap((list) => list.tasks)
+  return state.lists.flatMap((list) => list.tasks)
     .filter((t) => sameEmployee(t.assignedTo, employee) && matchesCategory(t) && productivityInRange(t, from, to))
-    .map((t) => ({ kind: 'task', name: t.text, startDate: t.startDate, due: t.due, done: t.done, progress: t.progress, status: t.status, completedAt: t.completedAt }));
+    .map((t) => ({ kind: 'task', name: t.text, startDate: t.startDate, due: t.due, done: t.done, progress: t.progress, status: t.status, completedAt: t.completedAt }))
+    .sort((a, b) => (a.due || '9999-99-99').localeCompare(b.due || '9999-99-99'));
+}
 
-  const projectRows = (state.projects || [])
+function buildProductivityProjectRows(employee, category, from, to) {
+  const matchesCategory = (item) => !category || item.category === category;
+  return (state.projects || [])
     .filter((p) => !p.archived && !p.deleted && (p.owners || []).some((o) => sameEmployee(o, employee)) && matchesCategory(p) && productivityInRange(p, from, to))
-    .map((p) => ({ kind: 'project', name: p.name, startDate: p.startDate, due: p.dueDate, done: p.done, progress: p.progress, status: p.status, completedAt: p.completedAt }));
+    .map((p) => ({ kind: 'project', name: p.name, startDate: p.startDate, due: p.dueDate, done: p.done, progress: p.progress, status: p.status, completedAt: p.completedAt }))
+    .sort((a, b) => (a.due || '9999-99-99').localeCompare(b.due || '9999-99-99'));
+}
 
-  return [...taskRows, ...projectRows].sort((a, b) => (a.due || '9999-99-99').localeCompare(b.due || '9999-99-99'));
+// Regular tasks recur (daily/weekly/monthly/...) instead of having a single
+// start/due date, so there's no natural "one row per occurrence" without the
+// table exploding to hundreds of rows for a daily task over a wide range.
+// One row per regular task instead, with Status/Result reflecting its
+// completion rate across every expected occurrence in the selected range --
+// Start/Due/Delivery don't apply to a recurring task, so they render as "—".
+function buildProductivityRegularRows(employee, category, from, to) {
+  const matchesCategory = (item) => !category || item.category === category;
+  const dates = productivityDateRangeArray(from, to);
+  return (state.regular?.tasks || [])
+    .filter((t) => sameEmployee(t.owner, employee) && matchesCategory(t))
+    .map((t) => {
+      const p = regularTaskProgress(t, dates);
+      return { kind: 'regular', name: t.title, startDate: null, due: null, done: p.total > 0 && p.done >= p.total, progress: p.pct, completedAt: null, occurrences: p };
+    })
+    .filter((row) => row.occurrences.total > 0);
 }
 
 function productivityDateRangeArray(from, to) {
@@ -6404,13 +6424,22 @@ function buildProductivitySummary(employee, category, from, to) {
   ];
 }
 
-function renderProductivityTable(rows) {
+function renderProductivityTable(title, rows, emptyText) {
+  const section = document.createElement('div');
+  section.className = 'productivity-table-section';
+
+  const heading = document.createElement('h3');
+  heading.className = 'productivity-summary-heading';
+  heading.textContent = `${title} (${rows.length})`;
+  section.appendChild(heading);
+
   const panel = document.createElement('div');
   panel.className = 'table-panel productivity-table-panel';
 
   if (!rows.length) {
-    panel.appendChild(renderEmptyState('No tasks or projects match these filters.'));
-    return panel;
+    panel.appendChild(renderEmptyState(emptyText));
+    section.appendChild(panel);
+    return section;
   }
 
   const table = document.createElement('table');
@@ -6431,13 +6460,6 @@ function renderProductivityTable(rows) {
 
     const nameTd = document.createElement('td');
     nameTd.className = 'productivity-task-name';
-    if (item.kind === 'project') {
-      const icon = document.createElement('span');
-      icon.className = 'project-icon';
-      icon.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="currentColor"><path d="M10 4H4c-1.1 0-1.99.9-1.99 2L2 18c0 1.1.9 2 2 2h16c1.1 0 2-.9 2-2V8c0-1.1-.9-2-2-2h-8l-2-2z"/></svg>';
-      icon.style.cssText = 'display:inline-flex;align-items:center;color:var(--text-muted);margin-right:6px;';
-      nameTd.appendChild(icon);
-    }
     nameTd.appendChild(document.createTextNode(item.name || 'Untitled'));
     tr.appendChild(nameTd);
 
@@ -6470,7 +6492,8 @@ function renderProductivityTable(rows) {
   });
   table.appendChild(tbody);
   panel.appendChild(table);
-  return panel;
+  section.appendChild(panel);
+  return section;
 }
 
 function renderProductivitySummary(summary) {
@@ -6560,8 +6583,14 @@ function renderProductivityWorkspace() {
     return wrap;
   }
 
-  const rows = buildProductivityRows(productivityEmployee, productivityCategory, productivityFrom, productivityTo);
-  wrap.appendChild(renderProductivityTable(rows));
+  const taskRows = buildProductivityTaskRows(productivityEmployee, productivityCategory, productivityFrom, productivityTo);
+  wrap.appendChild(renderProductivityTable('Tasks', taskRows, 'No tasks match these filters.'));
+
+  const projectRows = buildProductivityProjectRows(productivityEmployee, productivityCategory, productivityFrom, productivityTo);
+  wrap.appendChild(renderProductivityTable('Projects', projectRows, 'No projects match these filters.'));
+
+  const regularRows = buildProductivityRegularRows(productivityEmployee, productivityCategory, productivityFrom, productivityTo);
+  wrap.appendChild(renderProductivityTable('Regular Tasks', regularRows, 'No regular tasks match these filters.'));
 
   const summary = buildProductivitySummary(productivityEmployee, productivityCategory, productivityFrom, productivityTo);
   wrap.appendChild(renderProductivitySummary(summary));
