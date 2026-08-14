@@ -6363,7 +6363,7 @@ function buildProductivityTaskRows(employee, category, from, to) {
   const matchesCategory = (item) => !category || item.category === category;
   return state.lists.flatMap((list) => list.tasks)
     .filter((t) => sameEmployee(t.assignedTo, employee) && matchesCategory(t) && productivityInRange(t, from, to))
-    .map((t) => ({ kind: 'task', name: t.text, startDate: t.startDate, due: t.due, done: t.done, progress: t.progress, status: t.status, completedAt: t.completedAt }))
+    .map((t) => ({ kind: 'task', name: t.text, priority: t.priority, startDate: t.startDate, due: t.due, done: t.done, progress: t.progress, status: t.status, completedAt: t.completedAt }))
     .sort((a, b) => (a.due || '9999-99-99').localeCompare(b.due || '9999-99-99'));
 }
 
@@ -6371,7 +6371,7 @@ function buildProductivityProjectRows(employee, category, from, to) {
   const matchesCategory = (item) => !category || item.category === category;
   return (state.projects || [])
     .filter((p) => !p.archived && !p.deleted && (p.owners || []).some((o) => sameEmployee(o, employee)) && matchesCategory(p) && productivityInRange(p, from, to))
-    .map((p) => ({ kind: 'project', name: p.name, startDate: p.startDate, due: p.dueDate, done: p.done, progress: p.progress, status: p.status, completedAt: p.completedAt }))
+    .map((p) => ({ kind: 'project', name: p.name, priority: p.priority, startDate: p.startDate, due: p.dueDate, done: p.done, progress: p.progress, status: p.status, completedAt: p.completedAt }))
     .sort((a, b) => (a.due || '9999-99-99').localeCompare(b.due || '9999-99-99'));
 }
 
@@ -6388,7 +6388,7 @@ function buildProductivityRegularRows(employee, category, from, to) {
     .filter((t) => sameEmployee(t.owner, employee) && matchesCategory(t))
     .map((t) => {
       const p = regularTaskProgress(t, dates);
-      return { kind: 'regular', name: t.title, startDate: null, due: null, done: p.total > 0 && p.done >= p.total, progress: p.pct, completedAt: null, occurrences: p };
+      return { kind: 'regular', name: t.title, priority: null, startDate: null, due: null, done: p.total > 0 && p.done >= p.total, progress: p.pct, completedAt: null, occurrences: p };
     })
     .filter((row) => row.occurrences.total > 0);
 }
@@ -6449,7 +6449,7 @@ function renderProductivityTable(title, rows, emptyText) {
   table.className = 'task-table productivity-table';
   const thead = document.createElement('thead');
   const headRow = document.createElement('tr');
-  ['Task', 'Start Date', 'Due Date', 'Status', 'Result', 'Delivery'].forEach((label) => {
+  ['Task', 'Priority', 'Start Date', 'Due Date', 'Status', 'Result', 'Delivery'].forEach((label) => {
     const th = document.createElement('th');
     th.textContent = label;
     headRow.appendChild(th);
@@ -6465,6 +6465,17 @@ function renderProductivityTable(title, rows, emptyText) {
     nameTd.className = 'productivity-task-name';
     nameTd.appendChild(document.createTextNode(item.name || 'Untitled'));
     tr.appendChild(nameTd);
+
+    const priorityTd = document.createElement('td');
+    if (item.priority && item.priority !== 'none') {
+      const priorityPill = document.createElement('span');
+      priorityPill.className = `task-priority productivity-priority-pill ${item.priority}`;
+      priorityPill.textContent = item.priority.charAt(0).toUpperCase() + item.priority.slice(1);
+      priorityTd.appendChild(priorityPill);
+    } else {
+      priorityTd.textContent = '—';
+    }
+    tr.appendChild(priorityTd);
 
     tr.appendChild(textCell(item.startDate ? fmtShort(new Date(`${item.startDate}T00:00:00`).getTime()) : '—'));
     tr.appendChild(textCell(item.due ? fmtShort(new Date(`${item.due}T00:00:00`).getTime()) : '—'));

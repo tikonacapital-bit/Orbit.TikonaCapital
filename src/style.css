@@ -3154,6 +3154,12 @@ button.stat-card:hover {
   align-items: center;
 }
 
+/* Reuses .task-priority's existing low/medium/high colors (same pill
+   shown on task rows elsewhere) -- just not clickable/cycling here. */
+.productivity-priority-pill {
+  cursor: default;
+}
+
 .productivity-status-pill {
   display: inline-block;
   padding: 3px 9px;
