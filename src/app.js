@@ -32,6 +32,9 @@ let productivityEmployee = '';
 let productivityCategory = '';
 let productivityFrom = '';
 let productivityTo = '';
+let productivitySortColumn = null;
+let productivitySortDir = 'asc';
+let productivityColumnFilters = {};
 let sidebarTasksExpanded = true;
 let sidebarTabsExpanded = false;
 let viewMode = loadViewMode();
@@ -6342,13 +6345,13 @@ function productivityResultLabel(item) {
 
 function productivityDeliveryInfo(item) {
   const due = item.due || item.dueDate || null;
-  if (!item.done || !due || !item.completedAt) return { text: '—', cls: 'neutral' };
+  if (!item.done || !due || !item.completedAt) return { text: '—', cls: 'neutral', diff: null };
   const completedKey = dateKey(new Date(item.completedAt));
   const diff = productivityDateStrDiffDays(completedKey, due);
-  if (diff === 0) return { text: 'On time', cls: 'ontime' };
-  if (diff > 0) return { text: `${diff} day${diff === 1 ? '' : 's'} late`, cls: 'late' };
+  if (diff === 0) return { text: 'On time', cls: 'ontime', diff };
+  if (diff > 0) return { text: `${diff} day${diff === 1 ? '' : 's'} late`, cls: 'late', diff };
   const early = Math.abs(diff);
-  return { text: `${early} day${early === 1 ? '' : 's'} early`, cls: 'early' };
+  return { text: `${early} day${early === 1 ? '' : 's'} early`, cls: 'early', diff };
 }
 
 function productivityInRange(item, from, to) {
@@ -6363,16 +6366,14 @@ function buildProductivityTaskRows(employee, category, from, to) {
   const matchesCategory = (item) => !category || item.category === category;
   return state.lists.flatMap((list) => list.tasks)
     .filter((t) => sameEmployee(t.assignedTo, employee) && matchesCategory(t) && productivityInRange(t, from, to))
-    .map((t) => ({ kind: 'task', name: t.text, priority: t.priority, startDate: t.startDate, due: t.due, done: t.done, progress: t.progress, status: t.status, completedAt: t.completedAt }))
-    .sort((a, b) => (a.due || '9999-99-99').localeCompare(b.due || '9999-99-99'));
+    .map((t) => ({ kind: 'task', name: t.text, category: t.category, priority: t.priority, startDate: t.startDate, due: t.due, done: t.done, progress: t.progress, status: t.status, completedAt: t.completedAt }));
 }
 
 function buildProductivityProjectRows(employee, category, from, to) {
   const matchesCategory = (item) => !category || item.category === category;
   return (state.projects || [])
     .filter((p) => !p.archived && !p.deleted && (p.owners || []).some((o) => sameEmployee(o, employee)) && matchesCategory(p) && productivityInRange(p, from, to))
-    .map((p) => ({ kind: 'project', name: p.name, priority: p.priority, startDate: p.startDate, due: p.dueDate, done: p.done, progress: p.progress, status: p.status, completedAt: p.completedAt }))
-    .sort((a, b) => (a.due || '9999-99-99').localeCompare(b.due || '9999-99-99'));
+    .map((p) => ({ kind: 'project', name: p.name, category: p.category, priority: p.priority, startDate: p.startDate, due: p.dueDate, done: p.done, progress: p.progress, status: p.status, completedAt: p.completedAt }));
 }
 
 // Regular tasks recur (daily/weekly/monthly/...) instead of having a single
@@ -6388,9 +6389,385 @@ function buildProductivityRegularRows(employee, category, from, to) {
     .filter((t) => sameEmployee(t.owner, employee) && matchesCategory(t))
     .map((t) => {
       const p = regularTaskProgress(t, dates);
-      return { kind: 'regular', name: t.title, priority: null, startDate: null, due: null, done: p.total > 0 && p.done >= p.total, progress: p.pct, completedAt: null, occurrences: p };
+      return { kind: 'regular', name: t.title, category: t.category, priority: null, startDate: null, due: null, done: p.total > 0 && p.done >= p.total, progress: p.pct, completedAt: null, occurrences: p };
     })
     .filter((row) => row.occurrences.total > 0);
+}
+
+// ---------- Productivity report: unified sheet (sort + filter) ----------
+
+const PRODUCTIVITY_COLUMNS = [
+  { key: 'name', label: 'Task' },
+  { key: 'category', label: 'Category' },
+  { key: 'priority', label: 'Priority' },
+  { key: 'startDate', label: 'Start Date' },
+  { key: 'due', label: 'Due Date' },
+  { key: 'completedAt', label: 'Complete Date' },
+  { key: 'status', label: 'Status' },
+  { key: 'result', label: 'Result' },
+  { key: 'delivery', label: 'Delivery' },
+];
+
+const PRODUCTIVITY_PRIORITY_ORDER = ['none', 'low', 'medium', 'high'];
+const PRODUCTIVITY_RESULT_ORDER = ['Not Started', 'In Progress', 'Completed'];
+
+function productivityCellText(row, key) {
+  switch (key) {
+    case 'name': return row.name || 'Untitled';
+    case 'category': return row.category || '—';
+    case 'priority': return (row.priority && row.priority !== 'none') ? row.priority.charAt(0).toUpperCase() + row.priority.slice(1) : '—';
+    case 'startDate': return row.startDate ? fmtShort(new Date(`${row.startDate}T00:00:00`).getTime()) : '—';
+    case 'due': return row.due ? fmtShort(new Date(`${row.due}T00:00:00`).getTime()) : '—';
+    case 'completedAt': return row.completedAt ? fmtDateTime(row.completedAt) : '—';
+    case 'status': return `${itemDisplayProgress(row)}%`;
+    case 'result': return productivityResultLabel(row);
+    case 'delivery': return productivityDeliveryInfo(row).text;
+    default: return '—';
+  }
+}
+
+function productivityCellSortValue(row, key) {
+  switch (key) {
+    case 'name': return (row.name || '').toLowerCase();
+    case 'category': return (row.category || '').toLowerCase();
+    case 'priority': return PRODUCTIVITY_PRIORITY_ORDER.indexOf(row.priority || 'none');
+    case 'startDate': return row.startDate || null;
+    case 'due': return row.due || null;
+    case 'completedAt': return row.completedAt || null;
+    case 'status': return itemDisplayProgress(row);
+    case 'result': return PRODUCTIVITY_RESULT_ORDER.indexOf(productivityResultLabel(row));
+    case 'delivery': return productivityDeliveryInfo(row).diff;
+    default: return null;
+  }
+}
+
+function productivitySortRows(rows) {
+  if (!productivitySortColumn) return rows;
+  const key = productivitySortColumn;
+  const dir = productivitySortDir === 'desc' ? -1 : 1;
+  return rows.slice().sort((a, b) => {
+    const av = productivityCellSortValue(a, key);
+    const bv = productivityCellSortValue(b, key);
+    const aEmpty = av === null || av === undefined || av === '';
+    const bEmpty = bv === null || bv === undefined || bv === '';
+    if (aEmpty && bEmpty) return 0;
+    if (aEmpty) return 1;
+    if (bEmpty) return -1;
+    if (av < bv) return -1 * dir;
+    if (av > bv) return 1 * dir;
+    return 0;
+  });
+}
+
+function productivityRowPassesFilters(row) {
+  return Object.entries(productivityColumnFilters).every(([key, allowed]) => {
+    if (!allowed || !allowed.size) return true;
+    return allowed.has(productivityCellText(row, key));
+  });
+}
+
+function productivityAllCurrentRows() {
+  return [
+    ...buildProductivityTaskRows(productivityEmployee, productivityCategory, productivityFrom, productivityTo),
+    ...buildProductivityProjectRows(productivityEmployee, productivityCategory, productivityFrom, productivityTo),
+    ...buildProductivityRegularRows(productivityEmployee, productivityCategory, productivityFrom, productivityTo),
+  ];
+}
+
+function productivityBuildCell(row, key) {
+  const td = document.createElement('td');
+  switch (key) {
+    case 'name':
+      td.className = 'productivity-task-name';
+      td.textContent = row.name || 'Untitled';
+      break;
+    case 'category':
+      td.textContent = row.category || '—';
+      break;
+    case 'priority':
+      if (row.priority && row.priority !== 'none') {
+        const pill = document.createElement('span');
+        pill.className = `task-priority productivity-priority-pill ${row.priority}`;
+        pill.textContent = row.priority.charAt(0).toUpperCase() + row.priority.slice(1);
+        td.appendChild(pill);
+      } else {
+        td.textContent = '—';
+      }
+      break;
+    case 'startDate':
+      td.textContent = row.startDate ? fmtShort(new Date(`${row.startDate}T00:00:00`).getTime()) : '—';
+      break;
+    case 'due':
+      td.textContent = row.due ? fmtShort(new Date(`${row.due}T00:00:00`).getTime()) : '—';
+      break;
+    case 'completedAt':
+      td.textContent = row.completedAt ? fmtDateTime(row.completedAt) : '—';
+      break;
+    case 'status': {
+      const pct = itemDisplayProgress(row);
+      const pill = document.createElement('span');
+      pill.className = `productivity-status-pill${pct >= 100 ? ' full' : pct > 0 ? ' partial' : ' empty'}`;
+      pill.textContent = `${pct}%`;
+      td.appendChild(pill);
+      break;
+    }
+    case 'result': {
+      const result = productivityResultLabel(row);
+      const pill = document.createElement('span');
+      pill.className = `productivity-result-pill result-${result.toLowerCase().replace(/\s+/g, '-')}`;
+      pill.textContent = result;
+      td.appendChild(pill);
+      break;
+    }
+    case 'delivery': {
+      const delivery = productivityDeliveryInfo(row);
+      td.className = `productivity-delivery ${delivery.cls}`;
+      td.textContent = delivery.text;
+      break;
+    }
+  }
+  return td;
+}
+
+function openProductivityColumnMenu(anchorEl, columnKey) {
+  document.querySelectorAll('.productivity-col-menu').forEach((m) => m.remove());
+
+  const menu = document.createElement('div');
+  menu.className = 'status-dropdown-popup productivity-col-menu';
+
+  const sortAscBtn = document.createElement('button');
+  sortAscBtn.type = 'button';
+  sortAscBtn.className = 'status-opt';
+  sortAscBtn.textContent = 'Sort ascending';
+  sortAscBtn.addEventListener('click', () => {
+    productivitySortColumn = columnKey;
+    productivitySortDir = 'asc';
+    menu.remove();
+    render();
+  });
+  menu.appendChild(sortAscBtn);
+
+  const sortDescBtn = document.createElement('button');
+  sortDescBtn.type = 'button';
+  sortDescBtn.className = 'status-opt';
+  sortDescBtn.textContent = 'Sort descending';
+  sortDescBtn.addEventListener('click', () => {
+    productivitySortColumn = columnKey;
+    productivitySortDir = 'desc';
+    menu.remove();
+    render();
+  });
+  menu.appendChild(sortDescBtn);
+
+  if (productivitySortColumn === columnKey) {
+    const clearSortBtn = document.createElement('button');
+    clearSortBtn.type = 'button';
+    clearSortBtn.className = 'status-opt';
+    clearSortBtn.textContent = 'Clear sort';
+    clearSortBtn.addEventListener('click', () => {
+      productivitySortColumn = null;
+      menu.remove();
+      render();
+    });
+    menu.appendChild(clearSortBtn);
+  }
+
+  const divider = document.createElement('div');
+  divider.className = 'productivity-col-menu-divider';
+  menu.appendChild(divider);
+
+  const filterLabel = document.createElement('div');
+  filterLabel.className = 'productivity-col-menu-label';
+  filterLabel.textContent = 'Filter';
+  menu.appendChild(filterLabel);
+
+  const uniqueValues = [...new Set(productivityAllCurrentRows().map((r) => productivityCellText(r, columnKey)))]
+    .sort((a, b) => a.localeCompare(b));
+
+  const activeFilter = productivityColumnFilters[columnKey];
+  const checked = new Set(activeFilter && activeFilter.size ? [...activeFilter].filter((v) => uniqueValues.includes(v)) : uniqueValues);
+
+  const listWrap = document.createElement('div');
+  listWrap.className = 'productivity-col-menu-list';
+  uniqueValues.forEach((val) => {
+    const optRow = document.createElement('label');
+    optRow.className = 'productivity-col-menu-checkrow';
+    const cb = document.createElement('input');
+    cb.type = 'checkbox';
+    cb.checked = checked.has(val);
+    cb.addEventListener('change', () => {
+      if (cb.checked) checked.add(val); else checked.delete(val);
+      applyBtn.disabled = checked.size === 0;
+    });
+    optRow.appendChild(cb);
+    const span = document.createElement('span');
+    span.textContent = val;
+    optRow.appendChild(span);
+    listWrap.appendChild(optRow);
+  });
+  menu.appendChild(listWrap);
+
+  const actionsRow = document.createElement('div');
+  actionsRow.className = 'productivity-col-menu-actions';
+
+  const selectAllBtn = document.createElement('button');
+  selectAllBtn.type = 'button';
+  selectAllBtn.className = 'link-btn';
+  selectAllBtn.textContent = 'All';
+  selectAllBtn.addEventListener('click', () => {
+    uniqueValues.forEach((v) => checked.add(v));
+    listWrap.querySelectorAll('input[type="checkbox"]').forEach((cb) => { cb.checked = true; });
+    applyBtn.disabled = false;
+  });
+  actionsRow.appendChild(selectAllBtn);
+
+  const clearAllBtn = document.createElement('button');
+  clearAllBtn.type = 'button';
+  clearAllBtn.className = 'link-btn';
+  clearAllBtn.textContent = 'None';
+  clearAllBtn.addEventListener('click', () => {
+    checked.clear();
+    listWrap.querySelectorAll('input[type="checkbox"]').forEach((cb) => { cb.checked = false; });
+    applyBtn.disabled = true;
+  });
+  actionsRow.appendChild(clearAllBtn);
+
+  const applyBtn = document.createElement('button');
+  applyBtn.type = 'button';
+  applyBtn.className = 'btn small';
+  applyBtn.textContent = 'Apply';
+  applyBtn.disabled = checked.size === 0;
+  applyBtn.addEventListener('click', () => {
+    if (checked.size >= uniqueValues.length) {
+      delete productivityColumnFilters[columnKey];
+    } else {
+      productivityColumnFilters[columnKey] = new Set(checked);
+    }
+    menu.remove();
+    render();
+  });
+  actionsRow.appendChild(applyBtn);
+
+  menu.appendChild(actionsRow);
+
+  document.body.appendChild(menu);
+  const rect = anchorEl.getBoundingClientRect();
+  const menuWidth = menu.offsetWidth;
+  menu.style.position = 'absolute';
+  menu.style.top = `${rect.bottom + window.scrollY + 6}px`;
+  if (rect.left + menuWidth > window.innerWidth - 12) {
+    menu.style.left = `${rect.right + window.scrollX - menuWidth}px`;
+  } else {
+    menu.style.left = `${rect.left + window.scrollX}px`;
+  }
+  menu.style.zIndex = '1200';
+
+  const closeMenu = (e) => {
+    if (!menu.contains(e.target) && e.target !== anchorEl) {
+      menu.remove();
+      document.removeEventListener('click', closeMenu);
+      document.removeEventListener('scroll', closeOnScroll, true);
+    }
+  };
+  const closeOnScroll = () => {
+    menu.remove();
+    document.removeEventListener('click', closeMenu);
+    document.removeEventListener('scroll', closeOnScroll, true);
+  };
+  setTimeout(() => {
+    document.addEventListener('click', closeMenu);
+    document.addEventListener('scroll', closeOnScroll, true);
+  }, 0);
+}
+
+function productivityBuildHeaderRow() {
+  const tr = document.createElement('tr');
+  PRODUCTIVITY_COLUMNS.forEach(({ key, label }) => {
+    const th = document.createElement('th');
+    const headWrap = document.createElement('div');
+    headWrap.className = 'productivity-th-wrap';
+
+    const labelSpan = document.createElement('span');
+    labelSpan.textContent = label;
+    headWrap.appendChild(labelSpan);
+
+    if (productivitySortColumn === key) {
+      const arrow = document.createElement('span');
+      arrow.className = 'productivity-sort-arrow';
+      arrow.textContent = productivitySortDir === 'desc' ? '↓' : '↑';
+      headWrap.appendChild(arrow);
+    }
+
+    const menuBtn = document.createElement('button');
+    menuBtn.type = 'button';
+    const hasFilter = Boolean(productivityColumnFilters[key] && productivityColumnFilters[key].size);
+    menuBtn.className = `productivity-th-menu-btn${hasFilter ? ' active' : ''}`;
+    menuBtn.innerHTML = '&#8942;';
+    menuBtn.title = 'Sort / filter this column';
+    menuBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      openProductivityColumnMenu(menuBtn, key);
+    });
+    headWrap.appendChild(menuBtn);
+
+    th.appendChild(headWrap);
+    tr.appendChild(th);
+  });
+  return tr;
+}
+
+function renderProductivityUnifiedTable(sections) {
+  const section = document.createElement('div');
+  section.className = 'productivity-table-section';
+
+  const heading = document.createElement('h3');
+  heading.className = 'productivity-summary-heading';
+  heading.textContent = 'Report';
+  section.appendChild(heading);
+
+  const panel = document.createElement('div');
+  panel.className = 'table-panel productivity-table-panel';
+
+  const table = document.createElement('table');
+  table.className = 'task-table productivity-table';
+
+  const thead = document.createElement('thead');
+  thead.appendChild(productivityBuildHeaderRow());
+  table.appendChild(thead);
+
+  const tbody = document.createElement('tbody');
+  sections.forEach(({ label, rows }) => {
+    const filtered = productivitySortRows(rows.filter(productivityRowPassesFilters));
+
+    const groupRow = document.createElement('tr');
+    groupRow.className = 'productivity-section-row';
+    const groupTd = document.createElement('td');
+    groupTd.colSpan = PRODUCTIVITY_COLUMNS.length;
+    groupTd.textContent = `${label} (${filtered.length})`;
+    groupRow.appendChild(groupTd);
+    tbody.appendChild(groupRow);
+
+    if (!filtered.length) {
+      const emptyRow = document.createElement('tr');
+      const emptyTd = document.createElement('td');
+      emptyTd.colSpan = PRODUCTIVITY_COLUMNS.length;
+      emptyTd.className = 'productivity-empty-row';
+      emptyTd.textContent = 'No rows match the current filters.';
+      emptyRow.appendChild(emptyTd);
+      tbody.appendChild(emptyRow);
+      return;
+    }
+
+    filtered.forEach((row) => {
+      const tr = document.createElement('tr');
+      PRODUCTIVITY_COLUMNS.forEach(({ key }) => tr.appendChild(productivityBuildCell(row, key)));
+      tbody.appendChild(tr);
+    });
+  });
+  table.appendChild(tbody);
+  panel.appendChild(table);
+  section.appendChild(panel);
+  return section;
 }
 
 function productivityDateRangeArray(from, to) {
@@ -6425,89 +6802,6 @@ function buildProductivitySummary(employee, category, from, to) {
     { label: 'Projects', ...projectStats },
     { label: 'Regular Tasks', ...regularStats },
   ];
-}
-
-function renderProductivityTable(title, rows, emptyText) {
-  const section = document.createElement('div');
-  section.className = 'productivity-table-section';
-
-  const heading = document.createElement('h3');
-  heading.className = 'productivity-summary-heading';
-  heading.textContent = `${title} (${rows.length})`;
-  section.appendChild(heading);
-
-  const panel = document.createElement('div');
-  panel.className = 'table-panel productivity-table-panel';
-
-  if (!rows.length) {
-    panel.appendChild(renderEmptyState(emptyText));
-    section.appendChild(panel);
-    return section;
-  }
-
-  const table = document.createElement('table');
-  table.className = 'task-table productivity-table';
-  const thead = document.createElement('thead');
-  const headRow = document.createElement('tr');
-  ['Task', 'Priority', 'Start Date', 'Due Date', 'Status', 'Result', 'Delivery'].forEach((label) => {
-    const th = document.createElement('th');
-    th.textContent = label;
-    headRow.appendChild(th);
-  });
-  thead.appendChild(headRow);
-  table.appendChild(thead);
-
-  const tbody = document.createElement('tbody');
-  rows.forEach((item) => {
-    const tr = document.createElement('tr');
-
-    const nameTd = document.createElement('td');
-    nameTd.className = 'productivity-task-name';
-    nameTd.appendChild(document.createTextNode(item.name || 'Untitled'));
-    tr.appendChild(nameTd);
-
-    const priorityTd = document.createElement('td');
-    if (item.priority && item.priority !== 'none') {
-      const priorityPill = document.createElement('span');
-      priorityPill.className = `task-priority productivity-priority-pill ${item.priority}`;
-      priorityPill.textContent = item.priority.charAt(0).toUpperCase() + item.priority.slice(1);
-      priorityTd.appendChild(priorityPill);
-    } else {
-      priorityTd.textContent = '—';
-    }
-    tr.appendChild(priorityTd);
-
-    tr.appendChild(textCell(item.startDate ? fmtShort(new Date(`${item.startDate}T00:00:00`).getTime()) : '—'));
-    tr.appendChild(textCell(item.due ? fmtShort(new Date(`${item.due}T00:00:00`).getTime()) : '—'));
-
-    const statusTd = document.createElement('td');
-    const pct = itemDisplayProgress(item);
-    const statusPill = document.createElement('span');
-    statusPill.className = `productivity-status-pill${pct >= 100 ? ' full' : pct > 0 ? ' partial' : ' empty'}`;
-    statusPill.textContent = `${pct}%`;
-    statusTd.appendChild(statusPill);
-    tr.appendChild(statusTd);
-
-    const resultTd = document.createElement('td');
-    const result = productivityResultLabel(item);
-    const resultPill = document.createElement('span');
-    resultPill.className = `productivity-result-pill result-${result.toLowerCase().replace(/\s+/g, '-')}`;
-    resultPill.textContent = result;
-    resultTd.appendChild(resultPill);
-    tr.appendChild(resultTd);
-
-    const delivery = productivityDeliveryInfo(item);
-    const deliveryTd = document.createElement('td');
-    deliveryTd.className = `productivity-delivery ${delivery.cls}`;
-    deliveryTd.textContent = delivery.text;
-    tr.appendChild(deliveryTd);
-
-    tbody.appendChild(tr);
-  });
-  table.appendChild(tbody);
-  panel.appendChild(table);
-  section.appendChild(panel);
-  return section;
 }
 
 function renderProductivitySummary(summary) {
@@ -6551,7 +6845,7 @@ function renderProductivityWorkspace() {
   const empSelect = document.createElement('select');
   const employeeNames = getAllEmployees();
   empSelect.innerHTML = `<option value="">Select employee…</option>${employeeNames.map((name) => `<option value="${escapeHtml(name)}"${name === productivityEmployee ? ' selected' : ''}>${escapeHtml(name)}</option>`).join('')}`;
-  empSelect.addEventListener('change', () => { productivityEmployee = empSelect.value; render(); });
+  empSelect.addEventListener('change', () => { productivityEmployee = empSelect.value; productivityColumnFilters = {}; productivitySortColumn = null; render(); });
   empField.appendChild(empSelect);
   filters.appendChild(empField);
 
@@ -6561,7 +6855,7 @@ function renderProductivityWorkspace() {
   const catSelect = document.createElement('select');
   const categories = state.categories || [];
   catSelect.innerHTML = `<option value="">All categories</option>${categories.map((c) => `<option value="${escapeHtml(c)}"${c === productivityCategory ? ' selected' : ''}>${escapeHtml(c)}</option>`).join('')}`;
-  catSelect.addEventListener('change', () => { productivityCategory = catSelect.value; render(); });
+  catSelect.addEventListener('change', () => { productivityCategory = catSelect.value; productivityColumnFilters = {}; productivitySortColumn = null; render(); });
   catField.appendChild(catSelect);
   filters.appendChild(catField);
 
@@ -6571,7 +6865,7 @@ function renderProductivityWorkspace() {
   const fromInput = document.createElement('input');
   fromInput.type = 'date';
   fromInput.value = productivityFrom;
-  fromInput.addEventListener('change', () => { productivityFrom = fromInput.value; render(); });
+  fromInput.addEventListener('change', () => { productivityFrom = fromInput.value; productivityColumnFilters = {}; productivitySortColumn = null; render(); });
   fromField.appendChild(fromInput);
   filters.appendChild(fromField);
 
@@ -6581,7 +6875,7 @@ function renderProductivityWorkspace() {
   const toInput = document.createElement('input');
   toInput.type = 'date';
   toInput.value = productivityTo;
-  toInput.addEventListener('change', () => { productivityTo = toInput.value; render(); });
+  toInput.addEventListener('change', () => { productivityTo = toInput.value; productivityColumnFilters = {}; productivitySortColumn = null; render(); });
   toField.appendChild(toInput);
   filters.appendChild(toField);
 
@@ -6626,13 +6920,13 @@ function renderProductivityWorkspace() {
   wrap.appendChild(printHeader);
 
   const taskRows = buildProductivityTaskRows(productivityEmployee, productivityCategory, productivityFrom, productivityTo);
-  wrap.appendChild(renderProductivityTable('Tasks', taskRows, 'No tasks match these filters.'));
-
   const projectRows = buildProductivityProjectRows(productivityEmployee, productivityCategory, productivityFrom, productivityTo);
-  wrap.appendChild(renderProductivityTable('Projects', projectRows, 'No projects match these filters.'));
-
   const regularRows = buildProductivityRegularRows(productivityEmployee, productivityCategory, productivityFrom, productivityTo);
-  wrap.appendChild(renderProductivityTable('Regular Tasks', regularRows, 'No regular tasks match these filters.'));
+  wrap.appendChild(renderProductivityUnifiedTable([
+    { label: 'Tasks', rows: taskRows },
+    { label: 'Projects', rows: projectRows },
+    { label: 'Regular Tasks', rows: regularRows },
+  ]));
 
   const summary = buildProductivitySummary(productivityEmployee, productivityCategory, productivityFrom, productivityTo);
   wrap.appendChild(renderProductivitySummary(summary));

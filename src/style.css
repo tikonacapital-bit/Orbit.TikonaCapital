@@ -3189,6 +3189,149 @@ button.stat-card:hover {
 .productivity-delivery.ontime { color: var(--secondary); }
 .productivity-delivery.neutral { color: var(--text-muted); }
 
+/* Full-width divider row between Tasks/Projects/Regular Tasks inside
+   the one unified sheet -- same idea as the Regular Tasks grid's own
+   group rows, just a dedicated class since that one's sticky-left
+   behavior is specific to its own table. */
+.productivity-table tr.productivity-section-row td {
+  background: var(--primary);
+  color: #fff;
+  font-weight: 700;
+  font-size: 11.5px;
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  text-align: left;
+  padding: 8px 14px;
+}
+
+.productivity-table tr.productivity-empty-row td {
+  text-align: left;
+  color: var(--text-muted);
+  font-style: italic;
+}
+
+/* Column header: label + active-sort arrow + the "⋮" sort/filter
+   trigger, all in one row so it still fits the existing sticky navy
+   .task-table th styling. */
+.productivity-th-wrap {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+}
+
+.productivity-table th:first-child .productivity-th-wrap {
+  justify-content: space-between;
+}
+
+.productivity-sort-arrow {
+  font-size: 11px;
+}
+
+.productivity-th-menu-btn {
+  flex: 0 0 auto;
+  width: 18px;
+  height: 18px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: none;
+  border-radius: 4px;
+  background: rgba(255, 255, 255, 0.14);
+  color: #fff;
+  font-size: 12px;
+  line-height: 1;
+  cursor: pointer;
+}
+
+.productivity-th-menu-btn:hover {
+  background: rgba(255, 255, 255, 0.28);
+}
+
+.productivity-th-menu-btn.active {
+  background: var(--accent-orange);
+  color: #fff;
+}
+
+/* Sort/filter dropdown opened from a column's "⋮" -- reuses
+   .status-dropdown-popup's card look, with its own list/actions. */
+.productivity-col-menu {
+  min-width: 190px;
+  max-width: 240px;
+}
+
+.productivity-col-menu-divider {
+  height: 1px;
+  background: var(--border);
+  margin: 4px 0;
+}
+
+.productivity-col-menu-label {
+  padding: 4px 8px 2px;
+  font-size: 10.5px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: var(--text-muted);
+}
+
+.productivity-col-menu-list {
+  max-height: 220px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 1px;
+}
+
+.productivity-col-menu-checkrow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.productivity-col-menu-checkrow:hover {
+  background: rgba(31, 70, 144, 0.06);
+}
+
+.productivity-col-menu-checkrow input {
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+
+.productivity-col-menu-checkrow span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.productivity-col-menu-actions {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  padding-top: 6px;
+  margin-top: 4px;
+  border-top: 1px solid var(--border);
+}
+
+.link-btn {
+  border: none;
+  background: transparent;
+  color: var(--secondary);
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  padding: 4px 6px;
+}
+
+.link-btn:hover {
+  text-decoration: underline;
+}
+
 .productivity-summary-heading {
   margin: 0 0 10px;
   font-size: 14px;
@@ -3300,7 +3443,8 @@ button.stat-card:hover {
   .mobile-bottom-nav,
   .mobile-fab-add,
   .viewbar,
-  .productivity-filters {
+  .productivity-filters,
+  .productivity-th-menu-btn {
     display: none !important;
   }
 
