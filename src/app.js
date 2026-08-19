@@ -1036,7 +1036,7 @@ function fmtTimeOnly(ts) {
   return `${hours}:${mins}`;
 }
 
-function openAttendancePopup() {
+function openAttendancePopup(focusEmployeeName) {
   document.querySelectorAll('.regular-popup-overlay').forEach((m) => m.remove());
   const employees = getRegisteredEmployees();
   if (!employees.length) { alert('No registered employees yet. Please register first.'); return; }
@@ -1057,7 +1057,7 @@ function openAttendancePopup() {
   const subtext = document.createElement('p');
   subtext.style.cssText = 'margin:0 0 12px 0;font-size:12px;color:#8a94a6;';
   subtext.textContent = configured
-    ? 'Sign in with the Google account matching your registered email to check yourself in or out.'
+    ? `Sign in with the Google account matching ${focusEmployeeName ? `${focusEmployeeName}’s` : 'your'} registered email to check in or out.`
     : 'Google Sign-In isn’t configured yet (see GOOGLE_CLIENT_ID in app.js) — anyone can check in for now.';
   popup.appendChild(subtext);
 
@@ -1077,8 +1077,10 @@ function openAttendancePopup() {
     list.innerHTML = '';
     employees.forEach((emp) => {
       const isSelf = verifiedEmail && emp.email === verifiedEmail;
+      const isFocused = focusEmployeeName && !verifiedEmail && sameEmployee(emp.name, focusEmployeeName);
       const row = document.createElement('div');
-      row.style.cssText = `display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid ${isSelf ? '#1F4690' : '#eee'};border-radius:8px;${isSelf ? '' : 'opacity:0.6;'}`;
+      row.dataset.email = emp.email;
+      row.style.cssText = `display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid ${isSelf || isFocused ? '#1F4690' : '#eee'};border-radius:8px;${isSelf || isFocused ? '' : 'opacity:0.6;'}`;
 
       const nameEl = document.createElement('span');
       nameEl.style.cssText = 'font-weight:600;font-size:13px;';
@@ -1143,6 +1145,14 @@ function openAttendancePopup() {
     });
   }
   renderRows();
+
+  if (focusEmployeeName) {
+    const target = employees.find((e) => sameEmployee(e.name, focusEmployeeName));
+    if (target) {
+      const row = list.querySelector(`[data-email="${CSS.escape(target.email)}"]`);
+      row?.scrollIntoView({ block: 'nearest' });
+    }
+  }
 
   if (configured) {
     google.accounts.id.initialize({
@@ -2485,10 +2495,12 @@ function getEmployeeAttendanceLabel(listName) {
   return { text: `${fmtTimeShort(checkin.timestamp)}–${fmtTimeShort(checkout.timestamp)}`, done: true };
 }
 
-// A one-click check-in/check-out shortcut shown right on each employee's
-// card, so time can be logged without opening the separate Attendance
-// popup. Reflects the exact same state (state.activity) that popup reads,
-// it's just a faster path into it.
+// A check-in/check-out shortcut shown right on each employee's card, so
+// their status is visible without opening the sidebar's Attendance popup.
+// It's a shortcut INTO that popup, not a bypass of it — clicking always
+// opens the same Google Sign-In-verified flow (openAttendancePopup) rather
+// than logging activity directly, so a card can't be used to check someone
+// else in/out without their own Google account confirming it.
 function renderListAttendanceButton(list) {
   const emp = getRegisteredEmployees().find((e) => sameEmployee(e.name, list.name));
   if (!emp) return null;
@@ -2503,10 +2515,10 @@ function renderListAttendanceButton(list) {
   if (!checkin) {
     btn.classList.add('checkin');
     btn.textContent = 'Check In';
-    btn.title = `Check in ${emp.name || emp.email} now`;
+    btn.title = `Check in ${emp.name || emp.email}`;
   } else if (!checkout) {
     btn.textContent = `In ${fmtTimeShort(checkin.timestamp)}`;
-    btn.title = `Click to check out ${emp.name || emp.email}`;
+    btn.title = `Check out ${emp.name || emp.email}`;
   } else {
     btn.classList.add('done');
     btn.textContent = `${fmtTimeShort(checkin.timestamp)}–${fmtTimeShort(checkout.timestamp)}`;
@@ -2515,19 +2527,9 @@ function renderListAttendanceButton(list) {
   }
 
   if (!btn.disabled) {
-    btn.addEventListener('click', async (e) => {
+    btn.addEventListener('click', (e) => {
       e.stopPropagation();
-      btn.disabled = true;
-      const prevText = btn.textContent;
-      btn.textContent = '…';
-      const type = checkin ? 'checkout' : 'checkin';
-      const ip = await fetchClientIp();
-      logActivity(type, emp.email, ip, navigator.userAgent, emp.name);
-      // logActivity() persists + re-renders the whole board, so this
-      // node is discarded — the fallback below only matters if that
-      // somehow didn't happen.
-      btn.disabled = false;
-      btn.textContent = prevText;
+      openAttendancePopup(list.name);
     });
   }
 
