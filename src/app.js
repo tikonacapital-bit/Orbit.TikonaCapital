@@ -6466,12 +6466,17 @@ function productivityDeliveryInfo(item) {
   return { text: `${early} day${early === 1 ? '' : 's'} early`, cls: 'early', diff };
 }
 
+// A task/project belongs in the report if EITHER its start date or its
+// due date falls inside the selected range -- not due-date-only. Otherwise
+// something started inside the range but due after it (or vice versa)
+// would silently vanish from the report even though real work on it
+// happened during that window.
 function productivityInRange(item, from, to) {
   const due = item.due || item.dueDate || null;
   const start = item.startDate || null;
-  if (due) return due >= from && due <= to;
-  if (start) return start >= from && start <= to;
-  return false;
+  const dueInRange = Boolean(due) && due >= from && due <= to;
+  const startInRange = Boolean(start) && start >= from && start <= to;
+  return dueInRange || startInRange;
 }
 
 function productivityMatchesEmployee(employee, candidate) {
