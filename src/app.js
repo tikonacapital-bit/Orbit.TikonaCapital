@@ -2485,6 +2485,55 @@ function getEmployeeAttendanceLabel(listName) {
   return { text: `${fmtTimeShort(checkin.timestamp)}–${fmtTimeShort(checkout.timestamp)}`, done: true };
 }
 
+// A one-click check-in/check-out shortcut shown right on each employee's
+// card, so time can be logged without opening the separate Attendance
+// popup. Reflects the exact same state (state.activity) that popup reads,
+// it's just a faster path into it.
+function renderListAttendanceButton(list) {
+  const emp = getRegisteredEmployees().find((e) => sameEmployee(e.name, list.name));
+  if (!emp) return null;
+
+  const checkin = getTodayActivity(emp.email, 'checkin');
+  const checkout = getTodayActivity(emp.email, 'checkout');
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = 'list-attendance';
+
+  if (!checkin) {
+    btn.classList.add('checkin');
+    btn.textContent = 'Check In';
+    btn.title = `Check in ${emp.name || emp.email} now`;
+  } else if (!checkout) {
+    btn.textContent = `In ${fmtTimeShort(checkin.timestamp)}`;
+    btn.title = `Click to check out ${emp.name || emp.email}`;
+  } else {
+    btn.classList.add('done');
+    btn.textContent = `${fmtTimeShort(checkin.timestamp)}–${fmtTimeShort(checkout.timestamp)}`;
+    btn.title = 'Checked in & out today';
+    btn.disabled = true;
+  }
+
+  if (!btn.disabled) {
+    btn.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      btn.disabled = true;
+      const prevText = btn.textContent;
+      btn.textContent = '…';
+      const type = checkin ? 'checkout' : 'checkin';
+      const ip = await fetchClientIp();
+      logActivity(type, emp.email, ip, navigator.userAgent, emp.name);
+      // logActivity() persists + re-renders the whole board, so this
+      // node is discarded — the fallback below only matters if that
+      // somehow didn't happen.
+      btn.disabled = false;
+      btn.textContent = prevText;
+    });
+  }
+
+  return btn;
+}
+
 function renderPinnedState() {
   // analyticsBtn/kraBtn are rebuilt fresh (with the right .active class)
   // inside renderSidebar() on every render, so no toggling needed here.
@@ -4519,14 +4568,8 @@ function renderList(list, options = {}) {
     });
     nameEl.after(quickAddBtn);
 
-    const attendance = getEmployeeAttendanceLabel(list.name);
-    if (attendance) {
-      const att = document.createElement('span');
-      att.className = `list-attendance${attendance.done ? ' done' : ''}`;
-      att.textContent = attendance.text;
-      att.title = attendance.done ? 'Checked in & out today' : 'Checked in today';
-      nameEl.after(att);
-    }
+    const attendanceBtn = renderListAttendanceButton(list);
+    if (attendanceBtn) nameEl.after(attendanceBtn);
 
     const moodBtn = document.createElement('button');
     moodBtn.type = 'button';

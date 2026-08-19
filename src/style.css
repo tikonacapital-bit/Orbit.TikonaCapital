@@ -1715,19 +1715,40 @@ button.stat-card:hover {
 .list-attendance {
   flex: 0 0 auto;
   padding: 1px 6px;
+  border: none;
   border-radius: 999px;
   font-size: 10px;
   font-weight: 700;
+  font-family: inherit;
   letter-spacing: 0.1px;
   white-space: nowrap;
   background: rgba(58, 91, 160, 0.12);
   color: var(--accent-strong);
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+
+.list-attendance:hover:not(:disabled) {
+  background: rgba(58, 91, 160, 0.22);
+  transform: scale(1.05);
+}
+
+.list-attendance.checkin {
+  background: #FFA500;
+  color: #fff;
+}
+.list-attendance.checkin:hover:not(:disabled) {
+  background: #e69400;
 }
 
 .list-attendance.done {
   background: rgba(31, 70, 144, 0.16);
   color: #1F4690;
+  cursor: default;
 }
+.list-attendance.done:hover { transform: none; }
+
+.list-attendance:disabled { cursor: default; opacity: 0.85; }
 
 /* A faint transparent+dashed style reads fine on plain white, but this
    bar sits on the page's cream/watermarked background, where that
