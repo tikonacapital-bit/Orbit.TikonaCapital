@@ -6895,6 +6895,55 @@ function renderProductivityUnifiedTable(sections) {
   return section;
 }
 
+// A real .xlsx would need an external library (this app has no build
+// step/bundler by design -- window.print() is used for PDF export for the
+// same reason). CSV opens directly in Excel with full column structure and
+// needs nothing but the browser, so that's what "Download Excel" produces.
+function csvEscapeCell(value) {
+  const str = String(value ?? '');
+  if (/[",\n]/.test(str)) return `"${str.replace(/"/g, '""')}"`;
+  return str;
+}
+
+function downloadProductivityCsv() {
+  if (!productivityEmployee || !productivityFrom || !productivityTo || productivityFrom > productivityTo) return;
+
+  const sections = [
+    { label: 'Tasks', rows: buildProductivityTaskRows(productivityEmployee, productivityCategory, productivityFrom, productivityTo) },
+    { label: 'Projects', rows: buildProductivityProjectRows(productivityEmployee, productivityCategory, productivityFrom, productivityTo) },
+    { label: 'Regular Tasks', rows: buildProductivityRegularRows(productivityEmployee, productivityCategory, productivityFrom, productivityTo) },
+  ];
+
+  // Matches exactly what's currently on screen -- same active column
+  // sort/filters as the Report table, just flattened into one sheet with
+  // a Section column instead of the table's divider rows (a real column
+  // is what makes it filterable/pivotable once it's actually in Excel).
+  const header = ['Section', ...PRODUCTIVITY_COLUMNS.map((c) => c.label)];
+  const lines = [header.map(csvEscapeCell).join(',')];
+
+  sections.forEach(({ label, rows }) => {
+    const filtered = productivitySortRows(rows.filter(productivityRowPassesFilters));
+    filtered.forEach((row) => {
+      const cells = [label, ...PRODUCTIVITY_COLUMNS.map(({ key }) => productivityCellText(row, key))];
+      lines.push(cells.map(csvEscapeCell).join(','));
+    });
+  });
+
+  // Leading BOM so Excel (unlike most other CSV consumers) correctly
+  // detects UTF-8 instead of mis-rendering any non-ASCII characters.
+  const csv = `﻿${lines.join('\r\n')}`;
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const employeeLabel = productivityEmployee === PRODUCTIVITY_ALL_EMPLOYEES ? 'All-employees' : productivityEmployee.replace(/\s+/g, '-');
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = `Report_${employeeLabel}_${productivityFrom}_to_${productivityTo}.csv`;
+  document.body.appendChild(a);
+  a.click();
+  a.remove();
+  URL.revokeObjectURL(url);
+}
+
 function productivityDateRangeArray(from, to) {
   const fromDate = new Date(`${from}T00:00:00`);
   const toDate = new Date(`${to}T00:00:00`);
@@ -7356,8 +7405,18 @@ function renderProductivityWorkspace() {
   downloadBtn.title = ready ? 'Download this report as a PDF' : 'Choose an employee and a date range first';
   downloadBtn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg><span>Download PDF</span>';
   downloadBtn.addEventListener('click', () => window.print());
+
+  const downloadExcelBtn = document.createElement('button');
+  downloadExcelBtn.type = 'button';
+  downloadExcelBtn.className = 'tab-add productivity-download-btn';
+  downloadExcelBtn.disabled = !ready;
+  downloadExcelBtn.title = ready ? 'Download this report as an Excel-compatible spreadsheet' : 'Choose an employee and a date range first';
+  downloadExcelBtn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 3v18M16 3v18M3 9h18M3 15h18"/></svg><span>Download Excel</span>';
+  downloadExcelBtn.addEventListener('click', () => downloadProductivityCsv());
+
   productivityViewActionsEl.innerHTML = '';
   productivityViewActionsEl.appendChild(downloadBtn);
+  productivityViewActionsEl.appendChild(downloadExcelBtn);
 
   if (!productivityEmployee || !productivityFrom || !productivityTo) {
     wrap.appendChild(renderEmptyState('Choose an employee and a date range to see their performance report.'));
