@@ -575,6 +575,7 @@ function normalizeRegular(regular) {
     time: task.time || '',
     group: task.group === 'Research - Daily' ? 'Daily' : (task.group || cadenceLabel(task.cadence || 'daily')),
     category: typeof task.category === 'string' ? task.category : '',
+    priority: PRIORITY_ORDER.includes(task.priority) ? task.priority : 'none',
     weekday: Number.isInteger(task.weekday) ? task.weekday : 1,
     dayOfMonth: Number.isInteger(task.dayOfMonth) ? task.dayOfMonth : 1,
     month: Number.isInteger(task.month) ? task.month : 0,
@@ -833,6 +834,7 @@ function addRegularTask() {
     group: 'Daily',
     weekday: 1,
     dayOfMonth: 1,
+    priority: 'none',
   };
   state.regular.tasks.push(task);
   refreshRegularEmployees();
@@ -852,6 +854,7 @@ function addRegularTaskWith(details = {}) {
     time: details.time || '',
     group: details.group || cadenceLabel(cadence),
     category: details.category || '',
+    priority: PRIORITY_ORDER.includes(details.priority) ? details.priority : 'none',
     weekday: Number.isInteger(details.weekday) ? details.weekday : 1,
     dayOfMonth: Number.isInteger(details.dayOfMonth) ? details.dayOfMonth : 1,
     month: Number.isInteger(details.month) ? details.month : 0,
@@ -1655,9 +1658,20 @@ function openAddRegularRowPopup() {
         <select id="regRowCadence" style="${FIELD_STYLE}">${cadenceOptions}</select>
       </div>
     </div>
-    <div style="margin-bottom:10px;position:relative;">
-      <label style="${FIELD_LABEL_STYLE}">Category — groups this task under the chosen cadence</label>
-      <input type="text" id="regRowCategory" placeholder="e.g. Social Media" autocomplete="off" style="${FIELD_STYLE}">
+    <div class="popup-2col" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
+      <div style="position:relative;">
+        <label style="${FIELD_LABEL_STYLE}">Category — groups this task under the chosen cadence</label>
+        <input type="text" id="regRowCategory" placeholder="e.g. Social Media" autocomplete="off" style="${FIELD_STYLE}">
+      </div>
+      <div>
+        <label style="${FIELD_LABEL_STYLE}">Priority</label>
+        <select id="regRowPriority" style="${FIELD_STYLE}">
+          <option value="none">No priority</option>
+          <option value="low">Low</option>
+          <option value="medium">Medium</option>
+          <option value="high">High</option>
+        </select>
+      </div>
     </div>
 
     <div id="regScheduleDaily" class="reg-schedule-section">
@@ -1805,6 +1819,7 @@ function openAddRegularRowPopup() {
     const owner = popup.querySelector('#regRowOwner').value;
     const cadence = cadenceSel.value;
     const category = categoryInput.value.trim();
+    const priority = popup.querySelector('#regRowPriority').value;
     if (category && !state.categories.some((c) => c.toLowerCase() === category.toLowerCase())) {
       state.categories.push(category);
     }
@@ -1813,7 +1828,7 @@ function openAddRegularRowPopup() {
     // parallel top-level section of its own.
     const group = cadenceLabel(cadence);
 
-    const details = { cadence, owner, title, category, group };
+    const details = { cadence, owner, title, category, group, priority };
     if (cadence === 'daily') {
       details.time = popup.querySelector('#regRowTime').value;
     } else if (cadence === 'weekly') {
@@ -2021,6 +2036,28 @@ function updateRegularTask(task, field, value) {
   refreshRegularEmployees();
   persist();
   render();
+}
+
+function cycleRegularPriority(task) {
+  const idx = PRIORITY_ORDER.indexOf(task.priority || 'none');
+  task.priority = PRIORITY_ORDER[(idx + 1) % PRIORITY_ORDER.length];
+  persist();
+  render();
+}
+
+function renderRegularPriorityCell(task) {
+  const td = document.createElement('td');
+  const value = task.priority || 'none';
+  const pill = document.createElement('span');
+  pill.className = `task-priority regular-priority-pill ${value}`;
+  pill.textContent = value === 'high' ? 'High' : value === 'medium' ? 'Medium' : value === 'low' ? 'Low' : '+ Priority';
+  pill.title = 'Click to cycle priority';
+  pill.addEventListener('click', (e) => {
+    e.stopPropagation();
+    cycleRegularPriority(task);
+  });
+  td.appendChild(pill);
+  return td;
 }
 
 // The Time/Schedule column doubles as the input for when a task recurs,
@@ -4095,7 +4132,7 @@ function renderRegularGridView() {
   table.className = 'regular-grid';
   const thead = document.createElement('thead');
   const headRow = document.createElement('tr');
-  ['Employee', 'Task', 'Time', 'Status'].forEach((label) => {
+  ['Employee', 'Task', 'Priority', 'Time', 'Status'].forEach((label) => {
     const th = document.createElement('th');
     th.textContent = label;
     headRow.appendChild(th);
@@ -4128,7 +4165,7 @@ function renderRegularGridView() {
     const groupRow = document.createElement('tr');
     groupRow.className = 'regular-group-row';
     const groupCell = document.createElement('td');
-    groupCell.colSpan = dates.length + 4;
+    groupCell.colSpan = dates.length + 5;
     groupCell.textContent = group;
     groupRow.appendChild(groupCell);
     tbody.appendChild(groupRow);
@@ -4138,7 +4175,7 @@ function renderRegularGridView() {
         const subgroupRow = document.createElement('tr');
         subgroupRow.className = 'regular-subgroup-row';
         const subgroupCell = document.createElement('td');
-        subgroupCell.colSpan = dates.length + 4;
+        subgroupCell.colSpan = dates.length + 5;
         subgroupCell.textContent = category;
         subgroupRow.appendChild(subgroupCell);
         tbody.appendChild(subgroupRow);
@@ -4166,6 +4203,8 @@ function renderRegularGridView() {
         const titleCell = document.createElement('td');
         titleCell.appendChild(editableText(task.title, (value) => updateRegularTask(task, 'title', value), 'regular-editable'));
         tr.appendChild(titleCell);
+
+        tr.appendChild(renderRegularPriorityCell(task));
 
         const timeCell = document.createElement('td');
         timeCell.appendChild(editableText(regularScheduleValue(task), (value) => updateRegularSchedule(task, value), 'regular-editable', regularSchedulePlaceholder(task.cadence)));
@@ -6470,7 +6509,7 @@ function buildProductivityRegularRows(employee, category, from, to) {
     .filter((t) => productivityMatchesEmployee(employee, t.owner) && matchesCategory(t))
     .map((t) => {
       const p = regularTaskProgress(t, dates);
-      return { kind: 'regular', name: t.title, category: t.category, priority: null, startDate: null, due: null, done: p.total > 0 && p.done >= p.total, progress: p.pct, completedAt: null, occurrences: p };
+      return { kind: 'regular', name: t.title, category: t.category, priority: t.priority && t.priority !== 'none' ? t.priority : null, startDate: null, due: null, done: p.total > 0 && p.done >= p.total, progress: p.pct, completedAt: null, occurrences: p };
     })
     .filter((row) => row.occurrences.total > 0);
 }

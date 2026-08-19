@@ -2819,10 +2819,27 @@ button.stat-card:hover {
   text-overflow: ellipsis;
 }
 
-.regular-grid th:nth-child(3),
-.regular-grid td:nth-child(3),
-.regular-grid th:nth-child(4),
-.regular-grid td:nth-child(4) {
+/* .attendance-grid shares the .regular-grid class (only its header/day
+   columns differ), so this stays scoped explicitly to each variant --
+   attendance has just 2 fixed columns before its day columns start,
+   while the plain regular-grid task table has 5 (Employee/Task/
+   Priority/Time/Status). */
+.attendance-grid th:nth-child(3),
+.attendance-grid td:nth-child(3),
+.attendance-grid th:nth-child(4),
+.attendance-grid td:nth-child(4) {
+  width: 48px;
+}
+
+.regular-grid:not(.attendance-grid) th:nth-child(3),
+.regular-grid:not(.attendance-grid) td:nth-child(3) {
+  width: 70px;
+}
+
+.regular-grid:not(.attendance-grid) th:nth-child(4),
+.regular-grid:not(.attendance-grid) td:nth-child(4),
+.regular-grid:not(.attendance-grid) th:nth-child(5),
+.regular-grid:not(.attendance-grid) td:nth-child(5) {
   width: 48px;
 }
 
@@ -2841,6 +2858,27 @@ button.stat-card:hover {
   display: block;
   font-size: 10px;
   line-height: 1.25;
+}
+
+/* .task-priority.none is display:none on the task cards (nothing to show
+   there), but this cell needs to stay visible and clickable so an unset
+   priority can actually be discovered and set -- shown as a dashed
+   "+ Priority" placeholder instead, matching the app's existing
+   "+ due date"/"+ category" empty-field convention. */
+.regular-priority-pill {
+  cursor: pointer;
+  font-size: 10px;
+  padding: 2px 6px;
+}
+.regular-priority-pill.none {
+  display: inline-block;
+  background: transparent;
+  color: var(--text-muted);
+  border: 1px dashed var(--border);
+}
+.regular-priority-pill.none:hover {
+  color: var(--accent);
+  border-color: var(--accent);
 }
 
 .editable-cell,
@@ -3422,10 +3460,7 @@ button.stat-card:hover {
 .productivity-score-card.timeliness { --score-color: #2F80ED; }
 .productivity-score-card.priorityHandling { --score-color: #E68A00; }
 .productivity-score-card.waste { --score-color: #E04858; }
-.productivity-score-card.composite {
-  --score-color: #7C4DBD;
-  background: rgba(124, 77, 189, 0.05);
-}
+.productivity-score-card.composite { --score-color: #7C4DBD; }
 
 .productivity-score-card-head {
   display: flex;
@@ -4565,8 +4600,9 @@ button.stat-card:hover {
     /* Regular Tasks shows every calendar day (not just weekdays), so
        size for the true worst case -- a 31-day month -- otherwise an
        under-count here makes table-layout:fixed compress even the
-       sticky columns to fit. */
-    min-width: calc(300px + 30px * 31);
+       sticky columns to fit. 370px = the 5 fixed columns (Employee 84 +
+       Task 120 + Priority 70 + Time 48 + Status 48). */
+    min-width: calc(370px + 30px * 31);
   }
 
   .attendance-grid {
@@ -4576,8 +4612,8 @@ button.stat-card:hover {
     min-width: calc(204px + 46px * 24);
   }
 
-  .regular-grid th:nth-child(n+5),
-  .regular-grid td:nth-child(n+5) {
+  .regular-grid th:nth-child(n+6),
+  .regular-grid td:nth-child(n+6) {
     width: 30px;
     min-width: 30px;
   }
