@@ -3157,6 +3157,27 @@ function renderProjectPersonCard(name) {
   countEl.textContent = activeProjects.length || '';
   header.appendChild(countEl);
 
+  // Completed/Deleted are small icon+count pills in the header (same
+  // pattern as renderList's task cards) instead of full-width toggle rows,
+  // so a card with nothing completed/deleted yet costs no extra space.
+  const completedBtn = document.createElement('button');
+  completedBtn.type = 'button';
+  completedBtn.className = 'list-completed-btn';
+  completedBtn.classList.toggle('hidden', doneProjects.length === 0);
+  completedBtn.title = `${doneProjects.length} completed`;
+  completedBtn.innerHTML = '<svg viewBox="0 0 20 20" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5l3.5 3.5L16 5.5"/></svg><span></span>';
+  completedBtn.querySelector('span').textContent = doneProjects.length;
+  header.appendChild(completedBtn);
+
+  const deletedBtn = document.createElement('button');
+  deletedBtn.type = 'button';
+  deletedBtn.className = 'list-deleted-btn';
+  deletedBtn.classList.toggle('hidden', deletedProjects.length === 0);
+  deletedBtn.title = `${deletedProjects.length} deleted`;
+  deletedBtn.innerHTML = '<svg viewBox="0 0 20 20" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h12M8 6V4.5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1V6M6 6l.5 9a1 1 0 0 0 1 .9h5a1 1 0 0 0 1-.9L14 6"/></svg><span></span>';
+  deletedBtn.querySelector('span').textContent = deletedProjects.length;
+  header.appendChild(deletedBtn);
+
   if (name !== 'Unassigned' && activeProjects.length) {
     const menuWrap = document.createElement('div');
     menuWrap.className = 'list-menu-wrap';
@@ -3250,35 +3271,33 @@ function renderProjectPersonCard(name) {
   card.appendChild(body);
 
   const wrap = document.createElement('div');
-  wrap.className = 'completed-wrap';
-  const toggle = document.createElement('button');
-  toggle.type = 'button';
-  toggle.className = 'completed-toggle';
-  toggle.innerHTML = `Completed (<span class="completed-count">${doneProjects.length}</span>)`;
-  wrap.appendChild(toggle);
+  wrap.className = 'completed-wrap hidden';
   const list = document.createElement('div');
-  list.className = 'completed-list tasks-list hidden';
+  list.className = 'completed-list tasks-list';
   doneProjects
     .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0))
     .forEach((project) => list.appendChild(renderProjectRow(project)));
   wrap.appendChild(list);
-  toggle.addEventListener('click', () => list.classList.toggle('hidden'));
+  completedBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    wrap.classList.toggle('hidden');
+    completedBtn.classList.toggle('active', !wrap.classList.contains('hidden'));
+  });
   card.appendChild(wrap);
 
   const delWrap = document.createElement('div');
-  delWrap.className = 'deleted-wrap';
-  const delToggle = document.createElement('button');
-  delToggle.type = 'button';
-  delToggle.className = 'deleted-toggle';
-  delToggle.innerHTML = `Deleted (<span class="deleted-count">${deletedProjects.length}</span>)`;
-  delWrap.appendChild(delToggle);
+  delWrap.className = 'deleted-wrap hidden';
   const delList = document.createElement('div');
-  delList.className = 'deleted-list hidden';
+  delList.className = 'deleted-list';
   deletedProjects
     .sort((a, b) => (b.deletedAt || 0) - (a.deletedAt || 0))
     .forEach((project) => delList.appendChild(renderDeletedProjectRow(project)));
   delWrap.appendChild(delList);
-  delToggle.addEventListener('click', () => delList.classList.toggle('hidden'));
+  deletedBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    delWrap.classList.toggle('hidden');
+    deletedBtn.classList.toggle('active', !delWrap.classList.contains('hidden'));
+  });
   card.appendChild(delWrap);
 
   return card;
