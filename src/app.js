@@ -35,6 +35,7 @@ let productivityTo = '';
 let productivitySortColumn = null;
 let productivitySortDir = 'asc';
 let productivityColumnFilters = {};
+const PRODUCTIVITY_ALL_EMPLOYEES = '__all__';
 let sidebarTasksExpanded = true;
 let sidebarTabsExpanded = false;
 let viewMode = loadViewMode();
@@ -2187,7 +2188,7 @@ function render() {
 
     if (activeWorkspace === 'productivity') {
       setViewbarActions('productivity');
-      dashboardTitleEl.textContent = 'Productivity';
+      dashboardTitleEl.textContent = 'Reports';
       statsEl.innerHTML = '';
       boardEl.innerHTML = '';
       boardEl.className = 'board';
@@ -2433,8 +2434,8 @@ function renderSidebar() {
   productivityBtn.type = 'button';
   productivityBtn.id = 'productivityBtn';
   productivityBtn.className = `sidebar-item${activeWorkspace === 'productivity' ? ' active' : ''}`;
-  productivityBtn.title = 'Productivity';
-  productivityBtn.innerHTML = '<svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><path d="M4 12l3-3 3 3 6-6"/><path d="M13 3h4v4"/></svg><span class="nav-label">Productivity</span>';
+  productivityBtn.title = 'Reports';
+  productivityBtn.innerHTML = '<svg viewBox="0 0 20 20" width="17" height="17" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="4" y="2.5" width="12" height="15" rx="1.5"/><path d="M7.5 2.5V2a1 1 0 0 1 1-1h3a1 1 0 0 1 1 1v.5"/><path d="M7 9h6M7 11.8h6M7 14.6h3.5"/></svg><span class="nav-label">Reports</span>';
   productivityBtn.addEventListener('click', () => {
     activeWorkspace = 'productivity';
     render();
@@ -6434,18 +6435,26 @@ function productivityInRange(item, from, to) {
   return false;
 }
 
+function productivityMatchesEmployee(employee, candidate) {
+  return employee === PRODUCTIVITY_ALL_EMPLOYEES || sameEmployee(candidate, employee);
+}
+
+function productivityMatchesAnyEmployee(employee, candidates) {
+  return employee === PRODUCTIVITY_ALL_EMPLOYEES || (candidates || []).some((o) => sameEmployee(o, employee));
+}
+
 function buildProductivityTaskRows(employee, category, from, to) {
   const matchesCategory = (item) => !category || item.category === category;
   return state.lists.flatMap((list) => list.tasks)
-    .filter((t) => sameEmployee(t.assignedTo, employee) && matchesCategory(t) && productivityInRange(t, from, to))
-    .map((t) => ({ kind: 'task', name: t.text, category: t.category, priority: t.priority, startDate: t.startDate, due: t.due, done: t.done, progress: t.progress, status: t.status, completedAt: t.completedAt }));
+    .filter((t) => productivityMatchesEmployee(employee, t.assignedTo) && matchesCategory(t) && productivityInRange(t, from, to))
+    .map((t) => ({ kind: 'task', name: t.text, category: t.category, priority: t.priority, startDate: t.startDate, due: t.due, done: t.done, progress: t.progress, status: t.status, completedAt: t.completedAt, assignedTo: t.assignedTo }));
 }
 
 function buildProductivityProjectRows(employee, category, from, to) {
   const matchesCategory = (item) => !category || item.category === category;
   return (state.projects || [])
-    .filter((p) => !p.archived && !p.deleted && (p.owners || []).some((o) => sameEmployee(o, employee)) && matchesCategory(p) && productivityInRange(p, from, to))
-    .map((p) => ({ kind: 'project', name: p.name, category: p.category, priority: p.priority, startDate: p.startDate, due: p.dueDate, done: p.done, progress: p.progress, status: p.status, completedAt: p.completedAt }));
+    .filter((p) => !p.archived && !p.deleted && productivityMatchesAnyEmployee(employee, p.owners) && matchesCategory(p) && productivityInRange(p, from, to))
+    .map((p) => ({ kind: 'project', name: p.name, category: p.category, priority: p.priority, startDate: p.startDate, due: p.dueDate, done: p.done, progress: p.progress, status: p.status, completedAt: p.completedAt, owners: p.owners }));
 }
 
 // Regular tasks recur (daily/weekly/monthly/...) instead of having a single
@@ -6458,7 +6467,7 @@ function buildProductivityRegularRows(employee, category, from, to) {
   const matchesCategory = (item) => !category || item.category === category;
   const dates = productivityDateRangeArray(from, to);
   return (state.regular?.tasks || [])
-    .filter((t) => sameEmployee(t.owner, employee) && matchesCategory(t))
+    .filter((t) => productivityMatchesEmployee(employee, t.owner) && matchesCategory(t))
     .map((t) => {
       const p = regularTaskProgress(t, dates);
       return { kind: 'regular', name: t.title, category: t.category, priority: null, startDate: null, due: null, done: p.total > 0 && p.done >= p.total, progress: p.pct, completedAt: null, occurrences: p };
@@ -6853,15 +6862,15 @@ function buildProductivitySummary(employee, category, from, to) {
   const matchesCategory = (item) => !category || item.category === category;
 
   const tasks = state.lists.flatMap((list) => list.tasks)
-    .filter((t) => sameEmployee(t.assignedTo, employee) && matchesCategory(t) && productivityInRange(t, from, to));
+    .filter((t) => productivityMatchesEmployee(employee, t.assignedTo) && matchesCategory(t) && productivityInRange(t, from, to));
   const taskStats = { done: tasks.filter((t) => t.done).length, total: tasks.length };
 
   const projects = (state.projects || [])
-    .filter((p) => !p.archived && !p.deleted && (p.owners || []).some((o) => sameEmployee(o, employee)) && matchesCategory(p) && productivityInRange(p, from, to));
+    .filter((p) => !p.archived && !p.deleted && productivityMatchesAnyEmployee(employee, p.owners) && matchesCategory(p) && productivityInRange(p, from, to));
   const projectStats = { done: projects.filter((p) => p.done).length, total: projects.length };
 
   const dates = productivityDateRangeArray(from, to);
-  const regularTasks = (state.regular?.tasks || []).filter((t) => sameEmployee(t.owner, employee) && matchesCategory(t));
+  const regularTasks = (state.regular?.tasks || []).filter((t) => productivityMatchesEmployee(employee, t.owner) && matchesCategory(t));
   const regularStats = regularTasks.reduce((acc, task) => {
     const p = regularTaskProgress(task, dates);
     acc.done += p.done;
@@ -6874,6 +6883,344 @@ function buildProductivitySummary(employee, category, from, to) {
     { label: 'Projects', ...projectStats },
     { label: 'Regular Tasks', ...regularStats },
   ];
+}
+
+// ---------- Productivity report: performance score ----------
+//
+// A composite 0-100 score built from 4 independently-normalized components
+// (Completion, Timeliness, Priority Handling, Waste), combined as a weighted
+// average -- see the in-app discussion this was designed from. Any component
+// that has no applicable data for the current filters (e.g. no high-priority
+// tasks in range) is excluded rather than defaulted to 0/100, and the
+// remaining weights are rebalanced so the composite never gets unfairly
+// dragged down by "not applicable" data.
+
+const PRODUCTIVITY_SCORE_WEIGHTS = { completion: 0.30, timeliness: 0.30, priorityHandling: 0.25, waste: 0.15 };
+
+function productivityClamp(value, min, max) {
+  return Math.max(min, Math.min(max, value));
+}
+
+// Low=1, Medium=2, High=3 -- everything else (regular tasks carry no
+// priority field, so do occurrences) falls back to the Low baseline rather
+// than being weightless.
+function priorityWeight(priority) {
+  if (priority === 'high') return 3;
+  if (priority === 'medium') return 2;
+  return 1;
+}
+
+function productivityRowWeight(row) {
+  return priorityWeight(row.priority);
+}
+
+// Total priority-weighted workload assigned in the period -- used both for
+// the Completion rate's denominator and to compare one employee's workload
+// against the team average (see applyVolumeAdjustment).
+function productivityTotalWeight(taskRows, projectRows, regularRows) {
+  let total = 0;
+  [...taskRows, ...projectRows].forEach((r) => { total += productivityRowWeight(r); });
+  regularRows.forEach((r) => { total += (r.occurrences && r.occurrences.total) || 0; });
+  return total;
+}
+
+function computeProductivityCompletion(taskRows, projectRows, regularRows) {
+  let doneWeight = 0;
+  let totalWeight = 0;
+  let doneCount = 0;
+  let totalCount = 0;
+  [...taskRows, ...projectRows].forEach((r) => {
+    const w = productivityRowWeight(r);
+    totalWeight += w;
+    totalCount += 1;
+    if (r.done) { doneWeight += w; doneCount += 1; }
+  });
+  regularRows.forEach((r) => {
+    const occ = r.occurrences || { done: 0, total: 0 };
+    totalWeight += occ.total;
+    doneWeight += occ.done;
+    totalCount += occ.total;
+    doneCount += occ.done;
+  });
+  if (totalWeight === 0) return { score: null, doneCount, totalCount };
+  return { score: Math.round((doneWeight / totalWeight) * 100), doneCount, totalCount };
+}
+
+// Bounded volume adjustment: an employee carrying an above-average
+// weighted workload gets a modest boost, below-average gets a modest
+// discount -- capped so raw volume alone can never dominate the score
+// (this is what stops "gets fewer tasks, finishes them all" from
+// automatically outscoring someone doing real above-average output).
+function applyVolumeAdjustment(rawScore, employeeWeight, teamAvgWeight) {
+  if (rawScore === null || !teamAvgWeight) return rawScore;
+  const ratio = employeeWeight / teamAvgWeight;
+  const multiplier = productivityClamp(Math.sqrt(ratio || 0), 0.85, 1.15);
+  return Math.round(productivityClamp(rawScore * multiplier, 0, 100));
+}
+
+function productivityTeamAverageWeight(category, from, to) {
+  const employees = getAllEmployees();
+  if (!employees.length) return 0;
+  const totals = employees.map((name) => productivityTotalWeight(
+    buildProductivityTaskRows(name, category, from, to),
+    buildProductivityProjectRows(name, category, from, to),
+    buildProductivityRegularRows(name, category, from, to),
+  ));
+  return totals.reduce((s, v) => s + v, 0) / employees.length;
+}
+
+// due/completedAt delta -> 0-100. On-time = 50 (neutral baseline). Early
+// credit maxes out at E_MAX days (further-early adds nothing, so marking
+// things done implausibly early doesn't inflate the score). Late loses
+// credit down to 0 at L_MAX days.
+const PRODUCTIVITY_TIMELINESS_EARLY_CAP_DAYS = 5;
+const PRODUCTIVITY_TIMELINESS_LATE_CAP_DAYS = 7;
+
+function timelinessScoreForDiff(diffDays) {
+  if (diffDays <= 0) {
+    const earlyDays = -diffDays;
+    return productivityClamp(50 + 50 * (earlyDays / PRODUCTIVITY_TIMELINESS_EARLY_CAP_DAYS), 0, 100);
+  }
+  return productivityClamp(50 - 50 * (diffDays / PRODUCTIVITY_TIMELINESS_LATE_CAP_DAYS), 0, 100);
+}
+
+// Scores both completed tasks (against their actual delivery delta) AND
+// still-open overdue tasks (against days-overdue-so-far, capped at the
+// same late floor) -- otherwise an employee could simply never finish a
+// late task and it would never count against them.
+function computeProductivityTimeliness(taskRows, projectRows) {
+  const today = todayStr();
+  let weightedScore = 0;
+  let weightSum = 0;
+  let onTime = 0;
+  let late = 0;
+  let early = 0;
+  const deltas = [];
+
+  [...taskRows, ...projectRows].forEach((r) => {
+    const w = productivityRowWeight(r);
+    if (r.done && r.due && r.completedAt) {
+      const diff = productivityDeliveryInfo(r).diff;
+      if (diff === null) return;
+      weightedScore += w * timelinessScoreForDiff(diff);
+      weightSum += w;
+      deltas.push(-diff);
+      if (diff === 0) onTime += 1; else if (diff > 0) late += 1; else early += 1;
+    } else if (!r.done && r.due && r.due < today) {
+      const daysOverdue = productivityDateStrDiffDays(today, r.due);
+      weightedScore += w * timelinessScoreForDiff(daysOverdue);
+      weightSum += w;
+      late += 1;
+    }
+  });
+
+  if (weightSum === 0) return { score: null, onTime, late, early, avgDeltaDays: null };
+  const avgDeltaDays = deltas.length ? Math.round((deltas.reduce((a, b) => a + b, 0) / deltas.length) * 10) / 10 : null;
+  return { score: Math.round(weightedScore / weightSum), onTime, late, early, avgDeltaDays };
+}
+
+// Rather than guess at "was this task paused because a more urgent one
+// landed on top of it" (which today's data can't actually prove), this
+// measures the thing we can prove directly: how well High-priority work
+// specifically gets delivered on time.
+function computeProductivityPriorityHandling(taskRows, projectRows) {
+  const highTasks = taskRows.filter((r) => r.priority === 'high');
+  const highProjects = projectRows.filter((r) => r.priority === 'high');
+  const all = [...highTasks, ...highProjects];
+  if (!all.length) return { score: null, doneCount: 0, totalCount: 0 };
+  const doneCount = all.filter((r) => r.done).length;
+  const timeliness = computeProductivityTimeliness(highTasks, highProjects);
+  return { score: timeliness.score, doneCount, totalCount: all.length };
+}
+
+// Only computable as an ESTIMATE today: we don't yet capture *why* a task
+// was deleted (made obsolete vs. abandoned), so this can't distinguish
+// "no fault of the employee" deletions from real wasted effort. It uses
+// progress-at-deletion as a proxy -- a task deleted at 0% cost nothing
+// real, one deleted mid-flight represents real sunk effort -- but it's
+// explicitly labeled as an estimate in the UI rather than presented as fact.
+function buildProductivityWasteItems(employee, category, from, to) {
+  const matchesCategory = (item) => !category || item.category === category;
+  const fromTs = new Date(`${from}T00:00:00`).getTime();
+  const toTs = new Date(`${to}T23:59:59`).getTime();
+  const items = [];
+
+  state.lists.forEach((list) => {
+    (list.deletedTasks || []).forEach((entry) => {
+      const t = entry.task;
+      if (!t || !entry.deletedAt) return;
+      if (entry.deletedAt < fromTs || entry.deletedAt > toTs) return;
+      if (!productivityMatchesEmployee(employee, t.assignedTo)) return;
+      if (!matchesCategory(t)) return;
+      items.push({ priority: t.priority, progress: itemDisplayProgress(t) });
+    });
+  });
+
+  (state.projects || []).forEach((p) => {
+    if (!p.deleted || !p.deletedAt) return;
+    if (p.deletedAt < fromTs || p.deletedAt > toTs) return;
+    if (!productivityMatchesAnyEmployee(employee, p.owners)) return;
+    if (!matchesCategory(p)) return;
+    items.push({ priority: p.priority, progress: itemDisplayProgress(p) });
+  });
+
+  return items;
+}
+
+function computeProductivityWaste(wasteItems, assignedTotalWeight) {
+  if (!wasteItems.length) return { score: assignedTotalWeight > 0 ? 0 : null, count: 0 };
+  const wastedWeight = wasteItems.reduce((s, it) => s + productivityRowWeight(it) * (it.progress / 100), 0);
+  const itemsWeight = wasteItems.reduce((s, it) => s + productivityRowWeight(it), 0);
+  const denom = assignedTotalWeight + itemsWeight;
+  const score = denom > 0 ? Math.round((wastedWeight / denom) * 100) : null;
+  return { score, count: wasteItems.length };
+}
+
+function productivityScoreTier(score) {
+  if (score === null || score === undefined) return { label: 'No data', cls: 'na' };
+  if (score >= 85) return { label: 'Excellent', cls: 'excellent' };
+  if (score >= 70) return { label: 'Good', cls: 'good' };
+  if (score >= 50) return { label: 'Needs focus', cls: 'needs-focus' };
+  return { label: 'At risk', cls: 'at-risk' };
+}
+
+function computeProductivityScorecard(employee, category, from, to) {
+  const taskRows = buildProductivityTaskRows(employee, category, from, to);
+  const projectRows = buildProductivityProjectRows(employee, category, from, to);
+  const regularRows = buildProductivityRegularRows(employee, category, from, to);
+
+  const completion = computeProductivityCompletion(taskRows, projectRows, regularRows);
+  if (completion.score !== null && employee !== PRODUCTIVITY_ALL_EMPLOYEES) {
+    const employeeWeight = productivityTotalWeight(taskRows, projectRows, regularRows);
+    const teamAvgWeight = productivityTeamAverageWeight(category, from, to);
+    completion.score = applyVolumeAdjustment(completion.score, employeeWeight, teamAvgWeight);
+  }
+
+  const timeliness = computeProductivityTimeliness(taskRows, projectRows);
+  const priorityHandling = computeProductivityPriorityHandling(taskRows, projectRows);
+
+  const wasteItems = buildProductivityWasteItems(employee, category, from, to);
+  const assignedTotalWeight = productivityTotalWeight(taskRows, projectRows, regularRows);
+  const waste = computeProductivityWaste(wasteItems, assignedTotalWeight);
+
+  const parts = [
+    { key: 'completion', score: completion.score, weight: PRODUCTIVITY_SCORE_WEIGHTS.completion },
+    { key: 'timeliness', score: timeliness.score, weight: PRODUCTIVITY_SCORE_WEIGHTS.timeliness },
+    { key: 'priorityHandling', score: priorityHandling.score, weight: PRODUCTIVITY_SCORE_WEIGHTS.priorityHandling },
+    { key: 'waste', score: waste.score === null ? null : (100 - waste.score), weight: PRODUCTIVITY_SCORE_WEIGHTS.waste },
+  ];
+  const available = parts.filter((p) => typeof p.score === 'number' && !Number.isNaN(p.score));
+  const weightSum = available.reduce((s, p) => s + p.weight, 0);
+  const compositeScore = weightSum > 0
+    ? Math.round(available.reduce((s, p) => s + p.score * (p.weight / weightSum), 0))
+    : null;
+
+  return {
+    completion,
+    timeliness,
+    priorityHandling,
+    waste,
+    composite: { score: compositeScore, tier: productivityScoreTier(compositeScore), contributingCount: available.length },
+  };
+}
+
+const PRODUCTIVITY_SCORE_CARD_META = [
+  { key: 'completion', label: 'Completion Score', color: '#1E9E6B', icon: '<path d="M4 10.5l3.5 3.5L16 5.5"/>' },
+  { key: 'timeliness', label: 'Timeliness Score', color: '#2F80ED', icon: '<circle cx="10" cy="10" r="7"/><path d="M10 6v4l3 2"/>' },
+  { key: 'priorityHandling', label: 'Priority Handling', color: '#E68A00', icon: '<path d="M10 3l1.8 4.6L16 9l-4.2 1.4L10 15l-1.8-4.6L4 9l4.2-1.4z"/>' },
+  { key: 'waste', label: 'Waste Score', color: '#E04858', icon: '<circle cx="10" cy="10" r="7"/><path d="M10 6v5M10 14v.01"/>' },
+  { key: 'composite', label: 'Final Composite Score', color: '#7C4DBD', icon: '<path d="M10 3l2 4 4.4.6-3.2 3 .8 4.4L10 13l-4 2 .8-4.4-3.2-3L8 7z"/>' },
+];
+
+function productivityGaugeSvg(pct, color) {
+  const p = pct === null || pct === undefined ? null : productivityClamp(pct, 0, 100);
+  const r = 30;
+  const c = 2 * Math.PI * r;
+  const dash = p === null ? 0 : (p / 100) * c;
+  return `
+    <svg viewBox="0 0 72 72" width="72" height="72" class="productivity-gauge" aria-hidden="true">
+      <circle cx="36" cy="36" r="${r}" fill="none" stroke="rgba(17,24,39,0.08)" stroke-width="7"/>
+      <circle cx="36" cy="36" r="${r}" fill="none" stroke="${color}" stroke-width="7" stroke-linecap="round"
+        stroke-dasharray="${dash.toFixed(1)} ${c.toFixed(1)}" transform="rotate(-90 36 36)"/>
+      <text x="36" y="41" text-anchor="middle" class="productivity-gauge-text">${p === null ? '—' : p}</text>
+    </svg>`;
+}
+
+function productivityScoreStatLines(key, data) {
+  switch (key) {
+    case 'completion':
+      return [`Items completed: ${data.completion.doneCount} of ${data.completion.totalCount}`];
+    case 'timeliness':
+      return [
+        `On time or early: ${data.timeliness.onTime + data.timeliness.early}`,
+        `Late: ${data.timeliness.late}`,
+        data.timeliness.avgDeltaDays === null ? null
+          : data.timeliness.avgDeltaDays >= 0 ? `Avg ${data.timeliness.avgDeltaDays} days early`
+          : `Avg ${Math.abs(data.timeliness.avgDeltaDays)} days late`,
+      ].filter(Boolean);
+    case 'priorityHandling':
+      return data.priorityHandling.totalCount
+        ? [`High-priority completed: ${data.priorityHandling.doneCount} of ${data.priorityHandling.totalCount}`]
+        : ['No high-priority items in this range'];
+    case 'waste':
+      return [
+        data.waste.score === null ? 'No assigned work in this range' : `${data.waste.score}% of weighted effort wasted (lower is better)`,
+        `Abandoned/deleted items: ${data.waste.count}`,
+        'Estimate — deletion reason isn’t tracked yet',
+      ];
+    case 'composite':
+      return [`Based on ${data.composite.contributingCount} of 4 components`];
+    default:
+      return [];
+  }
+}
+
+function renderProductivityScorecard(data) {
+  const wrap = document.createElement('div');
+  wrap.className = 'productivity-scorecard';
+
+  PRODUCTIVITY_SCORE_CARD_META.forEach(({ key, label, color, icon }) => {
+    const info = key === 'composite' ? data.composite : data[key];
+    // Waste is the one card where the raw number is "bad when high" (kept
+    // as-is on screen, same as the reference mockup, with an explicit
+    // "lower is better" note) -- but it's still tiered/classified off its
+    // inverted (cleanliness) value so "12% waste" correctly reads as an
+    // Excellent tier rather than a bad one.
+    const score = info.score;
+    const tier = key === 'composite' ? data.composite.tier
+      : key === 'waste' ? productivityScoreTier(score === null ? null : 100 - score)
+      : productivityScoreTier(score);
+
+    const card = document.createElement('div');
+    card.className = `productivity-score-card ${key}`;
+
+    const head = document.createElement('div');
+    head.className = 'productivity-score-card-head';
+    head.innerHTML = `<svg viewBox="0 0 20 20" width="14" height="14" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round">${icon}</svg><span>${escapeHtml(label)}</span>`;
+    card.appendChild(head);
+
+    const body = document.createElement('div');
+    body.className = 'productivity-score-card-body';
+    body.innerHTML = productivityGaugeSvg(score, color);
+    const tierEl = document.createElement('div');
+    tierEl.className = `productivity-score-tier ${tier.cls}`;
+    tierEl.textContent = tier.label;
+    body.appendChild(tierEl);
+    card.appendChild(body);
+
+    const stats = document.createElement('div');
+    stats.className = 'productivity-score-stats';
+    productivityScoreStatLines(key, data).forEach((line) => {
+      const p = document.createElement('div');
+      p.textContent = line;
+      stats.appendChild(p);
+    });
+    card.appendChild(stats);
+
+    wrap.appendChild(card);
+  });
+
+  return wrap;
 }
 
 function renderProductivitySummary(summary) {
@@ -6916,7 +7263,7 @@ function renderProductivityWorkspace() {
   empField.innerHTML = '<label>Employee</label>';
   const empSelect = document.createElement('select');
   const employeeNames = getAllEmployees();
-  empSelect.innerHTML = `<option value="">Select employee…</option>${employeeNames.map((name) => `<option value="${escapeHtml(name)}"${name === productivityEmployee ? ' selected' : ''}>${escapeHtml(name)}</option>`).join('')}`;
+  empSelect.innerHTML = `<option value="">Select employee…</option><option value="${PRODUCTIVITY_ALL_EMPLOYEES}"${productivityEmployee === PRODUCTIVITY_ALL_EMPLOYEES ? ' selected' : ''}>All employees</option>${employeeNames.map((name) => `<option value="${escapeHtml(name)}"${name === productivityEmployee ? ' selected' : ''}>${escapeHtml(name)}</option>`).join('')}`;
   empSelect.addEventListener('change', () => { productivityEmployee = empSelect.value; productivityColumnFilters = {}; productivitySortColumn = null; render(); });
   empField.appendChild(empSelect);
   filters.appendChild(empField);
@@ -6985,11 +7332,15 @@ function renderProductivityWorkspace() {
   const printHeader = document.createElement('div');
   printHeader.className = 'productivity-print-header';
   const rangeText = `${fmtShort(new Date(`${productivityFrom}T00:00:00`).getTime())} – ${fmtShort(new Date(`${productivityTo}T00:00:00`).getTime())}, ${productivityFrom.slice(0, 4)}`;
+  const employeeLabel = productivityEmployee === PRODUCTIVITY_ALL_EMPLOYEES ? 'All employees' : productivityEmployee;
   printHeader.innerHTML = `
-    <h2>Productivity Report</h2>
-    <p><strong>Employee:</strong> ${escapeHtml(productivityEmployee)} &nbsp;·&nbsp; <strong>Category:</strong> ${escapeHtml(productivityCategory || 'All')} &nbsp;·&nbsp; <strong>Range:</strong> ${rangeText}</p>
+    <h2>Performance Report</h2>
+    <p><strong>Employee:</strong> ${escapeHtml(employeeLabel)} &nbsp;·&nbsp; <strong>Category:</strong> ${escapeHtml(productivityCategory || 'All')} &nbsp;·&nbsp; <strong>Range:</strong> ${rangeText}</p>
   `;
   wrap.appendChild(printHeader);
+
+  const scorecard = computeProductivityScorecard(productivityEmployee, productivityCategory, productivityFrom, productivityTo);
+  wrap.appendChild(renderProductivityScorecard(scorecard));
 
   const taskRows = buildProductivityTaskRows(productivityEmployee, productivityCategory, productivityFrom, productivityTo);
   const projectRows = buildProductivityProjectRows(productivityEmployee, productivityCategory, productivityFrom, productivityTo);

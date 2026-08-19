@@ -3395,12 +3395,100 @@ button.stat-card:hover {
   border-radius: 999px;
 }
 
+/* Performance scorecard -- 5 cards (Completion/Timeliness/Priority
+   Handling/Waste/Final Composite), each a gauge + tier label + a couple
+   of supporting stat lines, so the composite Final score is explainable
+   at a glance instead of a bare number. Same white-card language as
+   .productivity-summary-card below it, just taller. */
+.productivity-scorecard {
+  display: grid;
+  grid-template-columns: repeat(5, 1fr);
+  gap: 12px;
+}
+
+.productivity-score-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+  padding: 14px 10px 16px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  border-top: 3px solid var(--score-color, var(--primary));
+  border-radius: var(--radius-lg);
+  text-align: center;
+}
+.productivity-score-card.completion { --score-color: #1E9E6B; }
+.productivity-score-card.timeliness { --score-color: #2F80ED; }
+.productivity-score-card.priorityHandling { --score-color: #E68A00; }
+.productivity-score-card.waste { --score-color: #E04858; }
+.productivity-score-card.composite {
+  --score-color: #7C4DBD;
+  background: rgba(124, 77, 189, 0.05);
+}
+
+.productivity-score-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.2px;
+  color: var(--score-color, var(--text));
+}
+
+.productivity-score-card-body {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 4px;
+}
+
+.productivity-gauge-text {
+  font-size: 18px;
+  font-weight: 800;
+  fill: var(--text);
+  font-family: inherit;
+}
+
+.productivity-score-tier {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 2px 9px;
+  border-radius: 999px;
+  background: rgba(100, 116, 139, 0.12);
+  color: var(--text-muted);
+}
+.productivity-score-tier.excellent { background: rgba(30, 158, 107, 0.16); color: var(--success); }
+.productivity-score-tier.good { background: rgba(47, 128, 237, 0.14); color: #2F80ED; }
+.productivity-score-tier.needs-focus { background: rgba(230, 138, 0, 0.16); color: #E68A00; }
+.productivity-score-tier.at-risk { background: rgba(224, 72, 88, 0.14); color: var(--danger); }
+
+.productivity-score-stats {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  font-size: 10.5px;
+  line-height: 1.4;
+  color: var(--text-muted);
+}
+
+@media (max-width: 1100px) {
+  .productivity-scorecard {
+    grid-template-columns: repeat(3, 1fr);
+  }
+}
+
 @media (max-width: 768px) {
   .productivity-workspace {
     padding: 14px;
   }
   .productivity-summary-grid {
     grid-template-columns: 1fr;
+  }
+  .productivity-scorecard {
+    grid-template-columns: 1fr 1fr;
   }
 }
 
@@ -3488,7 +3576,8 @@ button.stat-card:hover {
   }
 
   .productivity-table-section,
-  .productivity-summary {
+  .productivity-summary,
+  .productivity-scorecard {
     break-inside: avoid;
     margin-bottom: 16px;
   }
@@ -3499,6 +3588,19 @@ button.stat-card:hover {
 
   .productivity-summary-grid {
     grid-template-columns: repeat(3, 1fr) !important;
+  }
+
+  .productivity-scorecard {
+    grid-template-columns: repeat(5, 1fr) !important;
+  }
+
+  .productivity-score-card {
+    padding: 8px 4px 10px !important;
+  }
+
+  .productivity-gauge {
+    width: 52px !important;
+    height: 52px !important;
   }
 }
 
