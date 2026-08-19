@@ -695,41 +695,15 @@ button {
 }
 .project-subtask-delete:hover { background: rgba(224, 72, 88, 0.12); color: var(--danger); }
 
+/* Completed/Deleted are surfaced as small header icon+count buttons (see
+   .list-completed-btn/.list-deleted-btn below) instead of full-width toggle
+   rows, so a card with nothing completed/deleted yet costs zero vertical
+   space. These wraps hold the expandable panel itself, toggled on click. */
 .completed-wrap {
   margin-top: 10px;
   border-top: 1px dashed rgba(17, 24, 39, 0.08);
   padding-top: 8px;
 }
-.completed-toggle,
-.deleted-toggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 5px;
-}
-.completed-toggle::before,
-.deleted-toggle::before {
-  content: '';
-  width: 0;
-  height: 0;
-  border-left: 4px solid transparent;
-  border-right: 4px solid transparent;
-  border-top: 5px solid currentColor;
-  opacity: 0.55;
-  transition: transform 160ms ease;
-}
-.completed-toggle.expanded::before,
-.deleted-toggle.expanded::before { transform: rotate(-180deg); }
-.completed-toggle {
-  background: none;
-  border: none;
-  color: var(--text-muted);
-  font-size: 12px;
-  font-weight: 600;
-  padding: 4px 8px;
-  border-radius: 6px;
-  transition: all 120ms ease;
-}
-.completed-toggle:hover { color: var(--text); background: rgba(17, 24, 39, 0.04); }
 .completed-list .task-row .task-check { visibility: visible; }
 .completed-list {
   overflow-y: auto;
@@ -742,17 +716,33 @@ button {
   border-top: 1px dashed rgba(17, 24, 39, 0.08);
   padding-top: 8px;
 }
-.deleted-toggle {
-  background: none;
+
+.list-completed-btn,
+.list-deleted-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
   border: none;
-  color: var(--text-muted);
-  font-size: 12px;
-  font-weight: 600;
-  padding: 4px 8px;
-  border-radius: 6px;
+  border-radius: 999px;
+  padding: 3px 7px;
+  margin: 0 1px;
+  font-size: 10.5px;
+  font-weight: 700;
+  cursor: pointer;
+  background: rgba(58, 91, 160, 0.1);
+  color: var(--accent-strong);
   transition: all 120ms ease;
 }
-.deleted-toggle:hover { color: var(--danger); background: rgba(224, 72, 88, 0.06); }
+.list-completed-btn:hover { background: rgba(58, 91, 160, 0.22); }
+.list-completed-btn.active { background: var(--accent-strong); color: #fff; }
+
+.list-deleted-btn {
+  background: rgba(224, 72, 88, 0.1);
+  color: var(--danger);
+}
+.list-deleted-btn:hover { background: rgba(224, 72, 88, 0.2); }
+.list-deleted-btn.active { background: var(--danger); color: #fff; }
 
 .deleted-list {
   display: flex;

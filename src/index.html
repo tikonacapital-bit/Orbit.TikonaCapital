@@ -86,6 +86,14 @@
     <header class="list-header">
       <h2 class="list-name" contenteditable="true" spellcheck="false"></h2>
       <span class="list-count"></span>
+      <button class="list-completed-btn hidden" title="Completed tasks">
+        <svg viewBox="0 0 20 20" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 10.5l3.5 3.5L16 5.5"/></svg>
+        <span class="list-completed-count"></span>
+      </button>
+      <button class="list-deleted-btn hidden" title="Deleted tasks">
+        <svg viewBox="0 0 20 20" width="12" height="12" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h12M8 6V4.5a1 1 0 0 1 1-1h2a1 1 0 0 1 1 1V6M6 6l.5 9a1 1 0 0 0 1 .9h5a1 1 0 0 0 1-.9L14 6"/></svg>
+        <span class="list-deleted-count"></span>
+      </button>
       <div class="list-menu-wrap">
         <button class="icon-btn list-menu-btn" title="List options">&#8942;</button>
         <div class="list-menu hidden">
@@ -98,13 +106,11 @@
     </header>
     <div class="sections"></div>
     <div class="unsectioned tasks-list"></div>
-    <div class="completed-wrap">
-      <button class="completed-toggle">Completed (<span class="completed-count">0</span>)</button>
-      <div class="completed-list tasks-list hidden"></div>
+    <div class="completed-wrap hidden">
+      <div class="completed-list tasks-list"></div>
     </div>
-    <div class="deleted-wrap">
-      <button class="deleted-toggle">Deleted (<span class="deleted-count">0</span>)</button>
-      <div class="deleted-list hidden"></div>
+    <div class="deleted-wrap hidden">
+      <div class="deleted-list"></div>
     </div>
   </section>
 </template>

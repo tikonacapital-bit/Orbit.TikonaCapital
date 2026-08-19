@@ -4679,33 +4679,41 @@ function renderList(list, options = {}) {
   const topTasks = visibleTasks.filter((t) => !t.done && !t.sectionId);
   topTasks.forEach((task) => unsectioned.appendChild(renderTask(list, task)));
 
-  // completed
+  // completed — shown as a small icon+count in the header (rather than a
+  // full-width toggle row) that only appears once there's something to
+  // show, and expands the panel below in place when clicked.
   const completed = visibleTasks.filter((t) => t.done);
+  const completedWrap = node.querySelector('.completed-wrap');
   const completedList = node.querySelector('.completed-list');
   completedList.dataset.scrollKey = `${list.id}:completed`;
-  const completedCount = node.querySelector('.completed-count');
-  completedCount.textContent = completed.length;
   completed
     .sort((a, b) => (b.completedAt || 0) - (a.completedAt || 0))
     .forEach((task) => completedList.appendChild(renderTask(list, task)));
 
-  const completedToggle = node.querySelector('.completed-toggle');
-  completedToggle.addEventListener('click', () => {
-    completedList.classList.toggle('hidden');
-    completedToggle.classList.toggle('expanded', !completedList.classList.contains('hidden'));
+  const completedBtn = node.querySelector('.list-completed-btn');
+  node.querySelector('.list-completed-count').textContent = completed.length;
+  completedBtn.classList.toggle('hidden', completed.length === 0);
+  completedBtn.title = `${completed.length} completed`;
+  completedBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    completedWrap.classList.toggle('hidden');
+    completedBtn.classList.toggle('active', !completedWrap.classList.contains('hidden'));
   });
 
   // deleted
   const deletedTasks = list.deletedTasks || [];
+  const deletedWrap = node.querySelector('.deleted-wrap');
   const deletedList = node.querySelector('.deleted-list');
-  const deletedCount = node.querySelector('.deleted-count');
-  deletedCount.textContent = deletedTasks.length;
   deletedTasks.forEach((entry) => deletedList.appendChild(renderDeletedTaskRow(list, entry)));
 
-  const deletedToggle = node.querySelector('.deleted-toggle');
-  deletedToggle.addEventListener('click', () => {
-    deletedList.classList.toggle('hidden');
-    deletedToggle.classList.toggle('expanded', !deletedList.classList.contains('hidden'));
+  const deletedBtn = node.querySelector('.list-deleted-btn');
+  node.querySelector('.list-deleted-count').textContent = deletedTasks.length;
+  deletedBtn.classList.toggle('hidden', deletedTasks.length === 0);
+  deletedBtn.title = `${deletedTasks.length} deleted`;
+  deletedBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    deletedWrap.classList.toggle('hidden');
+    deletedBtn.classList.toggle('active', !deletedWrap.classList.contains('hidden'));
   });
 
   return node;
