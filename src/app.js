@@ -45,6 +45,17 @@ let sidebarTabsExpanded = false;
 let viewMode = loadViewMode();
 const VIEW_MODES = new Set(['board', 'table', 'stack', 'calendar']);
 
+// The Table/Stack/Calendar view switcher lives in .viewbar, which is
+// hidden entirely at this width (no room for it) -- so whatever viewMode
+// happened to be saved/defaulted is what mobile is stuck showing, with no
+// way to change it. Table specifically is unusable that narrow. Horizontal
+// (the card view) is the only one designed to work at this width, so it's
+// forced regardless of the saved preference -- desktop's choice is left
+// untouched in localStorage and comes back as soon as the viewport widens.
+function isMobileViewport() {
+  return window.innerWidth <= 768;
+}
+
 function loadViewMode() {
   try {
     // Bumped to v2 so browsers that already had "board" saved from before
@@ -2287,11 +2298,12 @@ function render() {
     const boardTop = document.createElement('div');
     boardTop.className = 'board-top';
 
-    if (viewMode === 'table') {
+    const effectiveViewMode = isMobileViewport() ? 'board' : viewMode;
+    if (effectiveViewMode === 'table') {
       boardTop.appendChild(renderTableView());
-    } else if (viewMode === 'stack') {
+    } else if (effectiveViewMode === 'stack') {
       boardTop.appendChild(renderStackView());
-    } else if (viewMode === 'calendar') {
+    } else if (effectiveViewMode === 'calendar') {
       boardTop.appendChild(renderCalendarView());
     } else {
       getVisibleLists().forEach((list) => boardTop.appendChild(renderList(list)));
@@ -7735,6 +7747,20 @@ function renderProductivityWorkspace() {
   productivityViewActionsEl.appendChild(downloadBtn);
   productivityViewActionsEl.appendChild(downloadExcelBtn);
 
+  // .viewbar (and these same two buttons inside it) is hidden entirely on
+  // mobile, same as "+ Add Website" is for Tabs -- duplicate them into the
+  // workspace content itself so the mobile Reports tab has full parity
+  // with desktop instead of losing the export buttons outright.
+  const mobileActions = document.createElement('div');
+  mobileActions.className = 'productivity-mobile-actions';
+  const mobilePdfBtn = downloadBtn.cloneNode(true);
+  mobilePdfBtn.addEventListener('click', () => window.print());
+  const mobileExcelBtn = downloadExcelBtn.cloneNode(true);
+  mobileExcelBtn.addEventListener('click', () => downloadProductivityCsv());
+  mobileActions.appendChild(mobilePdfBtn);
+  mobileActions.appendChild(mobileExcelBtn);
+  wrap.appendChild(mobileActions);
+
   if (!productivityEmployee || !productivityFrom || !productivityTo) {
     wrap.appendChild(renderEmptyState('Choose an employee and a date range to see their performance report.'));
     return wrap;
@@ -8283,6 +8309,10 @@ if (mobileNavBtns.length) {
           break;
         case 'analytics':
           activeWorkspace = 'charts';
+          render();
+          break;
+        case 'reports':
+          activeWorkspace = 'productivity';
           render();
           break;
         case 'hr':

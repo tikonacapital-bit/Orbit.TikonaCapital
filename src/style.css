@@ -4179,6 +4179,10 @@ button.stat-card:hover {
   display: none;
 }
 
+.productivity-mobile-actions {
+  display: none;
+}
+
 /* ==========================================================================
    KRA widget grid — same drag-to-reorder + native-resize pattern as the
    charts dashboard above, just holding an iframe instead of a chart.
@@ -4610,32 +4614,67 @@ button.stat-card:hover {
     margin-bottom: 70px;
   }
 
+  /* One row: [Open][Overdue] [logo] [High/Med/Low][Done] -- the logo used
+     to sit alone in its own row above a separately-wrapping stats row
+     (2-3 rows total). .topbar-actions/.stats go display:contents so the
+     individual stat-card buttons become direct flex children of .topbar
+     itself (same DOM, just unwrapped for layout purposes -- render()'s
+     usual innerHTML='' rebuild of #stats keeps working untouched), which
+     is what lets `order` interleave them around the real .brand logo
+     without moving it or duplicating it. .topbar-quote is already
+     display:none by the 1100px breakpoint above, so it's not a factor
+     here. */
   .topbar {
-    padding: 12px 16px;
-    flex-direction: column;
+    padding: 8px 10px;
+    flex-direction: row;
+    flex-wrap: wrap;
     align-items: center;
+    justify-content: center;
+    gap: 4px;
     background: rgba(255, 255, 255, 0.4);
     backdrop-filter: blur(12px);
   }
 
   .brand {
-    margin-bottom: 8px;
+    order: 2;
+    margin: 0 4px;
   }
 
-  .topbar-quote {
-    text-align: center;
-    margin-bottom: 12px;
+  .brand-logo-img {
+    height: 26px;
   }
 
   .topbar-actions {
-    width: 100%;
-    justify-content: center;
+    width: auto;
+    display: contents;
   }
 
   .stats {
-    flex-wrap: wrap;
-    justify-content: center;
-    gap: 8px;
+    display: contents;
+  }
+
+  #stats > .stat-card:nth-child(1),
+  #stats > .stat-card:nth-child(2) {
+    order: 1;
+  }
+
+  #stats > .stat-card:nth-child(3),
+  #stats > .stat-card:nth-child(4) {
+    order: 3;
+  }
+
+  .stat-card {
+    height: 28px;
+    padding: 0 6px;
+    gap: 3px;
+  }
+
+  .stat-card span {
+    font-size: 7.5px;
+  }
+
+  .stat-card strong {
+    font-size: 11.5px;
   }
 
   .board {
@@ -4921,6 +4960,16 @@ button.stat-card:hover {
     font-size: 13px;
     font-weight: 600;
     cursor: pointer;
+  }
+
+  .productivity-mobile-actions {
+    display: flex;
+    gap: 8px;
+    margin-bottom: 12px;
+  }
+  .productivity-mobile-actions .productivity-download-btn {
+    flex: 1 1 0;
+    justify-content: center;
   }
 }
 
