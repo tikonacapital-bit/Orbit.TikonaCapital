@@ -532,7 +532,7 @@ function normalizeActivity(list) {
     // activity types need.
     .filter((a) => a && typeof a.type === 'string' && (a.type === 'announcement' || typeof a.email === 'string'))
     .map((a) => {
-      const type = ['register', 'checkin', 'checkout', 'leave', 'announcement'].includes(a.type) ? a.type : 'checkin';
+      const type = ['register', 'checkin', 'checkout', 'leave', 'announcement', 'exit'].includes(a.type) ? a.type : 'checkin';
       const entry = {
         id: a.id || uid('act'),
         type,
@@ -1459,6 +1459,16 @@ function exitEmployee(email) {
 
   const activityEntries = (state.activity || []).filter((a) => a.email === employee.email);
   state.activity = (state.activity || []).filter((a) => a.email !== employee.email);
+
+  // Logged AFTER the filter above (not via logActivity(), which would
+  // both double up the persist()/render() this function already does at
+  // the end, and -- more importantly -- get immediately swept into
+  // activityEntries/removed from state.activity by the filter that just
+  // ran, since it also matches this employee's email) so the notice
+  // itself survives in the live feed instead of vanishing into the bin
+  // along with the rest of their history.
+  state.activity = state.activity || [];
+  state.activity.push({ id: uid('act'), type: 'exit', name: employee.name, email: employee.email, timestamp: Date.now(), ip: '', device: '' });
 
   if (list) {
     state.lists = state.lists.filter((l) => l.id !== list.id);
@@ -3181,8 +3191,8 @@ function renderActivitySection() {
     return section;
   }
 
-  const ACTIVITY_LABELS = { register: 'registered', checkin: 'checked in', checkout: 'checked out', leave: 'applied for leave' };
-  const ACTIVITY_ICONS = { register: '📝', checkin: '➡️', checkout: '⬅️', leave: '🏖️', announcement: '📢' };
+  const ACTIVITY_LABELS = { register: 'registered', checkin: 'checked in', checkout: 'checked out', leave: 'applied for leave', exit: 'has exited' };
+  const ACTIVITY_ICONS = { register: '📝', checkin: '➡️', checkout: '⬅️', leave: '🏖️', announcement: '📢', exit: '🚪' };
 
   const list = document.createElement('div');
   list.className = 'activity-list';
@@ -3899,7 +3909,7 @@ function openItemPopup(existingItem = null, existingIsProject = false, presetAss
         <select id="itemProjectSelect" style="${FIELD_STYLE} cursor: pointer;">
           <option value="">Main List</option>
           <option value="__new__">+ New Project</option>
-          ${(state.projects || []).map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
+          ${(state.projects || []).filter(p => !p.deleted && !p.archived).map(p => `<option value="${p.id}">${escapeHtml(p.name)}</option>`).join('')}
         </select>
       </div>
     </div>
