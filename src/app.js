@@ -512,16 +512,40 @@ function normalizeRegisteredEmployees(list) {
 function normalizeActivity(list) {
   if (!Array.isArray(list)) return [];
   return list
-    .filter((a) => a && typeof a.email === 'string')
-    .map((a) => ({
-      id: a.id || uid('act'),
-      type: ['register', 'checkin', 'checkout'].includes(a.type) ? a.type : 'checkin',
-      name: typeof a.name === 'string' ? a.name : '',
-      email: a.email,
-      timestamp: Number.isFinite(a.timestamp) ? a.timestamp : Date.now(),
-      ip: typeof a.ip === 'string' ? a.ip : '',
-      device: typeof a.device === 'string' ? a.device : '',
-    }));
+    // Announcements aren't tied to an employee, so they're exempt from
+    // the "must have a real email" requirement the auto-generated
+    // activity types need.
+    .filter((a) => a && typeof a.type === 'string' && (a.type === 'announcement' || typeof a.email === 'string'))
+    .map((a) => {
+      const type = ['register', 'checkin', 'checkout', 'leave', 'announcement'].includes(a.type) ? a.type : 'checkin';
+      const entry = {
+        id: a.id || uid('act'),
+        type,
+        name: typeof a.name === 'string' ? a.name : '',
+        email: typeof a.email === 'string' ? a.email : '',
+        timestamp: Number.isFinite(a.timestamp) ? a.timestamp : Date.now(),
+        ip: typeof a.ip === 'string' ? a.ip : '',
+        device: typeof a.device === 'string' ? a.device : '',
+      };
+      if (type === 'leave') entry.leaveDates = Array.isArray(a.leaveDates) ? a.leaveDates : [];
+      if (type === 'announcement') entry.text = typeof a.text === 'string' ? a.text : '';
+      return entry;
+    });
+}
+
+function postAnnouncement(text) {
+  const clean = text.trim();
+  if (!clean) return;
+  state.activity = state.activity || [];
+  state.activity.push({ id: uid('act'), type: 'announcement', text: clean, name: '', email: '', timestamp: Date.now(), ip: '', device: '' });
+  persist();
+  render();
+}
+
+function deleteAnnouncement(id) {
+  state.activity = (state.activity || []).filter((a) => a.id !== id);
+  persist();
+  render();
 }
 
 function normalizeProjects(projects) {
@@ -3080,6 +3104,30 @@ function renderActivitySection() {
   header.appendChild(title);
   section.appendChild(header);
 
+  // Lets the boss post an announcement/reply straight into the feed,
+  // alongside the auto-generated check-in/leave entries -- always shown,
+  // even before there's any activity yet.
+  const composer = document.createElement('form');
+  composer.className = 'activity-composer';
+  const composerInput = document.createElement('input');
+  composerInput.type = 'text';
+  composerInput.className = 'activity-composer-input';
+  composerInput.placeholder = 'Post an announcement…';
+  composerInput.maxLength = 500;
+  const composerBtn = document.createElement('button');
+  composerBtn.type = 'submit';
+  composerBtn.className = 'activity-composer-btn';
+  composerBtn.textContent = 'Post';
+  composer.addEventListener('submit', (e) => {
+    e.preventDefault();
+    if (!composerInput.value.trim()) return;
+    postAnnouncement(composerInput.value);
+    composerInput.value = '';
+  });
+  composer.appendChild(composerInput);
+  composer.appendChild(composerBtn);
+  section.appendChild(composer);
+
   const activity = [...(state.activity || [])].sort((a, b) => b.timestamp - a.timestamp);
 
   if (!activity.length) {
@@ -3088,7 +3136,7 @@ function renderActivitySection() {
   }
 
   const ACTIVITY_LABELS = { register: 'registered', checkin: 'checked in', checkout: 'checked out', leave: 'applied for leave' };
-  const ACTIVITY_ICONS = { register: '📝', checkin: '➡️', checkout: '⬅️', leave: '🏖️' };
+  const ACTIVITY_ICONS = { register: '📝', checkin: '➡️', checkout: '⬅️', leave: '🏖️', announcement: '📢' };
 
   const list = document.createElement('div');
   list.className = 'activity-list';
@@ -3103,6 +3151,31 @@ function renderActivitySection() {
 
     const info = document.createElement('div');
     info.className = 'activity-info';
+
+    if (entry.type === 'announcement') {
+      const line1 = document.createElement('div');
+      line1.className = 'activity-main';
+      line1.textContent = entry.text;
+      info.appendChild(line1);
+
+      const line2 = document.createElement('div');
+      line2.className = 'activity-sub';
+      line2.textContent = fmtDateTime(entry.timestamp);
+      info.appendChild(line2);
+
+      row.appendChild(info);
+
+      const delBtn = document.createElement('button');
+      delBtn.type = 'button';
+      delBtn.className = 'activity-announcement-delete';
+      delBtn.innerHTML = '&times;';
+      delBtn.title = 'Delete announcement';
+      delBtn.addEventListener('click', () => deleteAnnouncement(entry.id));
+      row.appendChild(delBtn);
+
+      list.appendChild(row);
+      return;
+    }
 
     const line1 = document.createElement('div');
     line1.className = 'activity-main';
