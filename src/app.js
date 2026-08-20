@@ -4135,6 +4135,9 @@ function openItemPopup(existingItem = null, existingIsProject = false, presetAss
         tasks: [],
         archived: false,
         archivedAt: null,
+        deleted: false,
+        deletedAt: null,
+        deleteReason: null,
         mood: 'neutral',
         done: false,
         completedAt: null,
@@ -4164,6 +4167,8 @@ function openItemPopup(existingItem = null, existingIsProject = false, presetAss
           completedAt: null,
           sectionId: null,
           dueChangeCount: 0,
+          createdAt: Date.now(),
+          progress: 0,
         };
         project.tasks.push(newTask);
         persist();
