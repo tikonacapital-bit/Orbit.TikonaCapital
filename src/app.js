@@ -4783,13 +4783,18 @@ function renderList(list, options = {}) {
   // unsectioned tasks
   const unsectioned = node.querySelector('.unsectioned');
   unsectioned.dataset.scrollKey = `${list.id}:unsectioned`;
-  const topTasks = visibleTasks.filter((t) => !t.done && !t.sectionId);
+  // Same "Done" quick-filter exception as renderSection() above -- see
+  // that comment.
+  const showDoneInMain = activeQuickStatus === 'done';
+  const topTasks = visibleTasks.filter((t) => (showDoneInMain ? t.done : !t.done) && !t.sectionId);
   topTasks.forEach((task) => unsectioned.appendChild(renderTask(list, task)));
 
   // completed — shown as a small icon+count in the header (rather than a
   // full-width toggle row) that only appears once there's something to
-  // show, and expands the panel below in place when clicked.
-  const completed = visibleTasks.filter((t) => t.done);
+  // show, and expands the panel below in place when clicked. Suppressed
+  // while the "Done" filter has already put completed tasks front and
+  // center above, so they aren't shown twice.
+  const completed = showDoneInMain ? [] : visibleTasks.filter((t) => t.done);
   const completedWrap = node.querySelector('.completed-wrap');
   const completedList = node.querySelector('.completed-list');
   completedList.dataset.scrollKey = `${list.id}:completed`;
@@ -4911,7 +4916,13 @@ function renderSection(list, section) {
     render();
   });
 
-  const sectionTasks = filterTasks(list.tasks).filter((t) => !t.done && t.sectionId === section.id);
+  // The "Done" quick-filter (top stat bar) narrows filterTasks() to
+  // completed tasks only -- normally this section only ever shows open
+  // work (done tasks live in the collapsed Completed panel instead), but
+  // while that filter is active, completed tasks need to actually show up
+  // here or clicking "Done" visibly does nothing.
+  const sectionTasks = filterTasks(list.tasks)
+    .filter((t) => (activeQuickStatus === 'done' ? t.done : !t.done) && t.sectionId === section.id);
   sectionTasks.forEach((task) => tasksWrap.appendChild(renderTask(list, task)));
 
   return node;
