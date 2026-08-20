@@ -3284,7 +3284,23 @@ function getProjectCardNames() {
   // that alone shouldn't conjure up an "Unassigned" card just to show
   // a single leftover "Deleted" entry.
   const hasUnassigned = (state.projects || []).some((p) => !p.archived && !p.deleted && (!p.owners || !p.owners.length));
-  return hasUnassigned ? [...names, 'Unassigned'] : names;
+  if (hasUnassigned) names.push('Unassigned');
+
+  // A project can be owned by someone who's no longer a registered
+  // employee -- removed outside the normal Employee Exit flow (which
+  // does clean this up), from before that feature existed, or a manual
+  // data edit. Without this, that project has no card to render in at
+  // all: it's still fully active data, just permanently invisible (and
+  // so undeletable through the UI) since nothing before this loop ever
+  // surfaces a name that isn't a current list.
+  (state.projects || []).forEach((p) => {
+    if (p.archived || p.deleted) return;
+    (p.owners || []).forEach((owner) => {
+      if (!names.some((n) => sameEmployee(n, owner))) names.push(owner);
+    });
+  });
+
+  return names;
 }
 
 function getProjectsForPerson(name) {
