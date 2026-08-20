@@ -3680,14 +3680,30 @@ button.stat-card:hover {
    meaningful), and the download button. The plain-text
    .productivity-print-header takes over identifying what was
    filtered for, since the dropdowns/date inputs above are gone. */
+/* Portrait, not landscape: @page's size hint isn't reliably honored by
+   every browser/OS print driver (some default the print dialog's
+   orientation toggle to portrait regardless of this), and when that
+   happens content laid out for landscape overflows the actual portrait
+   page and gets clipped. Portrait is the universal default everywhere,
+   so designing for it means the PDF looks right regardless of what the
+   print dialog defaults to, rather than depending on it guessing right. */
 @page {
-  size: landscape;
-  margin: 12mm;
+  size: portrait;
+  margin: 10mm;
 }
 
 @media print {
+  /* html/body are height:100% + overflow:hidden on screen (the app is a
+     single-viewport SPA that scrolls internally, not via the page), which
+     silently clips anything taller than one screen's worth of content --
+     the actual cause of reports getting cropped, not the page orientation.
+     Print needs the opposite: let the box grow to its real content height
+     so Chrome's paginator has something to actually paginate instead of
+     a clipped viewport-sized rectangle. */
   html, body {
     background: #fff !important;
+    height: auto !important;
+    overflow: visible !important;
   }
 
   /* Chrome/Edge omit background colors and box-shadows when printing
@@ -3707,12 +3723,51 @@ button.stat-card:hover {
     min-width: 0 !important;
     width: 100% !important;
     table-layout: auto !important;
-    font-size: 11px;
+    font-size: 9px;
   }
 
   .productivity-table th,
   .productivity-table td {
-    padding: 6px 8px !important;
+    padding: 4px 5px !important;
+  }
+
+  /* Cells don't force nowrap by default, so long values (a long task
+     name, "Aug 13, 2:45 PM", "11 days early") wrap onto a second line
+     instead of forcing the table wider than the page -- letting the
+     browser compress column widths to fit portrait instead of clipping
+     the rightmost columns off the page. word-break is scoped to just the
+     Task column (the one genuinely long free-text value) rather than
+     every cell -- applied table-wide it also hits the Priority/Status/
+     Result pills, which are short badges with no spaces to break on, so
+     it was breaking "MEDIUM" into one letter per line instead of leaving
+     it on one line like the (still-narrow) column has room for. */
+  .productivity-table th,
+  .productivity-table td {
+    white-space: normal !important;
+  }
+
+  .productivity-table .productivity-task-name {
+    word-break: break-word;
+  }
+
+  .productivity-table .productivity-priority-pill,
+  .productivity-table .productivity-status-pill,
+  .productivity-table .productivity-result-pill {
+    white-space: nowrap !important;
+  }
+
+  /* High priority is normally solid-orange-fill + white text (deliberately
+     louder than Medium/Low's tinted-background style, to jump out on
+     screen) -- but bold white-on-saturated-orange at ~10px is right at
+     the edge of what print rasterization renders cleanly, and comes out
+     garbled ("HIGH" reads as noise) on an actual generated PDF. Give it
+     the same tinted-background/dark-text treatment as Medium/Low just
+     for print, where legibility matters more than the louder screen
+     styling. */
+  .productivity-table .productivity-priority-pill.high {
+    background: rgba(255, 165, 0, 0.18) !important;
+    color: #7a3e00 !important;
+    border: 1px solid rgba(255, 165, 0, 0.45) !important;
   }
 
   .app-sidebar,
@@ -3755,10 +3810,20 @@ button.stat-card:hover {
     color: #444;
   }
 
-  .productivity-table-section,
+  /* .productivity-table-section is excluded here on purpose -- it's the
+     Report table, which is frequently taller than one page and WILL need
+     to split somewhere. break-inside:avoid on a block that big doesn't
+     stop it from breaking, it just pushes the whole thing onto a fresh
+     page first, leaving a large blank gap under whatever's above it
+     (the scorecard). Leaving it to break naturally lets it start filling
+     the current page's remaining space instead. */
   .productivity-summary,
   .productivity-scorecard {
     break-inside: avoid;
+    margin-bottom: 16px;
+  }
+
+  .productivity-table-section {
     margin-bottom: 16px;
   }
 
@@ -3770,17 +3835,26 @@ button.stat-card:hover {
     grid-template-columns: repeat(3, 1fr) !important;
   }
 
+  /* 5-across (the screen layout) is too wide for a portrait page -- 3
+     across (same as the tablet breakpoint on screen, already know to
+     read fine at that width) fits without shrinking the gauges/text to
+     the point of being illegible. */
   .productivity-scorecard {
-    grid-template-columns: repeat(5, 1fr) !important;
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 8px !important;
   }
 
   .productivity-score-card {
     padding: 8px 4px 10px !important;
   }
 
+  .productivity-score-stats {
+    font-size: 9px !important;
+  }
+
   .productivity-gauge {
-    width: 52px !important;
-    height: 52px !important;
+    width: 46px !important;
+    height: 46px !important;
   }
 }
 
