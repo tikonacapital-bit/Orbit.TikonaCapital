@@ -7171,15 +7171,38 @@ function computeProductivityTimeliness(taskRows, projectRows) {
 // Rather than guess at "was this task paused because a more urgent one
 // landed on top of it" (which today's data can't actually prove), this
 // measures the thing we can prove directly: how well High-priority work
-// specifically gets delivered on time.
-function computeProductivityPriorityHandling(taskRows, projectRows) {
+// specifically gets delivered. Tasks/projects have a due date, so they
+// contribute an on-time-delivery score; regular (recurring) tasks have no
+// due date, so they contribute their occurrence completion rate instead --
+// both blended (weighted by item count) into one score, so every
+// high-priority item counted in doneCount/totalCount also actually
+// affects the score, not just the due-dated subset.
+function computeProductivityPriorityHandling(taskRows, projectRows, regularRows) {
   const highTasks = taskRows.filter((r) => r.priority === 'high');
   const highProjects = projectRows.filter((r) => r.priority === 'high');
-  const all = [...highTasks, ...highProjects];
+  const highRegular = (regularRows || []).filter((r) => r.priority === 'high');
+  const all = [...highTasks, ...highProjects, ...highRegular];
   if (!all.length) return { score: null, doneCount: 0, totalCount: 0 };
-  const doneCount = all.filter((r) => r.done).length;
+
+  const doneCount = highTasks.filter((r) => r.done).length
+    + highProjects.filter((r) => r.done).length
+    + highRegular.filter((r) => r.done).length;
+
   const timeliness = computeProductivityTimeliness(highTasks, highProjects);
-  return { score: timeliness.score, doneCount, totalCount: all.length };
+  const regularRates = highRegular
+    .map((r) => (r.occurrences && r.occurrences.total > 0 ? (r.occurrences.done / r.occurrences.total) * 100 : null))
+    .filter((v) => v !== null);
+
+  let score = timeliness.score;
+  if (regularRates.length) {
+    const regularAvg = regularRates.reduce((s, v) => s + v, 0) / regularRates.length;
+    const dueCount = highTasks.length + highProjects.length;
+    score = score === null
+      ? Math.round(regularAvg)
+      : Math.round((score * dueCount + regularAvg * regularRates.length) / (dueCount + regularRates.length));
+  }
+
+  return { score, doneCount, totalCount: all.length };
 }
 
 // Only counts deletions explicitly tagged "abandoned" via the Deleted
@@ -7248,7 +7271,7 @@ function computeProductivityScorecard(employee, category, from, to) {
   }
 
   const timeliness = computeProductivityTimeliness(taskRows, projectRows);
-  const priorityHandling = computeProductivityPriorityHandling(taskRows, projectRows);
+  const priorityHandling = computeProductivityPriorityHandling(taskRows, projectRows, regularRows);
 
   const wasteItems = buildProductivityWasteItems(employee, category, from, to);
   const assignedTotalWeight = productivityTotalWeight(taskRows, projectRows, regularRows);
