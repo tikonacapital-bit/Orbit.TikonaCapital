@@ -167,6 +167,12 @@ window.addEventListener('unhandledrejection', (event) => {
 const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
 const WEEKDAYS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 const PRIORITY_ORDER = ['none', 'low', 'medium', 'high'];
+// Why a deleted task/project was removed -- only asked for entries that had
+// real progress on them (see renderDeleteReasonPicker); untagged or
+// "no-longer-needed" deletions never count as wasted effort in the
+// Productivity Waste score, only ones explicitly marked "abandoned" do.
+const DELETE_REASONS = ['no-longer-needed', 'abandoned'];
+const DELETE_REASON_LABELS = { 'no-longer-needed': 'No longer needed', abandoned: 'Abandoned' };
 const PROGRESS_STEPS = [0, 25, 50, 75, 100];
 const STATUS_OPTIONS = ['Pending', 'In Progress', 'Done'];
 
@@ -540,6 +546,7 @@ function normalizeProjects(projects) {
       archivedAt: project.archivedAt || null,
       deleted: Boolean(project.deleted),
       deletedAt: project.deletedAt || null,
+      deleteReason: DELETE_REASONS.includes(project.deleteReason) ? project.deleteReason : null,
       mood: typeof project.mood === 'string' ? project.mood : 'neutral',
       done: Boolean(project.done),
       completedAt: Number.isFinite(project.completedAt) ? project.completedAt : null,
@@ -637,6 +644,7 @@ function normalizeDeletedTasks(entries) {
       id: e.id || uid('del'),
       task: e.task,
       deletedAt: Number.isFinite(e.deletedAt) ? e.deletedAt : Date.now(),
+      reason: DELETE_REASONS.includes(e.reason) ? e.reason : null,
     }))
     .slice(0, DELETED_TASKS_RETENTION);
 }
@@ -3341,6 +3349,38 @@ function renderProjectPersonCard(name) {
   return card;
 }
 
+// Only shown for entries that had actual progress on them at the moment
+// they were deleted -- a task/project deleted at 0% progress cost nothing
+// real, so there's nothing worth asking about. Deletion itself stays
+// instant/uninterrupted; this is tagged afterward, whenever convenient,
+// directly in the Deleted list. Clicking the active reason again clears it
+// back to untagged rather than forcing a choice.
+function renderDeleteReasonPicker(progress, currentReason, onSetReason) {
+  if (!(progress > 0)) return null;
+  const wrap = document.createElement('div');
+  wrap.className = 'delete-reason-picker';
+
+  const label = document.createElement('span');
+  label.className = 'delete-reason-label';
+  label.textContent = 'Why?';
+  wrap.appendChild(label);
+
+  DELETE_REASONS.forEach((value) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = `delete-reason-btn ${value}${currentReason === value ? ' active' : ''}`;
+    btn.textContent = DELETE_REASON_LABELS[value];
+    btn.title = value === 'abandoned' ? 'Counts toward the Waste score' : "Doesn't count toward the Waste score";
+    btn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      onSetReason(currentReason === value ? null : value);
+    });
+    wrap.appendChild(btn);
+  });
+
+  return wrap;
+}
+
 function renderDeletedProjectRow(project) {
   const row = document.createElement('div');
   row.className = 'deleted-task-row';
@@ -3375,8 +3415,16 @@ function renderDeletedProjectRow(project) {
     permanentlyDeleteProject(project);
   });
   actions.appendChild(permBtn);
-  
+
   row.appendChild(actions);
+
+  const reasonPicker = renderDeleteReasonPicker(itemDisplayProgress(project), project.deleteReason, (value) => {
+    project.deleteReason = value;
+    persist();
+    render();
+  });
+  if (reasonPicker) row.appendChild(reasonPicker);
+
   return row;
 }
 
@@ -4815,6 +4863,14 @@ function renderDeletedTaskRow(list, entry) {
   actions.appendChild(forgetBtn);
 
   row.appendChild(actions);
+
+  const reasonPicker = renderDeleteReasonPicker(itemDisplayProgress(entry.task), entry.reason, (value) => {
+    entry.reason = value;
+    persist();
+    render();
+  });
+  if (reasonPicker) row.appendChild(reasonPicker);
+
   return row;
 }
 
@@ -5865,7 +5921,7 @@ function deleteTask(list, task) {
   const idx = list.tasks.findIndex((t) => t.id === task.id);
   const removed = list.tasks.splice(idx, 1)[0];
   list.deletedTasks = list.deletedTasks || [];
-  const entry = { id: uid('del'), task: removed, deletedAt: Date.now() };
+  const entry = { id: uid('del'), task: removed, deletedAt: Date.now(), reason: null };
   list.deletedTasks.unshift(entry);
   if (list.deletedTasks.length > DELETED_TASKS_RETENTION) list.deletedTasks.length = DELETED_TASKS_RETENTION;
   persist();
@@ -7126,12 +7182,12 @@ function computeProductivityPriorityHandling(taskRows, projectRows) {
   return { score: timeliness.score, doneCount, totalCount: all.length };
 }
 
-// Only computable as an ESTIMATE today: we don't yet capture *why* a task
-// was deleted (made obsolete vs. abandoned), so this can't distinguish
-// "no fault of the employee" deletions from real wasted effort. It uses
-// progress-at-deletion as a proxy -- a task deleted at 0% cost nothing
-// real, one deleted mid-flight represents real sunk effort -- but it's
-// explicitly labeled as an estimate in the UI rather than presented as fact.
+// Only counts deletions explicitly tagged "abandoned" via the Deleted
+// list's reason picker (renderDeleteReasonPicker) -- "no longer needed"
+// and untagged entries are excluded entirely rather than guessed at, so
+// this reflects real signal instead of an assumption. A task/project only
+// ever gets a reason prompt in the first place if it had progress > 0 when
+// deleted, so 0%-progress deletions were never in the running anyway.
 function buildProductivityWasteItems(employee, category, from, to) {
   const matchesCategory = (item) => !category || item.category === category;
   const fromTs = new Date(`${from}T00:00:00`).getTime();
@@ -7142,6 +7198,7 @@ function buildProductivityWasteItems(employee, category, from, to) {
     (list.deletedTasks || []).forEach((entry) => {
       const t = entry.task;
       if (!t || !entry.deletedAt) return;
+      if (entry.reason !== 'abandoned') return;
       if (entry.deletedAt < fromTs || entry.deletedAt > toTs) return;
       if (!productivityMatchesEmployee(employee, t.assignedTo)) return;
       if (!matchesCategory(t)) return;
@@ -7151,6 +7208,7 @@ function buildProductivityWasteItems(employee, category, from, to) {
 
   (state.projects || []).forEach((p) => {
     if (!p.deleted || !p.deletedAt) return;
+    if (p.deleteReason !== 'abandoned') return;
     if (p.deletedAt < fromTs || p.deletedAt > toTs) return;
     if (!productivityMatchesAnyEmployee(employee, p.owners)) return;
     if (!matchesCategory(p)) return;
@@ -7258,8 +7316,8 @@ function productivityScoreStatLines(key, data) {
     case 'waste':
       return [
         data.waste.score === null ? 'No assigned work in this range' : `${data.waste.score}% of weighted effort wasted (lower is better)`,
-        `Abandoned/deleted items: ${data.waste.count}`,
-        'Estimate — deletion reason isn’t tracked yet',
+        `Tagged "Abandoned": ${data.waste.count}`,
+        'Untagged / "No longer needed" deletions don’t count',
       ];
     case 'composite':
       return [`Based on ${data.composite.contributingCount} of 4 components`];

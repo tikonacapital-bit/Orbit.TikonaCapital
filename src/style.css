@@ -756,12 +756,56 @@ button {
 
 .deleted-task-row {
   display: flex;
+  flex-wrap: wrap;
   align-items: center;
   gap: 8px;
   padding: 5px 8px;
   border-radius: 6px;
 }
 .deleted-task-row:hover { background: rgba(17, 24, 39, 0.03); }
+
+/* Only present for entries that had real progress when deleted (see
+   renderDeleteReasonPicker) -- forced onto its own line via flex-basis
+   so it never competes with the text/meta/actions above it for space. */
+.delete-reason-picker {
+  flex: 1 0 100%;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding-left: 2px;
+}
+
+.delete-reason-label {
+  font-size: 10.5px;
+  color: var(--text-muted);
+  opacity: 0.8;
+}
+
+.delete-reason-btn {
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--text-muted);
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 10.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+.delete-reason-btn:hover { border-color: var(--accent); color: var(--accent); }
+/* "Abandoned" counts toward the Waste score, so it reads as a warning;
+   "No longer needed" is the benign choice, so it gets a neutral accent
+   instead of looking like a red flag too. */
+.delete-reason-btn.abandoned.active {
+  background: rgba(224, 72, 88, 0.12);
+  border-color: var(--danger);
+  color: var(--danger);
+}
+.delete-reason-btn.no-longer-needed.active {
+  background: rgba(58, 91, 160, 0.12);
+  border-color: var(--accent);
+  color: var(--accent);
+}
 
 .deleted-task-text {
   flex: 1 1 auto;
