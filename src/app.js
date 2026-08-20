@@ -1529,6 +1529,17 @@ function restoreEmployee(binId) {
   render();
 }
 
+// Unlike restoreEmployee, there's no undo path back from this -- the
+// employee's kept data (list, project memberships, regular tasks,
+// activity history) is gone for good, not just hidden.
+function permanentlyDeleteExitedEmployee(binId) {
+  const idx = (state.bin || []).findIndex((b) => b.id === binId);
+  if (idx === -1) return;
+  state.bin.splice(idx, 1);
+  persist();
+  render();
+}
+
 function openExitPopup() {
   document.querySelectorAll('.regular-popup-overlay').forEach((m) => m.remove());
 
@@ -1617,6 +1628,9 @@ function openExitPopup() {
       info.appendChild(dateEl);
       row.appendChild(info);
 
+      const rowActions = document.createElement('div');
+      rowActions.style.cssText = 'display:flex;align-items:center;gap:6px;';
+
       const restoreBtn = document.createElement('button');
       restoreBtn.type = 'button';
       restoreBtn.textContent = 'Restore';
@@ -1626,7 +1640,23 @@ function openExitPopup() {
         overlay.remove();
         showToast(`${entry.employee.name || entry.employee.email} restored.`);
       });
-      row.appendChild(restoreBtn);
+      rowActions.appendChild(restoreBtn);
+
+      const deleteBtn = document.createElement('button');
+      deleteBtn.type = 'button';
+      deleteBtn.innerHTML = '&times;';
+      deleteBtn.title = 'Permanently delete this employee\'s data';
+      deleteBtn.style.cssText = 'width:26px;height:26px;border:1px solid #eee;border-radius:999px;background:#fff;color:#8a94a6;font-size:15px;line-height:1;cursor:pointer;';
+      deleteBtn.addEventListener('click', () => {
+        const name = entry.employee.name || entry.employee.email;
+        if (!confirm(`Permanently delete ${name}? Unlike exiting, this can't be undone -- their list, tasks, and activity history are gone for good.`)) return;
+        permanentlyDeleteExitedEmployee(entry.id);
+        overlay.remove();
+        showToast(`${name} permanently deleted.`);
+      });
+      rowActions.appendChild(deleteBtn);
+
+      row.appendChild(rowActions);
 
       binList.appendChild(row);
     });
