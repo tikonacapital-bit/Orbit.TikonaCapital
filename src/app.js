@@ -28,7 +28,9 @@ let calendarMonth = firstDayOfMonth(new Date());
 let regularViewMode = 'grid';
 let regularCalendarMonth = firstDayOfMonth(new Date());
 let attendanceViewMode = 'grid';
-let productivityEmployee = '';
+// '__all__' == PRODUCTIVITY_ALL_EMPLOYEES, inlined since that const isn't
+// declared until a couple of lines below this one.
+let productivityEmployee = '__all__';
 let productivityCategory = '';
 let productivityFrom = '';
 let productivityTo = '';
@@ -8776,13 +8778,25 @@ async function boot() {
 
   // The copy-status icon's color depends on wall-clock time (it flips to
   // red right at the 6 PM window boundary -- see COPY_STATUS_RESET_HOUR),
-  // with no underlying data changing. render() otherwise only re-runs in
-  // reaction to a user action or a remote change, so without this the
-  // icon would just sit stale until something else happened to trigger a
-  // render. Scoped to the Tasks workspace since that's the only place
-  // these cards show.
+  // with no underlying data changing, so without *something* checking
+  // periodically it'd sit stale until an unrelated action happened to
+  // trigger a render. A blind render() every 60s was tried first and
+  // reverted -- render() fully rebuilds the board from scratch, and
+  // doing that every single minute forever meant a real chance of it
+  // landing in the split second between hovering a row and clicking one
+  // of its icons, silently swallowing the click (the old element gets
+  // removed right as the mouseup fires). This only re-renders once, at
+  // the actual moment the window boundary is crossed -- not 1440
+  // chances a day for the race, just one -- and skips it if a popup is
+  // open at that exact moment (next minute's check will still catch it).
+  let lastEveningWindowState = isEveningUpdateWindow();
   setInterval(() => {
-    if (activeWorkspace === 'tasks') render();
+    if (activeWorkspace !== 'tasks') return;
+    const nowEvening = isEveningUpdateWindow();
+    if (nowEvening === lastEveningWindowState) return;
+    if (document.querySelector('.item-popup-overlay, .regular-popup-overlay')) return;
+    lastEveningWindowState = nowEvening;
+    render();
   }, 60000);
 }
 
