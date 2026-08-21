@@ -530,14 +530,14 @@ function normalizeRegisteredEmployees(list) {
 // employee, so unlike register/checkin/checkout/leave/exit they're exempt
 // from the "must have a real email" requirement, and carry a plain `text`
 // field instead of being built from name+verb.
-const ACTIVITY_MESSAGE_TYPES = ['announcement', 'task_created', 'project_created', 'due_changed'];
+const ACTIVITY_MESSAGE_TYPES = ['announcement', 'task_created', 'project_created', 'due_changed', 'task_edited', 'project_edited', 'task_deleted', 'task_restored'];
 
 function normalizeActivity(list) {
   if (!Array.isArray(list)) return [];
   return list
     .filter((a) => a && typeof a.type === 'string' && (ACTIVITY_MESSAGE_TYPES.includes(a.type) || typeof a.email === 'string'))
     .map((a) => {
-      const allTypes = ['register', 'checkin', 'checkout', 'leave', 'exit', 'share_copied', ...ACTIVITY_MESSAGE_TYPES];
+      const allTypes = ['register', 'checkin', 'checkout', 'leave', 'exit', 'employee_restored', 'share_copied', ...ACTIVITY_MESSAGE_TYPES];
       const type = allTypes.includes(a.type) ? a.type : 'checkin';
       const entry = {
         id: a.id || uid('act'),
@@ -1596,6 +1596,9 @@ function restoreEmployee(binId) {
   });
 
   state.bin.splice(idx, 1);
+
+  state.activity = state.activity || [];
+  state.activity.push({ id: uid('act'), type: 'employee_restored', name: entry.employee.name, email: entry.employee.email, timestamp: Date.now(), ip: '', device: '' });
 
   persist();
   render();
@@ -3310,8 +3313,8 @@ function renderActivitySection() {
     return section;
   }
 
-  const ACTIVITY_LABELS = { register: 'registered', checkin: 'checked in', checkout: 'checked out', leave: 'applied for leave', exit: 'has exited' };
-  const ACTIVITY_ICONS = { register: '📝', checkin: '➡️', checkout: '⬅️', leave: '🏖️', announcement: '📢', exit: '🚪', task_created: '➕', project_created: '🗂️', due_changed: '📅' };
+  const ACTIVITY_LABELS = { register: 'registered', checkin: 'checked in', checkout: 'checked out', leave: 'applied for leave', exit: 'has exited', employee_restored: 'was restored (undo exit)' };
+  const ACTIVITY_ICONS = { register: '📝', checkin: '➡️', checkout: '⬅️', leave: '🏖️', announcement: '📢', exit: '🚪', employee_restored: '♻️', task_created: '➕', project_created: '🗂️', due_changed: '📅', task_edited: '✏️', project_edited: '✏️', task_deleted: '🗑️', task_restored: '♻️' };
 
   const list = document.createElement('div');
   list.className = 'activity-list';
@@ -4351,17 +4354,36 @@ function openItemPopup(existingItem = null, existingIsProject = false, presetAss
       return;
     }
     if (isEdit) {
-      const taskData = {
-        text: name,
-        description,
-        startDate,
-        due: dueDate,
-        priority: selectedPriority,
-        assignedTo,
-        status,
-        category,
-      };
-      Object.assign(existingItem, taskData);
+      if (isProjectItem) {
+        const oldName = existingItem.name;
+        const projectData = {
+          name,
+          description,
+          startDate,
+          dueDate,
+          priority: selectedPriority,
+          owners: [...selectedAssignees],
+          owner: selectedAssignees[0] || 'Unassigned',
+          status,
+          category,
+        };
+        Object.assign(existingItem, projectData);
+        logBoardEvent('project_edited', oldName !== name ? `Project renamed: "${oldName}" → "${name}"` : `Project edited: "${name}"`);
+      } else {
+        const oldText = existingItem.text;
+        const taskData = {
+          text: name,
+          description,
+          startDate,
+          due: dueDate,
+          priority: selectedPriority,
+          assignedTo,
+          status,
+          category,
+        };
+        Object.assign(existingItem, taskData);
+        logBoardEvent('task_edited', oldText !== name ? `Task renamed: "${oldText}" → "${name}"` : `Task edited: "${name}"`);
+      }
       persist();
       closePopup();
       render();
@@ -6333,11 +6355,13 @@ function deleteTask(list, task) {
   const entry = { id: uid('del'), task: removed, deletedAt: Date.now(), reason: null };
   list.deletedTasks.unshift(entry);
   if (list.deletedTasks.length > DELETED_TASKS_RETENTION) list.deletedTasks.length = DELETED_TASKS_RETENTION;
+  logBoardEvent('task_deleted', `Task deleted: "${removed.text}"`);
   persist();
   render();
   showToast(`Deleted "${removed.text}"`, () => {
     list.tasks.splice(idx, 0, removed);
     list.deletedTasks = list.deletedTasks.filter((e) => e.id !== entry.id);
+    logBoardEvent('task_restored', `Task restored: "${removed.text}"`);
     persist();
     render();
   });
@@ -6397,6 +6421,7 @@ function restoreDeletedTask(list, entryId) {
   if (idx === -1) return;
   const [entry] = list.deletedTasks.splice(idx, 1);
   list.tasks.push(entry.task);
+  logBoardEvent('task_restored', `Task restored: "${entry.task.text}"`);
   persist();
   render();
   showToast(`Restored "${entry.task.text}"`);
