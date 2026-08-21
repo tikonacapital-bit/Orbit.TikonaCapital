@@ -524,15 +524,19 @@ function normalizeRegisteredEmployees(list) {
     }));
 }
 
+// Board-message-style entries (see logBoardEvent) aren't tied to an
+// employee, so unlike register/checkin/checkout/leave/exit they're exempt
+// from the "must have a real email" requirement, and carry a plain `text`
+// field instead of being built from name+verb.
+const ACTIVITY_MESSAGE_TYPES = ['announcement', 'task_created', 'project_created', 'due_changed'];
+
 function normalizeActivity(list) {
   if (!Array.isArray(list)) return [];
   return list
-    // Announcements aren't tied to an employee, so they're exempt from
-    // the "must have a real email" requirement the auto-generated
-    // activity types need.
-    .filter((a) => a && typeof a.type === 'string' && (a.type === 'announcement' || typeof a.email === 'string'))
+    .filter((a) => a && typeof a.type === 'string' && (ACTIVITY_MESSAGE_TYPES.includes(a.type) || typeof a.email === 'string'))
     .map((a) => {
-      const type = ['register', 'checkin', 'checkout', 'leave', 'announcement', 'exit'].includes(a.type) ? a.type : 'checkin';
+      const allTypes = ['register', 'checkin', 'checkout', 'leave', 'exit', 'share_copied', ...ACTIVITY_MESSAGE_TYPES];
+      const type = allTypes.includes(a.type) ? a.type : 'checkin';
       const entry = {
         id: a.id || uid('act'),
         type,
@@ -543,9 +547,23 @@ function normalizeActivity(list) {
         device: typeof a.device === 'string' ? a.device : '',
       };
       if (type === 'leave') entry.leaveDates = Array.isArray(a.leaveDates) ? a.leaveDates : [];
-      if (type === 'announcement') entry.text = typeof a.text === 'string' ? a.text : '';
+      if (ACTIVITY_MESSAGE_TYPES.includes(type)) entry.text = typeof a.text === 'string' ? a.text : '';
       return entry;
     });
+}
+
+// Shared by task-created/project-created/due-date-changed notice-board
+// entries -- same shape as postAnnouncement's, just without a persist()/
+// render() of its own, since every caller already does one right after
+// (this only ever runs partway through an existing save, not standalone).
+// There's no login system in this app, so "who" did it genuinely can't be
+// verified the way check-in/leave can (those go through Google Sign-In or
+// an explicit employee picker) -- these events are logged as bare facts
+// (what changed, on what) rather than attributed to a person, so as not
+// to imply an identity claim the app has no way to actually back up.
+function logBoardEvent(type, text) {
+  state.activity = state.activity || [];
+  state.activity.push({ id: uid('act'), type, text, name: '', email: '', timestamp: Date.now(), ip: '', device: '' });
 }
 
 function postAnnouncement(text) {
@@ -695,18 +713,35 @@ function formatDateStrForShare(dateStr) {
   return `${d} ${MONTHS[m - 1]} ${y}`;
 }
 
-function buildListShareText(list) {
+// 6 PM is the hard line the copy-status icon resets on (see
+// renderListCopyStatusIcon) -- before it, the WhatsApp update is just
+// open tasks; from 6 PM on, it also includes what got finished today,
+// since that's the point of the end-of-day update.
+const COPY_STATUS_RESET_HOUR = 18;
+
+function isEveningUpdateWindow(date = new Date()) {
+  return date.getHours() >= COPY_STATUS_RESET_HOUR;
+}
+
+function buildDailyUpdateShareText(list) {
   const priorityEmoji = { high: '🔴', medium: '🟠', low: '🔵', none: '⚪' };
-  const tasks = (list.tasks || [])
+  const includeCompleted = isEveningUpdateWindow();
+  const openTasks = (list.tasks || [])
     .filter((t) => !t.done)
     .slice()
     .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
+  const todayKey = dateKey(new Date());
+  const completedToday = includeCompleted
+    ? (list.tasks || []).filter((t) => t.done && t.completedAt && dateKey(new Date(t.completedAt)) === todayKey)
+    : [];
 
-  const lines = [`📋 *${list.name}* — Pending Tasks`, ''];
-  if (!tasks.length) {
+  const lines = [`📋 *${list.name}* — ${includeCompleted ? 'End of Day Update' : 'Today’s Update'}`, ''];
+
+  lines.push(`*Open (${openTasks.length})*`);
+  if (!openTasks.length) {
     lines.push('_No pending tasks._');
   } else {
-    tasks.forEach((task, i) => {
+    openTasks.forEach((task, i) => {
       lines.push(`${i + 1}. ⬜ *${task.text}*`);
       const priority = task.priority || 'none';
       const meta = [`${priorityEmoji[priority] || priorityEmoji.none} ${priority.charAt(0).toUpperCase()}${priority.slice(1)}`];
@@ -719,7 +754,20 @@ function buildListShareText(list) {
       lines.push('');
     });
   }
-  lines.push(`_Open: ${tasks.length}_`);
+
+  if (includeCompleted) {
+    lines.push(`*Completed today (${completedToday.length})*`);
+    if (!completedToday.length) {
+      lines.push('_None._');
+    } else {
+      completedToday.forEach((task, i) => {
+        lines.push(`${i + 1}. ✅ *${task.text}*`);
+      });
+      lines.push('');
+    }
+  }
+
+  lines.push(`_Open: ${openTasks.length}${includeCompleted ? `   |   Completed today: ${completedToday.length}` : ''}_`);
   return lines.join('\n');
 }
 
@@ -1078,6 +1126,18 @@ function openRegisterPopup() {
 function getTodayActivity(email, type) {
   const key = dateKey(new Date());
   return (state.activity || []).find((a) => a.email === email && a.type === type && dateKey(new Date(a.timestamp)) === key);
+}
+
+// Unlike getTodayActivity's .find() (first match, fine when there's only
+// ever one entry like a single daily check-in), this is for types that can
+// legitimately happen more than once today (copying the update again after
+// re-editing tasks) -- the most recent one is what actually matters for
+// "have they copied for the current window."
+function getLatestTodayActivity(email, type) {
+  const key = dateKey(new Date());
+  const matches = (state.activity || []).filter((a) => a.email === email && a.type === type && dateKey(new Date(a.timestamp)) === key);
+  if (!matches.length) return null;
+  return matches.reduce((latest, a) => (a.timestamp > latest.timestamp ? a : latest), matches[0]);
 }
 
 function fmtTimeOnly(ts) {
@@ -2662,6 +2722,60 @@ function renderListAttendanceButton(list) {
   return btn;
 }
 
+// Green once they've copied today's WhatsApp update for the CURRENT
+// window (before/after 6 PM -- see COPY_STATUS_RESET_HOUR), red if
+// they've checked in but haven't yet, gray if they haven't even checked
+// in today (nothing to remind them of before that). Crossing 6 PM flips
+// a green icon back to red on its own, since a morning-window copy no
+// longer satisfies the evening window's check -- no separate "reset"
+// step needed, it falls out of just checking which window the last copy
+// actually landed in. Always copies regardless of employee/check-in
+// status; the color tracking specifically needs a matched employee record
+// to have anything to check against.
+function renderListCopyStatusIcon(list) {
+  const emp = getRegisteredEmployees().find((e) => sameEmployee(e.name, list.name));
+  const checkin = emp ? getTodayActivity(emp.email, 'checkin') : null;
+  const evening = isEveningUpdateWindow();
+
+  let statusClass = 'none';
+  if (emp && checkin) {
+    const lastCopy = getLatestTodayActivity(emp.email, 'share_copied');
+    const copiedThisWindow = Boolean(lastCopy) && isEveningUpdateWindow(new Date(lastCopy.timestamp)) === evening;
+    statusClass = copiedThisWindow ? 'green' : 'red';
+  }
+
+  const btn = document.createElement('button');
+  btn.type = 'button';
+  btn.className = `list-copy-status-btn ${statusClass}`;
+  btn.innerHTML = '<svg viewBox="0 0 20 20" width="13" height="13" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round"><rect x="7" y="7" width="10" height="10" rx="1.5"/><path d="M13 7V4.5A1.5 1.5 0 0 0 11.5 3h-8A1.5 1.5 0 0 0 2 4.5v8A1.5 1.5 0 0 0 3.5 14H6"/></svg>';
+  if (!emp) {
+    btn.title = 'Copy today’s update in WhatsApp format';
+  } else if (!checkin) {
+    btn.title = `${emp.name || emp.email} hasn’t checked in yet today`;
+  } else if (statusClass === 'green') {
+    btn.title = `Copied for ${evening ? 'the evening' : 'the morning'} update`;
+  } else {
+    btn.title = `Not copied yet for ${evening ? 'the evening' : 'the morning'} update — click to copy`;
+  }
+
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    copyTextToClipboard(buildDailyUpdateShareText(list))
+      .then(() => {
+        if (emp) {
+          state.activity = state.activity || [];
+          state.activity.push({ id: uid('act'), type: 'share_copied', name: emp.name, email: emp.email, timestamp: Date.now(), ip: '', device: '' });
+          persist();
+        }
+        showToast('Copied — paste it in WhatsApp or anywhere');
+        render();
+      })
+      .catch(() => showToast('Could not copy to clipboard'));
+  });
+
+  return btn;
+}
+
 function renderPinnedState() {
   // analyticsBtn/kraBtn are rebuilt fresh (with the right .active class)
   // inside renderSidebar() on every render, so no toggling needed here.
@@ -3184,7 +3298,10 @@ function renderActivitySection() {
   composer.appendChild(composerBtn);
   section.appendChild(composer);
 
-  const activity = [...(state.activity || [])].sort((a, b) => b.timestamp - a.timestamp);
+  // share_copied entries exist purely to drive the copy-status icon's
+  // color (see renderListCopyStatusIcon) -- they'd just be noise here,
+  // one entry every time anyone copies their update.
+  const activity = [...(state.activity || [])].filter((a) => a.type !== 'share_copied').sort((a, b) => b.timestamp - a.timestamp);
 
   if (!activity.length) {
     section.appendChild(renderEmptyState('No employee activity tracked yet.'));
@@ -3192,11 +3309,13 @@ function renderActivitySection() {
   }
 
   const ACTIVITY_LABELS = { register: 'registered', checkin: 'checked in', checkout: 'checked out', leave: 'applied for leave', exit: 'has exited' };
-  const ACTIVITY_ICONS = { register: '📝', checkin: '➡️', checkout: '⬅️', leave: '🏖️', announcement: '📢', exit: '🚪' };
+  const ACTIVITY_ICONS = { register: '📝', checkin: '➡️', checkout: '⬅️', leave: '🏖️', announcement: '📢', exit: '🚪', task_created: '➕', project_created: '🗂️', due_changed: '📅' };
 
   const list = document.createElement('div');
   list.className = 'activity-list';
-  activity.slice(0, 10).forEach((entry) => {
+  // Was capped at the 10 most recent -- now the whole history renders and
+  // .activity-list scrolls instead, so nothing older silently vanishes.
+  activity.forEach((entry) => {
     const row = document.createElement('div');
     row.className = `activity-row activity-${entry.type}`;
 
@@ -3208,7 +3327,7 @@ function renderActivitySection() {
     const info = document.createElement('div');
     info.className = 'activity-info';
 
-    if (entry.type === 'announcement') {
+    if (ACTIVITY_MESSAGE_TYPES.includes(entry.type)) {
       const line1 = document.createElement('div');
       line1.className = 'activity-main';
       line1.textContent = entry.text;
@@ -3221,13 +3340,19 @@ function renderActivitySection() {
 
       row.appendChild(info);
 
-      const delBtn = document.createElement('button');
-      delBtn.type = 'button';
-      delBtn.className = 'activity-announcement-delete';
-      delBtn.innerHTML = '&times;';
-      delBtn.title = 'Delete announcement';
-      delBtn.addEventListener('click', () => deleteAnnouncement(entry.id));
-      row.appendChild(delBtn);
+      // Only announcements are user-authored -- the others (task/project
+      // created, due date changed) are system-generated audit entries, so
+      // there's no delete button on those; deleting your own mistake is
+      // one thing, deleting a record of what happened is another.
+      if (entry.type === 'announcement') {
+        const delBtn = document.createElement('button');
+        delBtn.type = 'button';
+        delBtn.className = 'activity-announcement-delete';
+        delBtn.innerHTML = '&times;';
+        delBtn.title = 'Delete announcement';
+        delBtn.addEventListener('click', () => deleteAnnouncement(entry.id));
+        row.appendChild(delBtn);
+      }
 
       list.appendChild(row);
       return;
@@ -3676,9 +3801,14 @@ function openProjectDatePicker(project, dueEl) {
   input.style.pointerEvents = 'none';
   document.body.appendChild(input);
   input.addEventListener('change', () => {
-    project.dueDate = input.value || null;
-    persist();
-    render();
+    const newDue = input.value || null;
+    const oldDue = project.dueDate;
+    if (newDue !== oldDue) {
+      project.dueDate = newDue;
+      logBoardEvent('due_changed', `Due date changed on "${project.name}": ${oldDue || 'none'} → ${newDue || 'none'}`);
+      persist();
+      render();
+    }
     input.remove();
   });
   input.addEventListener('blur', () => setTimeout(() => input.remove(), 200));
@@ -3854,6 +3984,22 @@ function renderProjectSubtaskRow(project, task) {
   }
 
   row.appendChild(body);
+
+  // Was missing entirely -- there was no way to edit a project subtask's
+  // due date/category/status/etc, only its text inline. openItemPopup
+  // mutates whatever object reference it's given via Object.assign, so
+  // this correctly edits the task in place inside project.tasks without
+  // needing a project-specific save path.
+  const editBtn = document.createElement('button');
+  editBtn.type = 'button';
+  editBtn.className = 'icon-btn project-subtask-edit';
+  editBtn.innerHTML = '&#9998;';
+  editBtn.title = 'Edit task';
+  editBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openItemPopup(task, false);
+  });
+  row.appendChild(editBtn);
 
   const delBtn = document.createElement('button');
   delBtn.type = 'button';
@@ -4160,6 +4306,7 @@ function openItemPopup(existingItem = null, existingIsProject = false, presetAss
         progress: 0,
       };
       state.projects.push(newProject);
+      logBoardEvent('project_created', `Project created: "${name}"`);
       persist();
       closePopup();
       render();
@@ -4187,6 +4334,7 @@ function openItemPopup(existingItem = null, existingIsProject = false, presetAss
           progress: 0,
         };
         project.tasks.push(newTask);
+        logBoardEvent('task_created', `Task added: "${name}" (${project.name})`);
         persist();
         closePopup();
         render();
@@ -4923,6 +5071,8 @@ function renderList(list, options = {}) {
     const attendanceBtn = renderListAttendanceButton(list);
     if (attendanceBtn) nameEl.after(attendanceBtn);
 
+    nameEl.after(renderListCopyStatusIcon(list));
+
     const moodBtn = document.createElement('button');
     moodBtn.type = 'button';
     moodBtn.className = 'list-mood-btn';
@@ -5008,14 +5158,8 @@ function renderList(list, options = {}) {
     }
   }
 
-  const copyListBtn = menu.querySelector('[data-action="copy-list"]');
-  copyListBtn.addEventListener('click', (e) => {
-    e.stopPropagation();
-    menu.classList.add('hidden');
-    copyTextToClipboard(buildListShareText(list))
-      .then(() => showToast('Copied — paste it in WhatsApp or anywhere'))
-      .catch(() => showToast('Could not copy to clipboard'));
-  });
+  // Copy moved out of this menu onto its own always-visible icon in the
+  // header (see renderListCopyStatusIcon) -- see that function for why.
 
   // sections
   const sectionsWrap = node.querySelector('.sections');
@@ -6012,6 +6156,7 @@ function openDatePicker(list, task, dueEl) {
       if (confirmed) {
         task.due = newDue;
         task.dueChangeCount = changeCount;
+        logBoardEvent('due_changed', `Due date changed on "${task.text}": ${oldDue || 'none'} → ${newDue || 'none'}`);
         persist();
         render();
       }
@@ -6068,6 +6213,8 @@ function addTask(list, sectionId, taskData) {
     progress: 0,
     category: taskData.category || '',
   });
+  const forWhom = taskData.assignedTo ? ` (${taskData.assignedTo})` : '';
+  logBoardEvent('task_created', `Task added: "${taskData.text || 'Untitled task'}"${forWhom}`);
   persist();
 }
 
@@ -6831,6 +6978,36 @@ function productivityDeliveryInfo(item) {
   return { text: `${early} day${early === 1 ? '' : 's'} early`, cls: 'early', diff };
 }
 
+// Per-row version of the same ingredients the scorecard above uses
+// (priority weight, done/not-done, timeliness) so "which task is getting
+// what score" is answered with the same logic, not a separate formula --
+// see openScoringAlgorithmInfoPopup() for the plain-language version of
+// this shown to the user.
+function productivityRowScore(row) {
+  if (row.kind === 'regular') {
+    const occ = row.occurrences || { done: 0, total: 0 };
+    return occ.total > 0 ? Math.round((occ.done / occ.total) * 100) : null;
+  }
+
+  const due = row.due || row.dueDate || null;
+  const today = todayStr();
+
+  if (row.done) {
+    if (due && row.completedAt) {
+      return Math.round(timelinessScoreForDiff(productivityDeliveryInfo(row).diff));
+    }
+    return 100; // Done, with no due date to judge lateness against.
+  }
+
+  if (due && due < today) {
+    const daysOverdue = productivityDateStrDiffDays(today, due);
+    return Math.round(productivityClamp(50 - 50 * (daysOverdue / PRODUCTIVITY_TIMELINESS_LATE_CAP_DAYS), 0, 50));
+  }
+
+  // Not done yet, not overdue -- scored on progress made so far.
+  return Math.round(productivityClamp(itemDisplayProgress(row), 0, 100));
+}
+
 // A task/project belongs in the report if EITHER its start date or its
 // due date falls inside the selected range -- not due-date-only. Otherwise
 // something started inside the range but due after it (or vice versa)
@@ -6896,6 +7073,7 @@ const PRODUCTIVITY_COLUMNS = [
   { key: 'status', label: 'Status' },
   { key: 'result', label: 'Result' },
   { key: 'delivery', label: 'Delivery' },
+  { key: 'score', label: 'Score' },
 ];
 
 const PRODUCTIVITY_PRIORITY_ORDER = ['none', 'low', 'medium', 'high'];
@@ -6912,6 +7090,7 @@ function productivityCellText(row, key) {
     case 'status': return `${itemDisplayProgress(row)}%`;
     case 'result': return productivityResultLabel(row);
     case 'delivery': return productivityDeliveryInfo(row).text;
+    case 'score': { const s = productivityRowScore(row); return s === null ? '—' : String(s); }
     default: return '—';
   }
 }
@@ -6927,6 +7106,7 @@ function productivityCellSortValue(row, key) {
     case 'status': return itemDisplayProgress(row);
     case 'result': return PRODUCTIVITY_RESULT_ORDER.indexOf(productivityResultLabel(row));
     case 'delivery': return productivityDeliveryInfo(row).diff;
+    case 'score': return productivityRowScore(row);
     default: return null;
   }
 }
@@ -7013,6 +7193,16 @@ function productivityBuildCell(row, key) {
       const delivery = productivityDeliveryInfo(row);
       td.className = `productivity-delivery ${delivery.cls}`;
       td.textContent = delivery.text;
+      break;
+    }
+    case 'score': {
+      const score = productivityRowScore(row);
+      const tier = productivityScoreTier(score);
+      const pill = document.createElement('span');
+      pill.className = `productivity-score-tier ${tier.cls}`;
+      pill.title = tier.label;
+      pill.textContent = score === null ? '—' : String(score);
+      td.appendChild(pill);
       break;
     }
   }
@@ -7734,6 +7924,103 @@ function renderProductivitySummary(summary) {
   return wrap;
 }
 
+function openScoringAlgorithmInfoPopup() {
+  document.querySelectorAll('.regular-popup-overlay').forEach((m) => m.remove());
+
+  const overlay = document.createElement('div');
+  overlay.className = 'regular-popup-overlay';
+
+  const popup = document.createElement('div');
+  popup.style.maxWidth = '560px';
+  popup.style.maxHeight = '80vh';
+  popup.style.overflowY = 'auto';
+
+  const heading = document.createElement('h2');
+  heading.style.cssText = 'margin:0 0 4px 0;font-size:17px;font-weight:600;';
+  heading.textContent = 'How the score is calculated';
+  popup.appendChild(heading);
+
+  const body = document.createElement('div');
+  body.className = 'productivity-info-body';
+  body.innerHTML = `
+    <p>Every task/project row gets a <strong>Score (0-100)</strong> using the same three ingredients everywhere: how important it was, whether it was actually finished, and whether it was finished on time.</p>
+
+    <h3>Priority weight</h3>
+    <p>Low = 1, Medium = 2, High = 3. A finished High-priority task always counts for 3x as much as a finished Low-priority one, in every calculation below.</p>
+
+    <h3>Per-row Score (the new column)</h3>
+    <ul>
+      <li><strong>Done, with a due date:</strong> scored on how early/late it was finished -- on time is the baseline, earlier scores higher (capped, so being wildly early doesn't inflate it), later scores lower (floors out once it's a week+ late).</li>
+      <li><strong>Not done yet, not overdue:</strong> scored on progress made so far.</li>
+      <li><strong>Not done and overdue:</strong> scored low, and gets lower the longer it's been overdue.</li>
+      <li><strong>Regular (recurring) tasks:</strong> scored on the completion rate across every occurrence expected in the selected date range.</li>
+    </ul>
+
+    <h3>Completion Score</h3>
+    <p>Priority-weighted completion rate (weighted "done" ÷ weighted "assigned"), then nudged up to ±15% based on whether this person's total workload is above or below the team average for the same period -- so completing fewer tasks because fewer were assigned isn't scored the same as completing fewer out of a normal load.</p>
+
+    <h3>Timeliness Score</h3>
+    <p>The priority-weighted average of every row's on-time/late outcome -- including tasks that are <em>still open and overdue right now</em>, not just ones already marked done, so nothing escapes scoring just by never being finished.</p>
+
+    <h3>Priority Handling</h3>
+    <p>The same idea as Timeliness, but only for High-priority items -- how well the work that mattered most actually got delivered.</p>
+
+    <h3>Waste Score</h3>
+    <p>Only counts tasks/projects explicitly tagged <strong>"Abandoned"</strong> when deleted (from the Deleted list's "Why?" picker) -- weighted by how much progress had already been made on them. Untagged or "No longer needed" deletions never count; nothing is guessed.</p>
+
+    <h3>Final Composite Score</h3>
+    <p>A weighted blend of the four scores above: Completion 30%, Timeliness 30%, Priority Handling 25%, Waste 15%. If a component has no data for the selected range (e.g. no High-priority items to judge), it's left out and the rest re-share its weight -- a missing component is never silently treated as a zero.</p>
+  `;
+  popup.appendChild(body);
+
+  const closeRow = document.createElement('div');
+  closeRow.style.cssText = 'display:flex;justify-content:flex-end;margin-top:14px;';
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.textContent = 'Close';
+  closeBtn.style.cssText = 'padding:8px 20px;border:1px solid #ddd;border-radius:999px;background:white;cursor:pointer;font-size:13.5px;font-weight:500;';
+  closeBtn.addEventListener('click', () => overlay.remove());
+  closeRow.appendChild(closeBtn);
+  popup.appendChild(closeRow);
+
+  overlay.appendChild(popup);
+  document.body.appendChild(overlay);
+  overlay.addEventListener('click', (e) => { if (e.target === overlay) overlay.remove(); });
+}
+
+// "Previous month" is a discrete, complete calendar month (1st to last
+// day of last month). The others are trailing windows ending today --
+// the more common reading of "current/previous N months" in a report
+// filter, and consistent with each other.
+function applyProductivityDatePreset(preset) {
+  const today = new Date();
+  let from;
+  let to;
+  if (preset === 'current') {
+    from = firstDayOfMonth(today);
+    to = today;
+  } else if (preset === 'prevMonth') {
+    to = new Date(today.getFullYear(), today.getMonth(), 0);
+    from = firstDayOfMonth(to);
+  } else if (preset === 'prev3') {
+    from = firstDayOfMonth(addMonths(today, -3));
+    to = today;
+  } else if (preset === 'prev6') {
+    from = firstDayOfMonth(addMonths(today, -6));
+    to = today;
+  } else if (preset === 'prev12') {
+    from = firstDayOfMonth(addMonths(today, -12));
+    to = today;
+  } else {
+    return;
+  }
+  productivityFrom = dateKey(from);
+  productivityTo = dateKey(to);
+  productivityColumnFilters = {};
+  productivitySortColumn = null;
+  render();
+}
+
 function renderProductivityWorkspace() {
   const wrap = document.createElement('div');
   wrap.className = 'productivity-workspace';
@@ -7783,6 +8070,27 @@ function renderProductivityWorkspace() {
 
   wrap.appendChild(filters);
 
+  // Quick-fill buttons -- the From/To inputs stay the actual source of
+  // truth (still freely editable), these just prefill them instead of
+  // requiring two manual date picks for a common range every time.
+  const presetRow = document.createElement('div');
+  presetRow.className = 'productivity-date-presets';
+  [
+    ['current', 'Current month'],
+    ['prevMonth', 'Previous month'],
+    ['prev3', 'Previous 3 months'],
+    ['prev6', 'Previous 6 months'],
+    ['prev12', 'Previous 12 months'],
+  ].forEach(([key, label]) => {
+    const presetBtn = document.createElement('button');
+    presetBtn.type = 'button';
+    presetBtn.className = 'productivity-preset-btn';
+    presetBtn.textContent = label;
+    presetBtn.addEventListener('click', () => applyProductivityDatePreset(key));
+    presetRow.appendChild(presetBtn);
+  });
+  wrap.appendChild(presetRow);
+
   // Lives in the viewbar (top of the page, next to the "Productivity"
   // title) rather than inline with the filters below -- same spot
   // "Archived / + Add" occupies for the main task board and
@@ -7804,20 +8112,31 @@ function renderProductivityWorkspace() {
   downloadExcelBtn.innerHTML = '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M8 3v18M16 3v18M3 9h18M3 15h18"/></svg><span>Download Excel</span>';
   downloadExcelBtn.addEventListener('click', () => downloadProductivityCsv());
 
+  const infoBtn = document.createElement('button');
+  infoBtn.type = 'button';
+  infoBtn.className = 'productivity-info-btn';
+  infoBtn.title = 'How is this score calculated?';
+  infoBtn.innerHTML = '<svg viewBox="0 0 20 20" width="16" height="16" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><circle cx="10" cy="10" r="7.5"/><line x1="10" y1="9" x2="10" y2="14"/><circle cx="10" cy="6.3" r="0.9" fill="currentColor" stroke="none"/></svg>';
+  infoBtn.addEventListener('click', () => openScoringAlgorithmInfoPopup());
+
   productivityViewActionsEl.innerHTML = '';
+  productivityViewActionsEl.appendChild(infoBtn);
   productivityViewActionsEl.appendChild(downloadBtn);
   productivityViewActionsEl.appendChild(downloadExcelBtn);
 
-  // .viewbar (and these same two buttons inside it) is hidden entirely on
-  // mobile, same as "+ Add Website" is for Tabs -- duplicate them into the
+  // .viewbar (and these buttons inside it) is hidden entirely on mobile,
+  // same as "+ Add Website" is for Tabs -- duplicate them into the
   // workspace content itself so the mobile Reports tab has full parity
-  // with desktop instead of losing the export buttons outright.
+  // with desktop instead of losing them outright.
   const mobileActions = document.createElement('div');
   mobileActions.className = 'productivity-mobile-actions';
+  const mobileInfoBtn = infoBtn.cloneNode(true);
+  mobileInfoBtn.addEventListener('click', () => openScoringAlgorithmInfoPopup());
   const mobilePdfBtn = downloadBtn.cloneNode(true);
   mobilePdfBtn.addEventListener('click', () => window.print());
   const mobileExcelBtn = downloadExcelBtn.cloneNode(true);
   mobileExcelBtn.addEventListener('click', () => downloadProductivityCsv());
+  mobileActions.appendChild(mobileInfoBtn);
   mobileActions.appendChild(mobilePdfBtn);
   mobileActions.appendChild(mobileExcelBtn);
   wrap.appendChild(mobileActions);
@@ -8454,6 +8773,17 @@ async function boot() {
   // Pick up changes made from another tab or device without needing a
   // manual refresh.
   startPolling(applyRemoteState);
+
+  // The copy-status icon's color depends on wall-clock time (it flips to
+  // red right at the 6 PM window boundary -- see COPY_STATUS_RESET_HOUR),
+  // with no underlying data changing. render() otherwise only re-runs in
+  // reaction to a user action or a remote change, so without this the
+  // icon would just sit stale until something else happened to trigger a
+  // render. Scoped to the Tasks workspace since that's the only place
+  // these cards show.
+  setInterval(() => {
+    if (activeWorkspace === 'tasks') render();
+  }, 60000);
 }
 
 boot();

@@ -616,7 +616,16 @@ button {
   transition: background 120ms ease;
 }
 .project-subtask-row:hover { background: rgba(17, 24, 39, 0.04); }
-.project-subtask-row:hover .project-subtask-delete { visibility: visible; }
+.project-subtask-row:hover .project-subtask-delete,
+.project-subtask-row:hover .project-subtask-edit { visibility: visible; }
+
+.project-subtask-edit {
+  flex: 0 0 auto;
+  visibility: hidden;
+  width: 20px;
+  height: 20px;
+  font-size: 11px;
+}
 
 .project-subtask-check {
   width: 14px;
@@ -1784,6 +1793,39 @@ button.stat-card:hover {
 
 .list-attendance:disabled { cursor: default; opacity: 0.85; }
 
+/* .none = no matched employee, or matched but not checked in yet --
+   nothing to remind them of, so it stays neutral rather than red. */
+.list-copy-status-btn {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 22px;
+  height: 22px;
+  padding: 0;
+  border: 1px solid transparent;
+  border-radius: 999px;
+  background: rgba(100, 116, 139, 0.12);
+  color: var(--text-muted);
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+.list-copy-status-btn:hover { transform: scale(1.08); }
+
+.list-copy-status-btn.red {
+  background: rgba(224, 72, 88, 0.14);
+  color: var(--danger);
+  border-color: rgba(224, 72, 88, 0.35);
+}
+.list-copy-status-btn.red:hover { background: rgba(224, 72, 88, 0.24); }
+
+.list-copy-status-btn.green {
+  background: rgba(30, 158, 107, 0.16);
+  color: var(--success);
+  border-color: rgba(30, 158, 107, 0.35);
+}
+.list-copy-status-btn.green:hover { background: rgba(30, 158, 107, 0.26); }
+
 /* A faint transparent+dashed style reads fine on plain white, but this
    bar sits on the page's cream/watermarked background, where that
    treatment nearly disappears -- an opaque pill with a real border
@@ -2612,6 +2654,9 @@ button.stat-card:hover {
   display: flex;
   flex-direction: column;
   gap: 2px;
+  max-height: 420px;
+  overflow-y: auto;
+  scrollbar-gutter: stable;
 }
 
 .activity-row {
@@ -3346,6 +3391,57 @@ button.stat-card:hover {
   display: flex;
   align-items: center;
 }
+
+.productivity-info-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 1px solid var(--border);
+  border-radius: 50%;
+  background: var(--bg-elevated);
+  color: var(--accent-strong);
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+.productivity-info-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
+
+.productivity-info-body h3 {
+  margin: 14px 0 4px;
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--primary);
+}
+.productivity-info-body h3:first-child { margin-top: 0; }
+.productivity-info-body p,
+.productivity-info-body li {
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--text);
+  margin: 0 0 4px;
+}
+.productivity-info-body ul { margin: 4px 0; padding-left: 18px; }
+
+.productivity-date-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 8px 0 4px;
+}
+
+.productivity-preset-btn {
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--accent-strong);
+  border-radius: 999px;
+  padding: 5px 12px;
+  font-size: 11.5px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 120ms ease;
+}
+.productivity-preset-btn:hover { background: var(--accent); color: #fff; border-color: var(--accent); }
 
 /* Reuses .task-priority's existing low/medium/high colors (same pill
    shown on task rows elsewhere) -- just not clickable/cycling here. */
@@ -4837,7 +4933,8 @@ button.stat-card:hover {
 
   .task-delete,
   .task-edit,
-  .project-subtask-delete {
+  .project-subtask-delete,
+  .project-subtask-edit {
     visibility: visible;
   }
 
@@ -4971,12 +5068,16 @@ button.stat-card:hover {
     flex: 1 1 0;
     justify-content: center;
   }
+  .productivity-mobile-actions .productivity-info-btn {
+    flex: 0 0 auto;
+  }
 }
 
 @media (hover: none) and (pointer: coarse) {
   .task-delete,
   .task-edit,
-  .project-subtask-delete {
+  .project-subtask-delete,
+  .project-subtask-edit {
     visibility: visible;
   }
 }
