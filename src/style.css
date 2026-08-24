@@ -1436,7 +1436,7 @@ html, body {
 }
 .access-lock-icon { font-size: 34px; margin-bottom: 10px; }
 .access-lock-card h2 { margin: 0 0 8px; font-size: 19px; font-weight: 700; color: #111827; }
-.access-lock-card p { margin: 0 0 4px; font-size: 13.5px; color: #4b5563; }
+.access-lock-card p { margin: 0 0 4px; font-size: 13.5px; color: #4b5563; overflow-wrap: break-word; }
 .access-lock-card .access-lock-sub { font-size: 12px; color: #8a94a6; margin-bottom: 16px; }
 .access-lock-actions { display: flex; gap: 10px; justify-content: center; margin: 18px 0 14px; }
 .access-lock-btn {
@@ -4994,6 +4994,27 @@ button.stat-card:hover {
   .project-subtask-delete,
   .project-subtask-edit {
     visibility: visible;
+  }
+
+  /* Attendance popup's per-employee row (name + In/Out time + Check
+     In/Out button, plus the WFH/WFO choice once Check In is tapped)
+     was one unwrapped flex row -- fine on desktop, but on a ~360px
+     popup it either overflowed or squeezed the WFH/WFO buttons down
+     to unreadable widths. Let it wrap onto a second line instead. */
+  .attendance-popup-row {
+    flex-wrap: wrap;
+    row-gap: 8px;
+  }
+
+  .access-lock-card {
+    padding: 26px 18px;
+  }
+  .access-lock-actions {
+    flex-direction: column;
+  }
+  .access-lock-btn {
+    padding: 13px 14px;
+    font-size: 14px;
   }
 
   /* Regular Tasks / Attendance grids: table-layout:fixed + width:100%

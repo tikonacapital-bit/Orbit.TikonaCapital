@@ -1296,6 +1296,7 @@ function openAttendancePopup(focusEmployeeName) {
       const isSelf = verifiedEmail && emp.email === verifiedEmail;
       const isFocused = focusEmployeeName && !verifiedEmail && sameEmployee(emp.name, focusEmployeeName);
       const row = document.createElement('div');
+      row.className = 'attendance-popup-row';
       row.dataset.email = emp.email;
       row.style.cssText = `display:flex;align-items:center;justify-content:space-between;gap:10px;padding:8px 10px;border:1px solid ${isSelf || isFocused ? '#1F4690' : '#eee'};border-radius:8px;${isSelf || isFocused ? '' : 'opacity:0.6;'}`;
 
