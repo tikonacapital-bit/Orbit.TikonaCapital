@@ -574,7 +574,7 @@ function normalizeRegisteredEmployees(list) {
 // employee, so unlike register/checkin/checkout/leave/exit they're exempt
 // from the "must have a real email" requirement, and carry a plain `text`
 // field instead of being built from name+verb.
-const ACTIVITY_MESSAGE_TYPES = ['announcement', 'task_created', 'project_created', 'due_changed', 'task_edited', 'project_edited', 'task_deleted', 'task_restored'];
+const ACTIVITY_MESSAGE_TYPES = ['announcement', 'task_created', 'project_created', 'due_changed', 'task_edited', 'project_edited', 'task_deleted', 'task_restored', 'task_completed', 'project_completed', 'regular_completed'];
 
 function normalizeActivity(list) {
   if (!Array.isArray(list)) return [];
@@ -2397,8 +2397,12 @@ function regularOverallProgress() {
 function toggleRegularCompletion(task, date) {
   state.regular.completions = state.regular.completions || {};
   const key = completionKey(task.id, date);
-  if (state.regular.completions[key]) delete state.regular.completions[key];
-  else state.regular.completions[key] = true;
+  if (state.regular.completions[key]) {
+    delete state.regular.completions[key];
+  } else {
+    state.regular.completions[key] = true;
+    logBoardEvent('regular_completed', `Regular task completed: "${task.title}"`);
+  }
   persist();
   render();
 }
@@ -3758,7 +3762,7 @@ function renderActivitySection() {
   }
 
   const ACTIVITY_LABELS = { register: 'registered', checkin: 'checked in', checkout: 'checked out', leave: 'applied for leave', exit: 'has exited', employee_restored: 'was restored (undo exit)' };
-  const ACTIVITY_ICONS = { register: '📝', checkin: '➡️', checkout: '⬅️', leave: '🏖️', announcement: '📢', exit: '🚪', employee_restored: '♻️', task_created: '➕', project_created: '🗂️', due_changed: '📅', task_edited: '✏️', project_edited: '✏️', task_deleted: '🗑️', task_restored: '♻️' };
+  const ACTIVITY_ICONS = { register: '📝', checkin: '➡️', checkout: '⬅️', leave: '🏖️', announcement: '📢', exit: '🚪', employee_restored: '♻️', task_created: '➕', project_created: '🗂️', due_changed: '📅', task_edited: '✏️', project_edited: '✏️', task_deleted: '🗑️', task_restored: '♻️', task_completed: '✅', project_completed: '🏁', regular_completed: '✅' };
 
   const list = document.createElement('div');
   list.className = 'activity-list';
@@ -4216,9 +4220,11 @@ function renderProjectRow(project) {
   checkBtn.title = project.done ? 'Restore project (undo)' : 'Mark project done';
   checkBtn.addEventListener('click', (e) => {
     e.stopPropagation();
+    const wasDone = project.done;
     project.done = !project.done;
     project.completedAt = project.done ? Date.now() : null;
     project.progress = project.done ? 100 : (project.progress === 100 ? 0 : project.progress);
+    if (project.done && !wasDone) logBoardEvent('project_completed', `Project completed: "${project.name}"`);
     persist();
     render();
   });
@@ -4331,8 +4337,10 @@ function renderProjectSubtaskRow(project, task) {
   check.title = task.done ? 'Restore task (undo)' : 'Mark done';
   check.addEventListener('click', (e) => {
     e.stopPropagation();
+    const wasDone = task.done;
     task.done = !task.done;
     task.completedAt = task.done ? Date.now() : null;
+    if (task.done && !wasDone) logBoardEvent('task_completed', `Task completed: "${task.text}" (${project.name})`);
     persist();
     render();
   });
@@ -6689,7 +6697,10 @@ function toggleDone(list, task) {
   task.completedAt = task.done ? Date.now() : null;
   task.progress = task.done ? 100 : (task.progress === 100 ? 0 : task.progress);
   task.status = task.done ? 'Done' : (task.progress === 0 ? 'Pending' : task.status);
-  if (task.done && !wasDone) fireConfetti();
+  if (task.done && !wasDone) {
+    fireConfetti();
+    logBoardEvent('task_completed', `Task completed: "${task.text}"`);
+  }
   persist();
   render();
 }
@@ -6700,7 +6711,10 @@ function setTaskProgress(list, task, value) {
   task.done = value === 100;
   task.completedAt = task.done ? Date.now() : null;
   task.status = value === 100 ? 'Done' : (value === 0 ? 'Pending' : 'In Progress');
-  if (task.done && !wasDone) fireConfetti();
+  if (task.done && !wasDone) {
+    fireConfetti();
+    logBoardEvent('task_completed', `Task completed: "${task.text}"`);
+  }
   persist();
   render();
 }
@@ -6711,7 +6725,10 @@ function setProjectProgress(project, value) {
   project.done = value === 100;
   project.completedAt = project.done ? Date.now() : null;
   project.status = value === 100 ? 'Done' : (value === 0 ? 'Pending' : 'In Progress');
-  if (project.done && !wasDone) fireConfetti();
+  if (project.done && !wasDone) {
+    fireConfetti();
+    logBoardEvent('project_completed', `Project completed: "${project.name}"`);
+  }
   persist();
   render();
 }
