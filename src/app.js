@@ -841,8 +841,11 @@ function pushReportSection(lines, title, groups) {
   const total = groups.reduce((n, g) => n + g.items.length, 0);
   if (!total) return;
   lines.push(`${title} (${total})`);
+  let firstGroup = true;
   groups.forEach((g) => {
     if (!g.items.length) return;
+    if (!firstGroup) lines.push('');
+    firstGroup = false;
     lines.push(`_${g.label}_`);
     g.items.forEach((l) => lines.push(l));
   });
@@ -939,16 +942,16 @@ function buildDailyUpdateShareText(list) {
     { label: 'Project', items: inProgressByKind.project.map((item) => reportItemLine(item, targetDateStr, targetLabel)) },
   ]);
 
-  const yetToStartByKind = bucketByKind(yetToStart);
-  pushReportSection(lines, `🚧 *YET TO START*`, [
-    { label: 'Task', items: yetToStartByKind.task.map((item) => reportItemLine(item, targetDateStr, targetLabel)) },
-    { label: 'Project', items: yetToStartByKind.project.map((item) => reportItemLine(item, targetDateStr, targetLabel)) },
-  ]);
-
   const highDelayByKind = bucketByKind(highDelay);
   pushReportSection(lines, `*High Delay Tasks*`, [
     { label: 'Task', items: highDelayByKind.task.map((item) => reportDelayLine(item)) },
     { label: 'Project', items: highDelayByKind.project.map((item) => reportDelayLine(item)) },
+  ]);
+
+  const yetToStartByKind = bucketByKind(yetToStart);
+  pushReportSection(lines, `🚧 *YET TO START*`, [
+    { label: 'Task', items: yetToStartByKind.task.map((item) => reportItemLine(item, targetDateStr, targetLabel)) },
+    { label: 'Project', items: yetToStartByKind.project.map((item) => reportItemLine(item, targetDateStr, targetLabel)) },
   ]);
 
   if (lines[lines.length - 1] === '') lines.pop();
