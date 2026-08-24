@@ -2475,17 +2475,32 @@ function setViewbarActions(mode) {
   if (mode !== 'productivity') productivityViewActionsEl.innerHTML = '';
 }
 
-// Locked whenever this device is bound to a registered employee (see
-// SIGNED_IN_EMAIL_KEY) who isn't currently checked in -- covers both "never
-// checked in today" and "checked out". A device that's never identified
-// itself (nobody's verified via the Attendance popup here yet) or that
-// belongs to an email outside the registered-employee list (the admin/boss
-// managing everyone) is never locked.
+// Only these accounts are always exempt from the lock -- NOT "anything
+// that isn't a registered employee". That was the bug: any random Google
+// account verified through "Switch account" isn't a registered employee
+// either, so it was falling through the same "not an employee = exempt"
+// path meant for the admin and getting full access with zero real check.
+const ADMIN_EMAILS = ['tikonacapital@gmail.com'];
+
+function isAdminEmail(email) {
+  return ADMIN_EMAILS.includes((email || '').toLowerCase());
+}
+
+// Locked whenever this device is bound (see SIGNED_IN_EMAIL_KEY) to either:
+// - a registered employee who isn't currently checked in (covers both
+//   "never checked in today" and "checked out"), or
+// - a verified email that's neither an admin nor a registered employee at
+//   all (denied outright -- there's nothing for them to check into).
+// A device that's never identified itself here at all (nobody's verified
+// via the Attendance popup or Switch account yet) is never locked, same as
+// the rest of this app's no-login-wall design -- only ADMIN_EMAILS is ever
+// treated as exempt once an identity IS attached to the device.
 function getAccessLockInfo() {
   const email = getSignedInEmail();
   if (!email) return null;
+  if (isAdminEmail(email)) return null;
   const emp = getRegisteredEmployees().find((e) => e.email === email);
-  if (!emp) return null;
+  if (!emp) return { emp: null, email, unrecognized: true };
   const checkin = getLatestActivity(email, 'checkin');
   const checkout = getLatestActivity(email, 'checkout');
   const isCheckedIn = Boolean(checkin) && (!checkout || checkin.timestamp > checkout.timestamp);
@@ -2503,6 +2518,23 @@ function renderAccessLock(lockInfo) {
   }
 
   overlay.classList.remove('hidden');
+
+  if (lockInfo.unrecognized) {
+    overlay.innerHTML = `
+      <div class="access-lock-card">
+        <div class="access-lock-icon">⛔</div>
+        <h2>Access denied</h2>
+        <p>${escapeHtml(lockInfo.email)} isn’t a registered employee, so there's nothing to check in to.</p>
+        <button type="button" id="accessLockSwitch" class="access-lock-switch">Try a different account</button>
+      </div>
+    `;
+    overlay.querySelector('#accessLockSwitch').addEventListener('click', () => {
+      pendingAccountSwitch = true;
+      render();
+    });
+    return;
+  }
+
   const { emp, checkout } = lockInfo;
   overlay.innerHTML = `
     <div class="access-lock-card">
@@ -2578,12 +2610,12 @@ function renderAccountSwitchPrompt() {
           render();
           return;
         }
-        // Only a real registered employee gets bound going forward; a
-        // non-employee (admin) email intentionally leaves nothing stored,
-        // same as any device that's never checked in here.
-        const emp = getRegisteredEmployees().find((e) => e.email === email);
-        if (emp) setSignedInEmail(email);
-        else clearSignedInEmail();
+        // Always bind whatever verified, even if it's neither an admin nor
+        // a registered employee -- getAccessLockInfo() classifies it fresh
+        // every render anyway, and NOT storing it would let a reload fall
+        // back to the "never identified = open" default, silently undoing
+        // the "access denied" this same email should get.
+        setSignedInEmail(email);
         pendingAccountSwitch = false;
         render();
       },
