@@ -783,7 +783,6 @@ function buildDailyUpdateShareText(list) {
     }
   }
 
-  lines.push('');
   lines.push(`_Open: ${openTasks.length}${includeCompleted ? ` | Completed today: ${completedToday.length}` : ''}_`);
   return lines.join('\n');
 }
