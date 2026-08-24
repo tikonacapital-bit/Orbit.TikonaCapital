@@ -2538,12 +2538,72 @@ function renderAccessLock(lockInfo) {
   actions.appendChild(wfoBtn);
 
   overlay.querySelector('#accessLockSwitch').addEventListener('click', () => {
-    clearSignedInEmail();
+    pendingAccountSwitch = true;
+    render();
+  });
+}
+
+// Shown instead of the lock while switching accounts (see accessLockSwitch
+// above). Deliberately does NOT clear the stored binding until a NEW
+// identity is actually verified with Google -- clearing it up front and
+// falling back to render()'s normal "no stored email = open access" path
+// was the bug: anyone locked out could tap "Switch account" and get full
+// access with no verification at all. Cancelling here leaves the original
+// binding untouched, so the original lock (if any) is exactly where it was.
+let pendingAccountSwitch = false;
+
+function renderAccountSwitchPrompt() {
+  const overlay = document.getElementById('accessLockOverlay');
+  if (!overlay) return;
+  overlay.classList.remove('hidden');
+  overlay.innerHTML = `
+    <div class="access-lock-card">
+      <div class="access-lock-icon">🔑</div>
+      <h2>Sign in to continue</h2>
+      <p>Verify with Google to switch which account this device belongs to.</p>
+      <div id="accessSwitchSignIn" class="access-switch-signin"></div>
+      <button type="button" id="accessSwitchCancel" class="access-lock-switch">Cancel</button>
+    </div>
+  `;
+
+  const signInWrap = overlay.querySelector('#accessSwitchSignIn');
+  if (isGoogleSignInConfigured()) {
+    google.accounts.id.initialize({
+      client_id: GOOGLE_CLIENT_ID,
+      callback: async (response) => {
+        signInWrap.innerHTML = '<span class="access-lock-loading">Verifying…</span>';
+        const email = await verifyGoogleIdToken(response.credential);
+        if (!email) {
+          pendingAccountSwitch = false;
+          render();
+          return;
+        }
+        // Only a real registered employee gets bound going forward; a
+        // non-employee (admin) email intentionally leaves nothing stored,
+        // same as any device that's never checked in here.
+        const emp = getRegisteredEmployees().find((e) => e.email === email);
+        if (emp) setSignedInEmail(email);
+        else clearSignedInEmail();
+        pendingAccountSwitch = false;
+        render();
+      },
+    });
+    google.accounts.id.renderButton(signInWrap, { theme: 'outline', size: 'medium', width: 220 });
+  } else {
+    signInWrap.innerHTML = '<p class="access-lock-sub">Google Sign-In isn’t configured — can’t verify an account switch.</p>';
+  }
+
+  overlay.querySelector('#accessSwitchCancel').addEventListener('click', () => {
+    pendingAccountSwitch = false;
     render();
   });
 }
 
 function render() {
+  if (pendingAccountSwitch) {
+    renderAccountSwitchPrompt();
+    return;
+  }
   const lockInfo = getAccessLockInfo();
   renderAccessLock(lockInfo);
   if (lockInfo) return;
