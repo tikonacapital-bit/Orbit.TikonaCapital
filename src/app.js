@@ -1217,6 +1217,21 @@ function getLatestTodayActivity(email, type) {
   return matches.reduce((latest, a) => (a.timestamp > latest.timestamp ? a : latest), matches[0]);
 }
 
+// Unlike getLatestTodayActivity, not scoped to today -- for the access lock
+// (getAccessLockInfo), which needs to know whether the LAST thing that
+// happened was a checkin or a checkout regardless of which calendar day it
+// landed on. Scoping to "today" broke this at every midnight: someone still
+// on an overnight-open shift (checked in yesterday, never checked out) would
+// suddenly read as "not checked in" the moment the date rolled over, since
+// yesterday's checkin no longer counted as "today's" -- locking them out
+// mid-shift for no real reason. Whoever/whatever happened most recently,
+// on any day, is what the lock should reflect.
+function getLatestActivity(email, type) {
+  const matches = (state.activity || []).filter((a) => a.email === email && a.type === type);
+  if (!matches.length) return null;
+  return matches.reduce((latest, a) => (a.timestamp > latest.timestamp ? a : latest), matches[0]);
+}
+
 // How many times this type has happened today for this person -- used to
 // label a repeat check-in/check-out ("2nd time today") since re-checking
 // in after a checkout is allowed (see openAttendancePopup).
@@ -2471,8 +2486,8 @@ function getAccessLockInfo() {
   if (!email) return null;
   const emp = getRegisteredEmployees().find((e) => e.email === email);
   if (!emp) return null;
-  const checkin = getLatestTodayActivity(email, 'checkin');
-  const checkout = getLatestTodayActivity(email, 'checkout');
+  const checkin = getLatestActivity(email, 'checkin');
+  const checkout = getLatestActivity(email, 'checkout');
   const isCheckedIn = Boolean(checkin) && (!checkout || checkin.timestamp > checkout.timestamp);
   if (isCheckedIn) return null;
   return { emp, checkout };
