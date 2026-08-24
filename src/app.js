@@ -821,11 +821,23 @@ function reportDelayLine(item) {
 
 // Appends a section only if it actually has something in it -- an empty
 // "(0)" section with nothing under it is just noise in a report this dense.
-function pushReportSection(lines, header, itemLines) {
-  if (!itemLines.length) return;
-  lines.push(header);
-  itemLines.forEach((l) => lines.push(l));
+// `groups` is [{ label, items }, ...] -- e.g. Task/Project/Regular Task --
+// so items from different sources are told apart instead of sitting in one
+// unlabeled flat list; a group with nothing in it is skipped too.
+function pushReportSection(lines, title, groups) {
+  const total = groups.reduce((n, g) => n + g.items.length, 0);
+  if (!total) return;
+  lines.push(`${title} (${total})`);
+  groups.forEach((g) => {
+    if (!g.items.length) return;
+    lines.push(`_${g.label}_`);
+    g.items.forEach((l) => lines.push(l));
+  });
   lines.push('');
+}
+
+function bucketByKind(items) {
+  return { task: items.filter((i) => i.kind === 'task'), project: items.filter((i) => i.kind === 'project') };
 }
 
 function buildDailyUpdateShareText(list) {
@@ -846,20 +858,22 @@ function buildDailyUpdateShareText(list) {
   const workModeIcon = workMode === 'WFH' ? '🏠' : workMode === 'WFO' ? '🏢' : '❔';
 
   // Task + Project share one normalized shape (progress/due/done/priority)
-  // so they can be classified and rendered identically. Regular Tasks are
-  // handled on their own below -- recurring/binary (done-today or not),
-  // with no due date or partial progress of their own to classify by.
+  // so they can be classified and rendered identically, tagged with `kind`
+  // so each section can still tell them apart when rendering. Regular
+  // Tasks are handled on their own below -- recurring/binary (done-today
+  // or not), with no due date or partial progress of their own to
+  // classify by, so they only ever land in Focus or Completed.
   const taskItems = (list.tasks || [])
     .slice()
     .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
     .map((t) => ({
-      text: t.text, priority: t.priority || 'none', due: t.due || null,
+      kind: 'task', text: t.text, priority: t.priority || 'none', due: t.due || null,
       done: Boolean(t.done), completedAt: t.completedAt || null,
       progress: itemDisplayProgress(t),
     }));
   const ownedProjects = (state.projects || []).filter((p) => !p.deleted && !p.archived && (p.owners || []).some((o) => sameEmployee(o, list.name)));
   const projectItems = ownedProjects.map((p) => ({
-    text: p.name, priority: p.priority || 'none', due: p.dueDate || null,
+    kind: 'project', text: p.name, priority: p.priority || 'none', due: p.dueDate || null,
     done: Boolean(p.done), completedAt: p.completedAt || null,
     progress: itemDisplayProgress(p),
   }));
@@ -876,7 +890,7 @@ function buildDailyUpdateShareText(list) {
   const regularFocus = evening ? regularExpectedTarget : regularExpectedTarget.filter((t) => !isRegularDone(t, todayDate));
   const regularFocusLines = regularFocus.map((t) => `${REPORT_PRIORITY_EMOJI[t.priority] || REPORT_PRIORITY_EMOJI.none} *${t.title}* — Due: ${targetLabel}`);
 
-  const lines = [evening ? 'Evening msg:' : 'Morning msg:', ''];
+  const lines = [];
   lines.push(`🎭 Mood: ${moodLabel}`);
   lines.push(`👤 ${list.name} | ${workModeIcon} ${workMode || '—'} | ${inTime} | ${outTime}`);
   lines.push('');
@@ -886,22 +900,43 @@ function buildDailyUpdateShareText(list) {
   // it goes straight into today's focus.
   if (evening) {
     const today = todayStr();
-    const completedTasks = taskItems.filter((i) => i.done && i.completedAt && dateKey(new Date(i.completedAt)) === today);
-    const completedProjects = projectItems.filter((i) => i.done && i.completedAt && dateKey(new Date(i.completedAt)) === today);
-    const completedRegular = regularOwned.filter((t) => isRegularTaskExpected(t, todayDate) && isRegularDone(t, todayDate));
-    const completedLines = [...completedTasks, ...completedProjects].map((item) => {
-      const score = productivityRowScore(item);
-      return `✅ *${item.text}* — ${Number.isFinite(score) ? score : 0}/100 pts`;
-    }).concat(completedRegular.map((t) => `✅ *${t.title}*`));
-    pushReportSection(lines, `✅ *COMPLETED TODAY* (${completedLines.length})`, completedLines);
+    const completedTasks = taskItems.filter((i) => i.done && i.completedAt && dateKey(new Date(i.completedAt)) === today)
+      .map((item) => { const score = productivityRowScore(item); return `✅ *${item.text}* — ${Number.isFinite(score) ? score : 0}/100 pts`; });
+    const completedProjects = projectItems.filter((i) => i.done && i.completedAt && dateKey(new Date(i.completedAt)) === today)
+      .map((item) => { const score = productivityRowScore(item); return `✅ *${item.text}* — ${Number.isFinite(score) ? score : 0}/100 pts`; });
+    const completedRegular = regularOwned.filter((t) => isRegularTaskExpected(t, todayDate) && isRegularDone(t, todayDate))
+      .map((t) => `✅ *${t.title}*`);
+    pushReportSection(lines, `✅ *COMPLETED TODAY*`, [
+      { label: 'Task', items: completedTasks },
+      { label: 'Project', items: completedProjects },
+      { label: 'Regular Task', items: completedRegular },
+    ]);
   }
 
-  const focusLines = [...focus.map((item) => reportItemLine(item, targetDateStr, targetLabel)), ...regularFocusLines];
-  pushReportSection(lines, `🎯 *${targetLabel.toUpperCase()}'S FOCUS (${targetHeaderDate})* (${focusLines.length})`, focusLines);
+  const focusByKind = bucketByKind(focus);
+  pushReportSection(lines, `🎯 *${targetLabel.toUpperCase()}'S FOCUS (${targetHeaderDate})*`, [
+    { label: 'Task', items: focusByKind.task.map((item) => reportItemLine(item, targetDateStr, targetLabel)) },
+    { label: 'Project', items: focusByKind.project.map((item) => reportItemLine(item, targetDateStr, targetLabel)) },
+    { label: 'Regular Task', items: regularFocusLines },
+  ]);
 
-  pushReportSection(lines, `⚡ *IN PROGRESS & QUICK WINS* (${inProgress.length})`, inProgress.map((item) => reportItemLine(item, targetDateStr, targetLabel)));
-  pushReportSection(lines, `🚧 *YET TO START* (${yetToStart.length})`, yetToStart.map((item) => reportItemLine(item, targetDateStr, targetLabel)));
-  pushReportSection(lines, `*High Delay Tasks* (${highDelay.length})`, highDelay.map((item) => reportDelayLine(item)));
+  const inProgressByKind = bucketByKind(inProgress);
+  pushReportSection(lines, `⚡ *IN PROGRESS & QUICK WINS*`, [
+    { label: 'Task', items: inProgressByKind.task.map((item) => reportItemLine(item, targetDateStr, targetLabel)) },
+    { label: 'Project', items: inProgressByKind.project.map((item) => reportItemLine(item, targetDateStr, targetLabel)) },
+  ]);
+
+  const yetToStartByKind = bucketByKind(yetToStart);
+  pushReportSection(lines, `🚧 *YET TO START*`, [
+    { label: 'Task', items: yetToStartByKind.task.map((item) => reportItemLine(item, targetDateStr, targetLabel)) },
+    { label: 'Project', items: yetToStartByKind.project.map((item) => reportItemLine(item, targetDateStr, targetLabel)) },
+  ]);
+
+  const highDelayByKind = bucketByKind(highDelay);
+  pushReportSection(lines, `*High Delay Tasks*`, [
+    { label: 'Task', items: highDelayByKind.task.map((item) => reportDelayLine(item)) },
+    { label: 'Project', items: highDelayByKind.project.map((item) => reportDelayLine(item)) },
+  ]);
 
   if (lines[lines.length - 1] === '') lines.pop();
   return lines.join('\n');
