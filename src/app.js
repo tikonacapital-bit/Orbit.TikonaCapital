@@ -549,6 +549,7 @@ function normalizeActivity(list) {
         device: typeof a.device === 'string' ? a.device : '',
       };
       if (type === 'leave') entry.leaveDates = Array.isArray(a.leaveDates) ? a.leaveDates : [];
+      if (type === 'checkin') entry.workMode = a.workMode === 'WFH' || a.workMode === 'WFO' ? a.workMode : '';
       if (ACTIVITY_MESSAGE_TYPES.includes(type)) entry.text = typeof a.text === 'string' ? a.text : '';
       return entry;
     });
@@ -725,8 +726,18 @@ function isEveningUpdateWindow(date = new Date()) {
   return date.getHours() >= COPY_STATUS_RESET_HOUR;
 }
 
+// Compact plain-text "water-fill" bar standing in for the app's status
+// pill -- WhatsApp can't render the real gradient-fill pill, so this is
+// the closest text-only equivalent: filled segments + the exact percent.
+function progressFillBar(percent) {
+  const pct = Math.max(0, Math.min(100, Math.round(percent)));
+  const filled = Math.round(pct / 20);
+  return `${'▰'.repeat(filled)}${'▱'.repeat(5 - filled)} ${pct}%`;
+}
+
 function buildDailyUpdateShareText(list) {
   const priorityEmoji = { high: '🔴', medium: '🟠', low: '🔵', none: '⚪' };
+  const moodEmojis = { happy: '🤩', neutral: '😐', sad: '🥱', busy: '😎' };
   const includeCompleted = isEveningUpdateWindow();
   const openTasks = (list.tasks || [])
     .filter((t) => !t.done)
@@ -737,23 +748,25 @@ function buildDailyUpdateShareText(list) {
     ? (list.tasks || []).filter((t) => t.done && t.completedAt && dateKey(new Date(t.completedAt)) === todayKey)
     : [];
 
-  const lines = [`📋 *${list.name}* — ${includeCompleted ? 'End of Day Update' : 'Today’s Update'}`, ''];
+  const emp = getRegisteredEmployees().find((e) => sameEmployee(e.name, list.name));
+  const checkin = emp ? getTodayActivity(emp.email, 'checkin') : null;
+  const checkout = emp ? getTodayActivity(emp.email, 'checkout') : null;
+  const moodEmoji = moodEmojis[list.mood] || moodEmojis.neutral;
+  const inTime = checkin ? fmtTimeOnly(checkin.timestamp) : '—';
+  const outTime = checkout ? fmtTimeOnly(checkout.timestamp) : '—';
+  const workMode = (checkin && checkin.workMode) || '—';
+
+  const lines = [`${moodEmoji} *${list.name}* | In ${inTime} | Out ${outTime} | ${workMode}`, ''];
 
   lines.push(`*Open (${openTasks.length})*`);
   if (!openTasks.length) {
     lines.push('_No pending tasks._');
   } else {
     openTasks.forEach((task, i) => {
-      lines.push(`${i + 1}. ⬜ *${task.text}*`);
       const priority = task.priority || 'none';
-      const meta = [`${priorityEmoji[priority] || priorityEmoji.none} ${priority.charAt(0).toUpperCase()}${priority.slice(1)}`];
-      if (task.category) meta.push(`🏷 ${task.category}`);
-      lines.push(`   ${meta.join('   ')}`);
-      const statusLine = [`Status: ${task.status || 'Pending'}`];
       const dueText = formatDateStrForShare(task.due);
-      if (dueText) statusLine.push(`Due: ${dueText}`);
-      lines.push(`   ${statusLine.join('   |   ')}`);
-      lines.push('');
+      lines.push(`${i + 1}. ${priorityEmoji[priority] || priorityEmoji.none} *${task.text}*`);
+      lines.push(`   ${progressFillBar(itemDisplayProgress(task))}${dueText ? ` | Due: ${dueText}` : ''}`);
     });
   }
 
@@ -763,13 +776,15 @@ function buildDailyUpdateShareText(list) {
       lines.push('_None._');
     } else {
       completedToday.forEach((task, i) => {
-        lines.push(`${i + 1}. ✅ *${task.text}*`);
+        const dueText = formatDateStrForShare(task.due);
+        const score = productivityRowScore(task);
+        lines.push(`${i + 1}. ✅ *${task.text}* — ${Number.isFinite(score) ? score : 0}/100 pts${dueText ? ` | Due: ${dueText}` : ''}`);
       });
-      lines.push('');
     }
   }
 
-  lines.push(`_Open: ${openTasks.length}${includeCompleted ? `   |   Completed today: ${completedToday.length}` : ''}_`);
+  lines.push('');
+  lines.push(`_Open: ${openTasks.length}${includeCompleted ? ` | Completed today: ${completedToday.length}` : ''}_`);
   return lines.join('\n');
 }
 
@@ -1214,13 +1229,34 @@ function openAttendancePopup(focusEmployeeName) {
         btn.disabled = !canAct;
         btn.title = canAct ? '' : 'Sign in with this person’s Google account to check them in';
         btn.style.cssText = `padding:6px 12px;border:none;border-radius:999px;background:${canAct ? '#FFA500' : '#c7ccd6'};color:#fff;font-size:12px;font-weight:600;cursor:${canAct ? 'pointer' : 'not-allowed'};`;
-        btn.addEventListener('click', async () => {
+        btn.addEventListener('click', () => {
           if (!canAct) return;
-          btn.disabled = true;
-          btn.textContent = '…';
-          const ip = await fetchClientIp();
-          logActivity('checkin', emp.email, ip, navigator.userAgent, emp.name);
-          renderRows();
+          // Ask WFH/WFO before actually logging the check-in, rather than
+          // after -- so it's captured at the moment it's true, and there's
+          // no separate edit step needed once it's on the activity entry.
+          actionsWrap.innerHTML = '';
+          const doCheckin = async (workMode) => {
+            actionsWrap.innerHTML = '<span style="font-size:12px;color:#8a94a6;">…</span>';
+            const ip = await fetchClientIp();
+            logActivity('checkin', emp.email, ip, navigator.userAgent, emp.name, { workMode });
+            renderRows();
+          };
+          const prompt = document.createElement('span');
+          prompt.style.cssText = 'font-size:11.5px;color:#8a94a6;';
+          prompt.textContent = 'Working from:';
+          actionsWrap.appendChild(prompt);
+          const wfhBtn = document.createElement('button');
+          wfhBtn.type = 'button';
+          wfhBtn.textContent = '🏠 WFH';
+          wfhBtn.style.cssText = 'padding:6px 10px;border:none;border-radius:999px;background:#3A5BA0;color:#fff;font-size:12px;font-weight:600;cursor:pointer;';
+          wfhBtn.addEventListener('click', () => doCheckin('WFH'));
+          const wfoBtn = document.createElement('button');
+          wfoBtn.type = 'button';
+          wfoBtn.textContent = '🏢 WFO';
+          wfoBtn.style.cssText = 'padding:6px 10px;border:none;border-radius:999px;background:#FFA500;color:#fff;font-size:12px;font-weight:600;cursor:pointer;';
+          wfoBtn.addEventListener('click', () => doCheckin('WFO'));
+          actionsWrap.appendChild(wfhBtn);
+          actionsWrap.appendChild(wfoBtn);
         });
         actionsWrap.appendChild(btn);
       } else {
