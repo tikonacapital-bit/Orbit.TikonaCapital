@@ -760,11 +760,11 @@ function formatDateStrForShare(dateStr) {
   return `${d} ${MONTHS[m - 1]} ${y}`;
 }
 
-// 6 PM is the hard line the copy-status icon resets on (see
-// renderListCopyStatusIcon) -- before it, the WhatsApp update is just
-// open tasks; from 6 PM on, it also includes what got finished today,
-// since that's the point of the end-of-day update.
-const COPY_STATUS_RESET_HOUR = 18;
+// 4 PM is the hard line the copy-status icon resets on (see
+// renderListCopyStatusIcon) and the point the WhatsApp update flips from a
+// morning briefing (today's focus) to an evening one (tomorrow's focus +
+// what got finished today).
+const COPY_STATUS_RESET_HOUR = 16;
 
 function isEveningUpdateWindow(date = new Date()) {
   return date.getHours() >= COPY_STATUS_RESET_HOUR;
@@ -773,61 +773,137 @@ function isEveningUpdateWindow(date = new Date()) {
 // Compact plain-text "water-fill" bar standing in for the app's status
 // pill -- WhatsApp can't render the real gradient-fill pill, so this is
 // the closest text-only equivalent: filled segments + the exact percent.
+// (Still used by buildSingleItemShareText, the per-row copy icon.)
 function progressFillBar(percent) {
   const pct = Math.max(0, Math.min(100, Math.round(percent)));
   const filled = Math.round(pct / 20);
   return `${'▰'.repeat(filled)}${'▱'.repeat(5 - filled)} ${pct}%`;
 }
 
+const REPORT_PRIORITY_EMOJI = { high: '🔴', medium: '🟠', low: '🔵', none: '⚪' };
+const REPORT_MOOD_LABELS = { happy: 'Happy', neutral: 'Neutral', sad: 'Low', busy: 'Busy' };
+const REPORT_PRIORITY_WEIGHT = { high: 3, medium: 2, low: 1, none: 0 };
+
+// Sorts a task/project (already-open, not yet claimed by Focus) into
+// exactly one bucket instead of letting it repeat across several -- due on
+// the target date wins first (the whole point of a Focus section), then a
+// serious delay (>2 days overdue), then generic progress state. `today` is
+// always the real current date even when targetDateStr is tomorrow's (the
+// evening report), since a delay is always relative to now, not to
+// whichever day Focus happens to be looking at.
+function classifyReportItems(items, targetDateStr) {
+  const today = todayStr();
+  const focus = [], highDelay = [], inProgress = [], yetToStart = [];
+  items.forEach((item) => {
+    if (item.done) return;
+    if (item.due && item.due === targetDateStr) { focus.push(item); return; }
+    if (item.due && item.due < today) {
+      const lateDays = productivityDateStrDiffDays(today, item.due);
+      if (lateDays > 2) { highDelay.push({ ...item, lateDays }); return; }
+    }
+    if (item.progress > 0 && item.progress < 100) { inProgress.push(item); return; }
+    yetToStart.push(item);
+  });
+  return { focus, highDelay, inProgress, yetToStart };
+}
+
+function reportItemLine(item, targetDateStr, targetLabel) {
+  const emoji = REPORT_PRIORITY_EMOJI[item.priority] || REPORT_PRIORITY_EMOJI.none;
+  const dueOut = item.due ? (item.due === targetDateStr ? targetLabel : formatDateStrForShare(item.due)) : '';
+  return `${emoji} *${item.text}* — ${Math.round(item.progress)}%${dueOut ? ` | Due: ${dueOut}` : ''}`;
+}
+
+function reportDelayLine(item) {
+  const emoji = REPORT_PRIORITY_EMOJI[item.priority] || REPORT_PRIORITY_EMOJI.none;
+  const dueOut = item.due ? formatDateStrForShare(item.due) : '';
+  return `${emoji} *${item.text}*${dueOut ? ` | Due: ${dueOut}` : ''} (+${item.lateDays}d)`;
+}
+
+// Appends a section only if it actually has something in it -- an empty
+// "(0)" section with nothing under it is just noise in a report this dense.
+function pushReportSection(lines, header, itemLines) {
+  if (!itemLines.length) return;
+  lines.push(header);
+  itemLines.forEach((l) => lines.push(l));
+  lines.push('');
+}
+
 function buildDailyUpdateShareText(list) {
-  const priorityEmoji = { high: '🔴', medium: '🟠', low: '🔵', none: '⚪' };
-  const moodEmojis = { happy: '🤩', neutral: '😐', sad: '🥱', busy: '😎' };
-  const includeCompleted = isEveningUpdateWindow();
-  const openTasks = (list.tasks || [])
-    .filter((t) => !t.done)
-    .slice()
-    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0));
-  const todayKey = dateKey(new Date());
-  const completedToday = includeCompleted
-    ? (list.tasks || []).filter((t) => t.done && t.completedAt && dateKey(new Date(t.completedAt)) === todayKey)
-    : [];
+  const evening = isEveningUpdateWindow();
+  const todayDate = new Date();
+  const targetDate = evening ? addDays(todayDate, 1) : todayDate;
+  const targetDateStr = dateKey(targetDate);
+  const targetLabel = evening ? 'Tomorrow' : 'Today';
+  const targetHeaderDate = `${targetDate.getDate()} ${MONTHS[targetDate.getMonth()]}`;
 
   const emp = getRegisteredEmployees().find((e) => sameEmployee(e.name, list.name));
   const checkin = emp ? getLatestTodayActivity(emp.email, 'checkin') : null;
   const checkout = emp ? getLatestTodayActivity(emp.email, 'checkout') : null;
-  const moodEmoji = moodEmojis[list.mood] || moodEmojis.neutral;
+  const moodLabel = REPORT_MOOD_LABELS[list.mood] || REPORT_MOOD_LABELS.neutral;
   const inTime = checkin ? fmtTimeOnly(checkin.timestamp) : '—';
   const outTime = checkout ? fmtTimeOnly(checkout.timestamp) : '—';
-  const workMode = (checkin && checkin.workMode) || '—';
+  const workMode = (checkin && checkin.workMode) || '';
+  const workModeIcon = workMode === 'WFH' ? '🏠' : workMode === 'WFO' ? '🏢' : '❔';
 
-  const lines = [`${moodEmoji} *${list.name}* | In ${inTime} | Out ${outTime} | ${workMode}`];
+  // Task + Project share one normalized shape (progress/due/done/priority)
+  // so they can be classified and rendered identically. Regular Tasks are
+  // handled on their own below -- recurring/binary (done-today or not),
+  // with no due date or partial progress of their own to classify by.
+  const taskItems = (list.tasks || [])
+    .slice()
+    .sort((a, b) => (b.createdAt || 0) - (a.createdAt || 0))
+    .map((t) => ({
+      text: t.text, priority: t.priority || 'none', due: t.due || null,
+      done: Boolean(t.done), completedAt: t.completedAt || null,
+      progress: itemDisplayProgress(t),
+    }));
+  const ownedProjects = (state.projects || []).filter((p) => !p.deleted && !p.archived && (p.owners || []).some((o) => sameEmployee(o, list.name)));
+  const projectItems = ownedProjects.map((p) => ({
+    text: p.name, priority: p.priority || 'none', due: p.dueDate || null,
+    done: Boolean(p.done), completedAt: p.completedAt || null,
+    progress: itemDisplayProgress(p),
+  }));
+  const allItems = [...taskItems, ...projectItems];
 
-  lines.push(`*Open (${openTasks.length})*`);
-  if (!openTasks.length) {
-    lines.push('_No pending tasks._');
-  } else {
-    openTasks.forEach((task, i) => {
-      const priority = task.priority || 'none';
-      const dueText = formatDateStrForShare(task.due);
-      lines.push(`${i + 1}. ${priorityEmoji[priority] || priorityEmoji.none} *${task.text}*`);
-      lines.push(`   ${progressFillBar(itemDisplayProgress(task))}${dueText ? ` | Due: ${dueText}` : ''}`);
-    });
+  const { focus, highDelay, inProgress, yetToStart } = classifyReportItems(allItems.filter((i) => !i.done), targetDateStr);
+  inProgress.sort((a, b) => b.progress - a.progress);
+  yetToStart.sort((a, b) => (REPORT_PRIORITY_WEIGHT[b.priority] || 0) - (REPORT_PRIORITY_WEIGHT[a.priority] || 0));
+  highDelay.sort((a, b) => b.lateDays - a.lateDays);
+
+  const regularOwned = (state.regular?.tasks || []).filter((t) => sameEmployee(t.owner, list.name));
+  const regularExpectedTarget = regularOwned.filter((t) => isRegularTaskExpected(t, targetDate));
+  // Tomorrow's Focus can't filter by "done" -- tomorrow hasn't happened yet.
+  const regularFocus = evening ? regularExpectedTarget : regularExpectedTarget.filter((t) => !isRegularDone(t, todayDate));
+  const regularFocusLines = regularFocus.map((t) => `${REPORT_PRIORITY_EMOJI[t.priority] || REPORT_PRIORITY_EMOJI.none} *${t.title}* — Due: ${targetLabel}`);
+
+  const lines = [evening ? 'Evening msg:' : 'Morning msg:', ''];
+  lines.push(`🎭 Mood: ${moodLabel}`);
+  lines.push(`👤 ${list.name} | ${workModeIcon} ${workMode || '—'} | ${inTime} | ${outTime}`);
+  lines.push('');
+
+  // Evening leads with what got finished today, then looks ahead to
+  // tomorrow's focus -- morning has nothing finished yet to lead with, so
+  // it goes straight into today's focus.
+  if (evening) {
+    const today = todayStr();
+    const completedTasks = taskItems.filter((i) => i.done && i.completedAt && dateKey(new Date(i.completedAt)) === today);
+    const completedProjects = projectItems.filter((i) => i.done && i.completedAt && dateKey(new Date(i.completedAt)) === today);
+    const completedRegular = regularOwned.filter((t) => isRegularTaskExpected(t, todayDate) && isRegularDone(t, todayDate));
+    const completedLines = [...completedTasks, ...completedProjects].map((item) => {
+      const score = productivityRowScore(item);
+      return `✅ *${item.text}* — ${Number.isFinite(score) ? score : 0}/100 pts`;
+    }).concat(completedRegular.map((t) => `✅ *${t.title}*`));
+    pushReportSection(lines, `✅ *COMPLETED TODAY* (${completedLines.length})`, completedLines);
   }
 
-  if (includeCompleted) {
-    lines.push(`*Completed today (${completedToday.length})*`);
-    if (!completedToday.length) {
-      lines.push('_None._');
-    } else {
-      completedToday.forEach((task, i) => {
-        const dueText = formatDateStrForShare(task.due);
-        const score = productivityRowScore(task);
-        lines.push(`${i + 1}. ✅ *${task.text}* — ${Number.isFinite(score) ? score : 0}/100 pts${dueText ? ` | Due: ${dueText}` : ''}`);
-      });
-    }
-  }
+  const focusLines = [...focus.map((item) => reportItemLine(item, targetDateStr, targetLabel)), ...regularFocusLines];
+  pushReportSection(lines, `🎯 *${targetLabel.toUpperCase()}'S FOCUS (${targetHeaderDate})* (${focusLines.length})`, focusLines);
 
-  lines.push(`_Open: ${openTasks.length}${includeCompleted ? ` | Completed today: ${completedToday.length}` : ''}_`);
+  pushReportSection(lines, `⚡ *IN PROGRESS & QUICK WINS* (${inProgress.length})`, inProgress.map((item) => reportItemLine(item, targetDateStr, targetLabel)));
+  pushReportSection(lines, `🚧 *YET TO START* (${yetToStart.length})`, yetToStart.map((item) => reportItemLine(item, targetDateStr, targetLabel)));
+  pushReportSection(lines, `*High Delay Tasks* (${highDelay.length})`, highDelay.map((item) => reportDelayLine(item)));
+
+  if (lines[lines.length - 1] === '') lines.pop();
   return lines.join('\n');
 }
 
