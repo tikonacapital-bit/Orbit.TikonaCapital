@@ -756,7 +756,7 @@ function buildDailyUpdateShareText(list) {
   const outTime = checkout ? fmtTimeOnly(checkout.timestamp) : '—';
   const workMode = (checkin && checkin.workMode) || '—';
 
-  const lines = [`${moodEmoji} *${list.name}* | In ${inTime} | Out ${outTime} | ${workMode}`, ''];
+  const lines = [`${moodEmoji} *${list.name}* | In ${inTime} | Out ${outTime} | ${workMode}`];
 
   lines.push(`*Open (${openTasks.length})*`);
   if (!openTasks.length) {
