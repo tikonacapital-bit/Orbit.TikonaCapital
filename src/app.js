@@ -14,6 +14,11 @@ const tplTask = document.getElementById('tpl-task');
 const toastEl = document.getElementById('toast');
 
 let state = { lists: [], projects: [], employees: [], activity: [], bin: [], categories: [], kraTabs: [], activeKraTabId: null };
+// Session-local clipboard for the task/project duplicate-elsewhere feature
+// (the .task-duplicate icon) -- deliberately NOT part of `state` (never
+// persisted/synced), same as any real clipboard: { kind: 'task'|'project',
+// data: {...} } or null.
+let clipboardItem = null;
 let toastTimer = null;
 let activeListId = 'all';
 let activeWorkspace = 'tasks';
@@ -3953,6 +3958,21 @@ function renderProjectPersonCard(name) {
   countEl.textContent = activeProjects.length || '';
   header.appendChild(countEl);
 
+  // Only exists in the DOM at all while a project's actually been
+  // copied -- costs zero space otherwise.
+  if (clipboardItem && clipboardItem.kind === 'project') {
+    const pasteBtn = document.createElement('button');
+    pasteBtn.type = 'button';
+    pasteBtn.className = 'list-quick-add-btn list-paste-btn';
+    pasteBtn.innerHTML = '<svg viewBox="0 0 20 20" width="11" height="11" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="10" height="12" rx="1.5"/><path d="M8 5V3.8A1.3 1.3 0 0 1 9.3 2.5h1.4A1.3 1.3 0 0 1 12 3.8V5"/></svg>';
+    pasteBtn.title = `Paste "${clipboardItem.data.name}" here`;
+    pasteBtn.addEventListener('click', (e) => {
+      e.stopPropagation();
+      pasteProjectForOwner(name);
+    });
+    header.appendChild(pasteBtn);
+  }
+
   // Completed/Deleted are small icon+count pills in the header (same
   // pattern as renderList's task cards) instead of full-width toggle rows,
   // so a card with nothing completed/deleted yet costs no extra space.
@@ -4200,6 +4220,63 @@ function deleteProject(project) {
   });
 }
 
+// Copies the project's content fields "as is" (not id/owner/timestamps --
+// those get set fresh on paste). Doesn't clear on paste, so the same
+// project can be pasted onto several people, or the same person again,
+// without re-copying each time.
+function copyProjectToClipboard(project) {
+  clipboardItem = {
+    kind: 'project',
+    data: {
+      name: project.name,
+      priority: project.priority || 'none',
+      dueDate: project.dueDate || null,
+      startDate: project.startDate || null,
+      done: Boolean(project.done),
+      status: project.status || '',
+      mood: project.mood || 'neutral',
+      description: project.description || '',
+      progress: project.progress || 0,
+      category: project.category || '',
+    },
+  };
+  showToast(`Copied "${project.name}" — click Paste on any project card`);
+  render();
+}
+
+function pasteProjectForOwner(ownerName) {
+  if (!clipboardItem || clipboardItem.kind !== 'project') return;
+  const d = clipboardItem.data;
+  const project = {
+    id: uid('proj'),
+    name: d.name,
+    owner: ownerName,
+    owners: ownerName === 'Unassigned' ? [] : [ownerName],
+    description: d.description,
+    startDate: d.startDate,
+    dueDate: d.dueDate,
+    priority: d.priority,
+    status: d.status,
+    sections: [],
+    tasks: [],
+    archived: false,
+    archivedAt: null,
+    deleted: false,
+    deletedAt: null,
+    deleteReason: null,
+    mood: d.mood,
+    done: d.done,
+    completedAt: d.done ? Date.now() : null,
+    progress: d.progress,
+    category: d.category,
+  };
+  state.projects = state.projects || [];
+  state.projects.push(project);
+  logBoardEvent('project_created', `Project created: "${project.name}" (pasted)`);
+  persist();
+  render();
+  showToast(`Pasted "${project.name}" for ${ownerName}`);
+}
 
 function openProjectDatePicker(project, dueEl) {
   const input = document.createElement('input');
@@ -4282,6 +4359,12 @@ function renderProjectRow(project) {
     copyTextToClipboard(buildSingleItemShareText(project, true))
       .then(() => showToast('Copied — paste it in WhatsApp or anywhere'))
       .catch(() => showToast('Could not copy to clipboard'));
+  });
+
+  const duplicateBtn = node.querySelector('.task-duplicate');
+  duplicateBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    copyProjectToClipboard(project);
   });
 
   if (project.description) {
@@ -5487,6 +5570,21 @@ function renderList(list, options = {}) {
     });
     nameEl.after(quickAddBtn);
 
+    // Only exists in the DOM at all while something's actually been
+    // copied -- costs zero space otherwise.
+    if (clipboardItem && clipboardItem.kind === 'task') {
+      const pasteBtn = document.createElement('button');
+      pasteBtn.type = 'button';
+      pasteBtn.className = 'list-quick-add-btn list-paste-btn';
+      pasteBtn.innerHTML = '<svg viewBox="0 0 20 20" width="11" height="11" aria-hidden="true" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><rect x="5" y="5" width="10" height="12" rx="1.5"/><path d="M8 5V3.8A1.3 1.3 0 0 1 9.3 2.5h1.4A1.3 1.3 0 0 1 12 3.8V5"/></svg>';
+      pasteBtn.title = `Paste "${clipboardItem.data.text}" here`;
+      pasteBtn.addEventListener('click', (e) => {
+        e.stopPropagation();
+        pasteTaskIntoList(list);
+      });
+      quickAddBtn.after(pasteBtn);
+    }
+
     const attendanceBtn = renderListAttendanceButton(list);
     if (attendanceBtn) nameEl.after(attendanceBtn);
 
@@ -5782,6 +5880,12 @@ function renderTask(list, task) {
     copyTextToClipboard(buildSingleItemShareText(task, false))
       .then(() => showToast('Copied — paste it in WhatsApp or anywhere'))
       .catch(() => showToast('Could not copy to clipboard'));
+  });
+
+  const duplicateBtn = node.querySelector('.task-duplicate');
+  duplicateBtn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    copyTaskToClipboard(task);
   });
 
   if (task.description) {
@@ -6780,6 +6884,56 @@ function restoreDeletedTask(list, entryId) {
   persist();
   render();
   showToast(`Restored "${entry.task.text}"`);
+}
+
+// Same "as is" content-copy / repeatable-paste behavior as
+// copyProjectToClipboard/pasteProjectForOwner above.
+function copyTaskToClipboard(task) {
+  clipboardItem = {
+    kind: 'task',
+    data: {
+      text: task.text,
+      priority: task.priority || 'none',
+      due: task.due || null,
+      startDate: task.startDate || null,
+      done: Boolean(task.done),
+      status: task.status || '',
+      mood: task.mood || 'neutral',
+      description: task.description || '',
+      progress: task.progress || 0,
+      category: task.category || '',
+    },
+  };
+  showToast(`Copied "${task.text}" — click Paste on any list`);
+  render();
+}
+
+function pasteTaskIntoList(list) {
+  if (!clipboardItem || clipboardItem.kind !== 'task') return;
+  const d = clipboardItem.data;
+  const task = {
+    id: uid('task'),
+    text: d.text,
+    priority: d.priority,
+    due: d.due,
+    startDate: d.startDate,
+    createdAt: Date.now(),
+    completedAt: d.done ? Date.now() : null,
+    done: d.done,
+    status: d.status,
+    sectionId: null,
+    dueChangeCount: 0,
+    assignedTo: list.name,
+    mood: d.mood,
+    description: d.description,
+    progress: d.progress,
+    category: d.category,
+  };
+  list.tasks.push(task);
+  logBoardEvent('task_created', `Task added: "${task.text}" (pasted)`);
+  persist();
+  render();
+  showToast(`Pasted "${task.text}" into ${list.name}'s list`);
 }
 
 function permanentlyDeleteTask(list, entryId) {
