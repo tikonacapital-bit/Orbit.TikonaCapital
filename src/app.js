@@ -599,18 +599,31 @@ function normalizeActivity(list) {
     });
 }
 
-// Shared by task-created/project-created/due-date-changed notice-board
+// Whoever this device is currently bound to (see SIGNED_IN_EMAIL_KEY /
+// getAccessLockInfo) -- the best available signal for "who is doing this,"
+// since it's the same Google-verified identity the access lock itself
+// relies on. Falls back to their raw email if they're not (or no longer)
+// a registered employee (e.g. the admin), and to null if this device has
+// never verified anyone here -- there's genuinely nothing to attribute to
+// in that case, so logBoardEvent leaves the fact unattributed rather than
+// guessing.
+function currentActorLabel() {
+  const email = getSignedInEmail();
+  if (!email) return null;
+  const emp = getRegisteredEmployees().find((e) => e.email === email);
+  return emp ? emp.name : email;
+}
+
+// Shared by task-created/project-created/due-date-changed/etc notice-board
 // entries -- same shape as postAnnouncement's, just without a persist()/
 // render() of its own, since every caller already does one right after
 // (this only ever runs partway through an existing save, not standalone).
-// There's no login system in this app, so "who" did it genuinely can't be
-// verified the way check-in/leave can (those go through Google Sign-In or
-// an explicit employee picker) -- these events are logged as bare facts
-// (what changed, on what) rather than attributed to a person, so as not
-// to imply an identity claim the app has no way to actually back up.
+// Attributes to currentActorLabel() when this device has a known identity
+// bound to it; otherwise logs the same bare fact as before.
 function logBoardEvent(type, text) {
   state.activity = state.activity || [];
-  state.activity.push({ id: uid('act'), type, text, name: '', email: '', timestamp: Date.now(), ip: '', device: '' });
+  const actor = currentActorLabel();
+  state.activity.push({ id: uid('act'), type, text: actor ? `${text} — by ${actor}` : text, name: '', email: '', timestamp: Date.now(), ip: '', device: '' });
 }
 
 function postAnnouncement(text) {
