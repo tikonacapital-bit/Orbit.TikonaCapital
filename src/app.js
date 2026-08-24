@@ -73,6 +73,37 @@ function saveViewMode(mode) {
   }
 }
 
+// Which employee this browser/device belongs to, for the checked-out access
+// lock (see getAccessLockInfo/renderAccessLock) -- set the moment someone
+// verifies their Google account in the Attendance popup, so the app can
+// keep recognizing them across reloads without re-verifying every time.
+// This is a workflow nudge, not real security: it's plain localStorage,
+// clearable from the lock screen's own "Switch account" link or devtools.
+const SIGNED_IN_EMAIL_KEY = 'tikona_signed_in_email_v1';
+
+function getSignedInEmail() {
+  try {
+    return localStorage.getItem(SIGNED_IN_EMAIL_KEY) || null;
+  } catch (err) {
+    return null;
+  }
+}
+
+function setSignedInEmail(email) {
+  try {
+    localStorage.setItem(SIGNED_IN_EMAIL_KEY, email);
+  } catch (err) {
+    // Non-fatal -- the lock just won't persist across reloads on this device.
+  }
+}
+
+function clearSignedInEmail() {
+  try {
+    localStorage.removeItem(SIGNED_IN_EMAIL_KEY);
+  } catch (err) {
+    // Non-fatal.
+  }
+}
 
 function uid(prefix) {
   return `${prefix}_${Date.now().toString(36)}${Math.random().toString(36).slice(2, 8)}`;
@@ -1371,6 +1402,15 @@ function openAttendancePopup(focusEmployeeName) {
         verifiedBanner.style.display = 'block';
         if (match) {
           verifiedEmail = email;
+          // This is the moment identity is actually proven for this device
+          // -- binds it to this employee so the checked-out access lock
+          // (see getAccessLockInfo) knows whose status to check from now on.
+          // The global render() (safe to call here -- this popup lives on
+          // document.body, not inside the board it rebuilds) makes the lock
+          // apply immediately if they're not currently checked in, rather
+          // than waiting for some other click to trigger it.
+          setSignedInEmail(email);
+          render();
           verifiedBanner.style.background = 'rgba(31,70,144,0.12)';
           verifiedBanner.style.color = '#1F4690';
           verifiedBanner.textContent = `Signed in as ${match.name || email} — you can check yourself in/out below.`;
@@ -2420,7 +2460,79 @@ function setViewbarActions(mode) {
   if (mode !== 'productivity') productivityViewActionsEl.innerHTML = '';
 }
 
+// Locked whenever this device is bound to a registered employee (see
+// SIGNED_IN_EMAIL_KEY) who isn't currently checked in -- covers both "never
+// checked in today" and "checked out". A device that's never identified
+// itself (nobody's verified via the Attendance popup here yet) or that
+// belongs to an email outside the registered-employee list (the admin/boss
+// managing everyone) is never locked.
+function getAccessLockInfo() {
+  const email = getSignedInEmail();
+  if (!email) return null;
+  const emp = getRegisteredEmployees().find((e) => e.email === email);
+  if (!emp) return null;
+  const checkin = getLatestTodayActivity(email, 'checkin');
+  const checkout = getLatestTodayActivity(email, 'checkout');
+  const isCheckedIn = Boolean(checkin) && (!checkout || checkin.timestamp > checkout.timestamp);
+  if (isCheckedIn) return null;
+  return { emp, checkout };
+}
+
+function renderAccessLock(lockInfo) {
+  const overlay = document.getElementById('accessLockOverlay');
+  if (!overlay) return;
+  if (!lockInfo) {
+    overlay.classList.add('hidden');
+    overlay.innerHTML = '';
+    return;
+  }
+
+  overlay.classList.remove('hidden');
+  const { emp, checkout } = lockInfo;
+  overlay.innerHTML = `
+    <div class="access-lock-card">
+      <div class="access-lock-icon">🔒</div>
+      <h2>You're checked out</h2>
+      <p>Hi ${escapeHtml(emp.name || emp.email)} — Orbit is locked until you check back in.</p>
+      ${checkout ? `<p class="access-lock-sub">Last checked out at ${fmtTimeOnly(checkout.timestamp)}</p>` : ''}
+      <div id="accessLockActions" class="access-lock-actions"></div>
+      <button type="button" id="accessLockSwitch" class="access-lock-switch">Not ${escapeHtml(emp.name || 'you')}? Switch account</button>
+    </div>
+  `;
+
+  const actions = overlay.querySelector('#accessLockActions');
+  const doCheckin = async (workMode) => {
+    actions.innerHTML = '<span class="access-lock-loading">Checking in…</span>';
+    const ip = await fetchClientIp();
+    // logActivity() itself calls persist() + render() -- the re-render
+    // re-evaluates getAccessLockInfo() and finds them checked in, so the
+    // overlay lifts on its own with no extra call needed here.
+    logActivity('checkin', emp.email, ip, navigator.userAgent, emp.name, { workMode });
+  };
+  const wfhBtn = document.createElement('button');
+  wfhBtn.type = 'button';
+  wfhBtn.className = 'access-lock-btn wfh';
+  wfhBtn.textContent = '🏠 Check In — WFH';
+  wfhBtn.addEventListener('click', () => doCheckin('WFH'));
+  const wfoBtn = document.createElement('button');
+  wfoBtn.type = 'button';
+  wfoBtn.className = 'access-lock-btn wfo';
+  wfoBtn.textContent = '🏢 Check In — WFO';
+  wfoBtn.addEventListener('click', () => doCheckin('WFO'));
+  actions.appendChild(wfhBtn);
+  actions.appendChild(wfoBtn);
+
+  overlay.querySelector('#accessLockSwitch').addEventListener('click', () => {
+    clearSignedInEmail();
+    render();
+  });
+}
+
 function render() {
+  const lockInfo = getAccessLockInfo();
+  renderAccessLock(lockInfo);
+  if (lockInfo) return;
+
   const renderKey = `${activeWorkspace}:${viewMode}:${activeListId}:${activeRegularEmployee}:${activeProjectEmployee}:${activeQuickPriority}:${activeQuickStatus}:${searchQuery}`;
   const preserveScroll = renderKey === lastRenderKey;
   const scrollTarget = preserveScroll ? boardEl.querySelector(SCROLL_PANEL_SELECTOR) : null;

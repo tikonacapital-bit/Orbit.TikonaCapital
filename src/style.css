@@ -1415,6 +1415,53 @@ html, body {
   border: 1px solid rgba(17, 24, 39, 0.1);
 }
 
+.access-lock-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 20000;
+  background: rgba(15, 23, 42, 0.94);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+}
+.access-lock-card {
+  max-width: 360px;
+  width: 100%;
+  background: #fff;
+  border-radius: 16px;
+  padding: 32px 28px;
+  text-align: center;
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+}
+.access-lock-icon { font-size: 34px; margin-bottom: 10px; }
+.access-lock-card h2 { margin: 0 0 8px; font-size: 19px; font-weight: 700; color: #111827; }
+.access-lock-card p { margin: 0 0 4px; font-size: 13.5px; color: #4b5563; }
+.access-lock-card .access-lock-sub { font-size: 12px; color: #8a94a6; margin-bottom: 16px; }
+.access-lock-actions { display: flex; gap: 10px; justify-content: center; margin: 18px 0 14px; }
+.access-lock-btn {
+  flex: 1;
+  padding: 11px 14px;
+  border: none;
+  border-radius: 10px;
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
+.access-lock-btn.wfh { background: #3A5BA0; }
+.access-lock-btn.wfo { background: #FFA500; }
+.access-lock-loading { font-size: 13px; color: #8a94a6; }
+.access-lock-switch {
+  border: none;
+  background: transparent;
+  color: #8a94a6;
+  font-size: 12px;
+  text-decoration: underline;
+  cursor: pointer;
+  padding: 4px;
+}
+
 .command-palette-overlay {
   position: fixed;
   inset: 0;
