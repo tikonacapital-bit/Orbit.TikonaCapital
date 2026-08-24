@@ -362,12 +362,29 @@ function daysInMonth(date) {
   return new Date(date.getFullYear(), date.getMonth() + 1, 0).getDate();
 }
 
-function dueLabel(due) {
+// `item` (the task/project, optional) drives the "+Nd" delay suffix: while
+// still open and past due, N grows day by day (today vs. due date); once
+// completed late, N freezes at however many days it actually took past the
+// deadline (completedAt vs. due date) instead of continuing to climb.
+function dueLabel(due, item) {
   if (!due) return { text: '', cls: '' };
   const today = todayStr();
   const [y, m, dd] = due.split('-').map(Number);
   const label = `Due ${MONTHS[m - 1]} ${dd}`;
-  if (due < today) return { text: `Overdue ${MONTHS[m - 1]} ${dd}`, cls: 'overdue' };
+
+  if (item && item.done) {
+    if (item.completedAt) {
+      const completedDay = dateKey(new Date(item.completedAt));
+      const lateDays = productivityDateStrDiffDays(completedDay, due);
+      if (lateDays > 0) return { text: `${label} (+${lateDays}d)`, cls: 'overdue-completed' };
+    }
+    return { text: label, cls: '' };
+  }
+
+  if (due < today) {
+    const lateDays = productivityDateStrDiffDays(today, due);
+    return { text: `Overdue ${MONTHS[m - 1]} ${dd} (+${lateDays}d)`, cls: 'overdue' };
+  }
   if (due === today) return { text: 'Due today', cls: 'due-today' };
   return { text: label, cls: '' };
 }
@@ -745,8 +762,8 @@ function buildDailyUpdateShareText(list) {
     : [];
 
   const emp = getRegisteredEmployees().find((e) => sameEmployee(e.name, list.name));
-  const checkin = emp ? getTodayActivity(emp.email, 'checkin') : null;
-  const checkout = emp ? getTodayActivity(emp.email, 'checkout') : null;
+  const checkin = emp ? getLatestTodayActivity(emp.email, 'checkin') : null;
+  const checkout = emp ? getLatestTodayActivity(emp.email, 'checkout') : null;
   const moodEmoji = moodEmojis[list.mood] || moodEmojis.neutral;
   const inTime = checkin ? fmtTimeOnly(checkin.timestamp) : '—';
   const outTime = checkout ? fmtTimeOnly(checkout.timestamp) : '—';
@@ -1169,6 +1186,20 @@ function getLatestTodayActivity(email, type) {
   return matches.reduce((latest, a) => (a.timestamp > latest.timestamp ? a : latest), matches[0]);
 }
 
+// How many times this type has happened today for this person -- used to
+// label a repeat check-in/check-out ("2nd time today") since re-checking
+// in after a checkout is allowed (see openAttendancePopup).
+function getTodayActivityCount(email, type) {
+  const key = dateKey(new Date());
+  return (state.activity || []).filter((a) => a.email === email && a.type === type && dateKey(new Date(a.timestamp)) === key).length;
+}
+
+function ordinal(n) {
+  const s = ['th', 'st', 'nd', 'rd'];
+  const v = n % 100;
+  return `${n}${s[(v - 20) % 10] || s[v] || s[0]}`;
+}
+
 function fmtTimeOnly(ts) {
   const d = new Date(ts);
   const hours = String(d.getHours()).padStart(2, '0');
@@ -1230,14 +1261,25 @@ function openAttendancePopup(focusEmployeeName) {
       const actionsWrap = document.createElement('div');
       actionsWrap.style.cssText = 'display:flex;align-items:center;gap:8px;';
 
-      const checkin = getTodayActivity(emp.email, 'checkin');
-      const checkout = getTodayActivity(emp.email, 'checkout');
+      // "Currently checked in" is whichever of checkin/checkout happened
+      // most recently today, not just whether a checkin exists at all --
+      // re-checking in after a checkout is allowed (unlimited sessions per
+      // day), so someone can have checkin/checkout/checkin/... pairs.
+      const checkin = getLatestTodayActivity(emp.email, 'checkin');
+      const checkout = getLatestTodayActivity(emp.email, 'checkout');
+      const isCheckedIn = Boolean(checkin) && (!checkout || checkin.timestamp > checkout.timestamp);
       const canAct = !configured || isSelf;
 
-      if (!checkin) {
+      if (!isCheckedIn) {
+        if (checkout) {
+          const outTime = document.createElement('span');
+          outTime.style.cssText = 'font-size:11.5px;color:#1F4690;font-weight:600;';
+          outTime.textContent = `Out ${fmtTimeOnly(checkout.timestamp)}`;
+          actionsWrap.appendChild(outTime);
+        }
         const btn = document.createElement('button');
         btn.type = 'button';
-        btn.textContent = 'Check In';
+        btn.textContent = checkout ? 'Check In Again' : 'Check In';
         btn.disabled = !canAct;
         btn.title = canAct ? '' : 'Sign in with this person’s Google account to check them in';
         btn.style.cssText = `padding:6px 12px;border:none;border-radius:999px;background:${canAct ? '#FFA500' : '#c7ccd6'};color:#fff;font-size:12px;font-weight:600;cursor:${canAct ? 'pointer' : 'not-allowed'};`;
@@ -1272,33 +1314,27 @@ function openAttendancePopup(focusEmployeeName) {
         });
         actionsWrap.appendChild(btn);
       } else {
+        const checkinCount = getTodayActivityCount(emp.email, 'checkin');
         const inTime = document.createElement('span');
         inTime.style.cssText = 'font-size:11.5px;color:#3A5BA0;font-weight:600;';
-        inTime.textContent = `In ${fmtTimeOnly(checkin.timestamp)}`;
+        inTime.textContent = `In ${fmtTimeOnly(checkin.timestamp)}${checkinCount > 1 ? ` (${ordinal(checkinCount)} time)` : ''}`;
         actionsWrap.appendChild(inTime);
 
-        if (!checkout) {
-          const btn = document.createElement('button');
-          btn.type = 'button';
-          btn.textContent = 'Check Out';
-          btn.disabled = !canAct;
-          btn.title = canAct ? '' : 'Sign in with this person’s Google account to check them out';
-          btn.style.cssText = `padding:6px 12px;border:none;border-radius:999px;background:${canAct ? '#3A5BA0' : '#c7ccd6'};color:#fff;font-size:12px;font-weight:600;cursor:${canAct ? 'pointer' : 'not-allowed'};`;
-          btn.addEventListener('click', async () => {
-            if (!canAct) return;
-            btn.disabled = true;
-            btn.textContent = '…';
-            const ip = await fetchClientIp();
-            logActivity('checkout', emp.email, ip, navigator.userAgent, emp.name);
-            renderRows();
-          });
-          actionsWrap.appendChild(btn);
-        } else {
-          const outTime = document.createElement('span');
-          outTime.style.cssText = 'font-size:11.5px;color:#1F4690;font-weight:600;';
-          outTime.textContent = `Out ${fmtTimeOnly(checkout.timestamp)}`;
-          actionsWrap.appendChild(outTime);
-        }
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = 'Check Out';
+        btn.disabled = !canAct;
+        btn.title = canAct ? '' : 'Sign in with this person’s Google account to check them out';
+        btn.style.cssText = `padding:6px 12px;border:none;border-radius:999px;background:${canAct ? '#3A5BA0' : '#c7ccd6'};color:#fff;font-size:12px;font-weight:600;cursor:${canAct ? 'pointer' : 'not-allowed'};`;
+        btn.addEventListener('click', async () => {
+          if (!canAct) return;
+          btn.disabled = true;
+          btn.textContent = '…';
+          const ip = await fetchClientIp();
+          logActivity('checkout', emp.email, ip, navigator.userAgent, emp.name);
+          renderRows();
+        });
+        actionsWrap.appendChild(btn);
       }
 
       row.appendChild(actionsWrap);
@@ -2724,13 +2760,18 @@ function fmtTimeShort(ts) {
   return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`;
 }
 
+// "Current status" always reads off the LATEST checkin/checkout today, not
+// the first -- with re-check-in allowed (see openAttendancePopup), someone
+// can have checkin/checkout/checkin/checkout... pairs in one day, and the
+// card should reflect where they are right now, not this morning.
 function getEmployeeAttendanceLabel(listName) {
   const emp = getRegisteredEmployees().find((e) => sameEmployee(e.name, listName));
   if (!emp) return null;
-  const checkin = getTodayActivity(emp.email, 'checkin');
+  const checkin = getLatestTodayActivity(emp.email, 'checkin');
   if (!checkin) return null;
-  const checkout = getTodayActivity(emp.email, 'checkout');
-  if (!checkout) return { text: `In ${fmtTimeShort(checkin.timestamp)}`, done: false };
+  const checkout = getLatestTodayActivity(emp.email, 'checkout');
+  const isCheckedIn = !checkout || checkin.timestamp > checkout.timestamp;
+  if (isCheckedIn) return { text: `In ${fmtTimeShort(checkin.timestamp)}`, done: false };
   return { text: `${fmtTimeShort(checkin.timestamp)}–${fmtTimeShort(checkout.timestamp)}`, done: true };
 }
 
@@ -2744,8 +2785,9 @@ function renderListAttendanceButton(list) {
   const emp = getRegisteredEmployees().find((e) => sameEmployee(e.name, list.name));
   if (!emp) return null;
 
-  const checkin = getTodayActivity(emp.email, 'checkin');
-  const checkout = getTodayActivity(emp.email, 'checkout');
+  const checkin = getLatestTodayActivity(emp.email, 'checkin');
+  const checkout = getLatestTodayActivity(emp.email, 'checkout');
+  const isCheckedIn = Boolean(checkin) && (!checkout || checkin.timestamp > checkout.timestamp);
 
   const btn = document.createElement('button');
   btn.type = 'button';
@@ -2755,22 +2797,21 @@ function renderListAttendanceButton(list) {
     btn.classList.add('checkin');
     btn.textContent = 'Check In';
     btn.title = `Check in ${emp.name || emp.email}`;
-  } else if (!checkout) {
+  } else if (isCheckedIn) {
     btn.textContent = `In ${fmtTimeShort(checkin.timestamp)}`;
     btn.title = `Check out ${emp.name || emp.email}`;
   } else {
-    btn.classList.add('done');
-    btn.textContent = `${fmtTimeShort(checkin.timestamp)}–${fmtTimeShort(checkout.timestamp)}`;
-    btn.title = 'Checked in & out today';
-    btn.disabled = true;
+    // Checked out, but re-checking in is allowed -- stays clickable
+    // instead of disabling, unlike the old one-cycle-per-day behavior.
+    btn.classList.add('checkin');
+    btn.textContent = `Out ${fmtTimeShort(checkout.timestamp)} · Check In`;
+    btn.title = `Check ${emp.name || emp.email} back in`;
   }
 
-  if (!btn.disabled) {
-    btn.addEventListener('click', (e) => {
-      e.stopPropagation();
-      openAttendancePopup(list.name);
-    });
-  }
+  btn.addEventListener('click', (e) => {
+    e.stopPropagation();
+    openAttendancePopup(list.name);
+  });
 
   return btn;
 }
@@ -3082,11 +3123,26 @@ function getAttendanceDates() {
     .filter((date) => !isWeekend(date));
 }
 
-function getAttendanceRecord(email, dateKeyStr) {
+// Re-checking in after a checkout is allowed, so a day can have multiple
+// checkin/checkout pairs -- pairs them up in order (1st checkin with 1st
+// checkout, 2nd with 2nd, ...) since the popup only ever offers "Check In"
+// when not currently checked in and "Check Out" when checked in, so the
+// two lists naturally alternate. A trailing checkin with no matching
+// checkout yet just means they're still checked in for that session.
+function getAttendanceSessions(email, dateKeyStr) {
   const dayActivity = (state.activity || []).filter((a) => a.email === email && dateKey(new Date(a.timestamp)) === dateKeyStr);
-  const checkin = dayActivity.find((a) => a.type === 'checkin');
-  const checkout = dayActivity.filter((a) => a.type === 'checkout').slice(-1)[0];
-  return { checkin, checkout };
+  const checkins = dayActivity.filter((a) => a.type === 'checkin').sort((a, b) => a.timestamp - b.timestamp);
+  const checkouts = dayActivity.filter((a) => a.type === 'checkout').sort((a, b) => a.timestamp - b.timestamp);
+  const count = Math.max(checkins.length, checkouts.length);
+  const sessions = [];
+  for (let i = 0; i < count; i++) sessions.push({ checkin: checkins[i] || null, checkout: checkouts[i] || null });
+  return sessions;
+}
+
+function getAttendanceRecord(email, dateKeyStr) {
+  const sessions = getAttendanceSessions(email, dateKeyStr);
+  if (!sessions.length) return { checkin: null, checkout: null };
+  return { checkin: sessions[0].checkin, checkout: sessions[sessions.length - 1].checkout };
 }
 
 function renderAttendanceSection() {
@@ -3295,17 +3351,26 @@ function renderAttendanceTable() {
       const td = document.createElement('td');
       td.className = isWeekend(date) ? 'weekend' : '';
       const key = dateKey(date);
-      const { checkin, checkout } = getAttendanceRecord(emp.email, key);
+      const sessions = getAttendanceSessions(emp.email, key);
       const cellWrap = document.createElement('div');
       cellWrap.className = 'attendance-cell';
-      const inLine = document.createElement('div');
-      inLine.className = 'attendance-time in';
-      inLine.textContent = checkin ? fmtTimeOnly(checkin.timestamp) : '—';
-      const outLine = document.createElement('div');
-      outLine.className = 'attendance-time out';
-      outLine.textContent = checkout ? fmtTimeOnly(checkout.timestamp) : '—';
-      cellWrap.appendChild(inLine);
-      cellWrap.appendChild(outLine);
+      // One in/out pair per session, stacked vertically -- a re-checked-in
+      // day appends a new pair below the earlier one instead of overwriting it.
+      (sessions.length ? sessions : [{ checkin: null, checkout: null }]).forEach((session, i) => {
+        if (i > 0) {
+          const divider = document.createElement('div');
+          divider.className = 'attendance-session-divider';
+          cellWrap.appendChild(divider);
+        }
+        const inLine = document.createElement('div');
+        inLine.className = 'attendance-time in';
+        inLine.textContent = session.checkin ? fmtTimeOnly(session.checkin.timestamp) : '—';
+        const outLine = document.createElement('div');
+        outLine.className = 'attendance-time out';
+        outLine.textContent = session.checkout ? fmtTimeOnly(session.checkout.timestamp) : '—';
+        cellWrap.appendChild(inLine);
+        cellWrap.appendChild(outLine);
+      });
       td.appendChild(cellWrap);
       tr.appendChild(td);
     });
@@ -3414,7 +3479,21 @@ function renderActivitySection() {
     const line1 = document.createElement('div');
     line1.className = 'activity-main';
     const dayCount = entry.type === 'leave' && Array.isArray(entry.leaveDates) ? entry.leaveDates.length : 0;
-    line1.textContent = `${entry.name || entry.email} ${ACTIVITY_LABELS[entry.type] || entry.type}${dayCount > 1 ? ` (${dayCount} days)` : ''}`;
+    // Re-checking in after a checkout is allowed (unlimited sessions/day),
+    // so flag repeats -- "checked in" on its own would otherwise read as
+    // their only check-in of the day even on their 2nd or 3rd time.
+    let repeatSuffix = '';
+    if (entry.type === 'checkin' || entry.type === 'checkout') {
+      const entryDay = dateKey(new Date(entry.timestamp));
+      const sameDaySameType = activity
+        .filter((a) => a.type === entry.type && a.email === entry.email && dateKey(new Date(a.timestamp)) === entryDay)
+        .sort((a, b) => a.timestamp - b.timestamp);
+      if (sameDaySameType.length > 1) {
+        const idx = sameDaySameType.findIndex((a) => a.id === entry.id);
+        repeatSuffix = ` (${ordinal(idx + 1)} time)`;
+      }
+    }
+    line1.textContent = `${entry.name || entry.email} ${ACTIVITY_LABELS[entry.type] || entry.type}${dayCount > 1 ? ` (${dayCount} days)` : ''}${repeatSuffix}`;
     info.appendChild(line1);
 
     const line2 = document.createElement('div');
@@ -3866,7 +3945,7 @@ function renderProjectRow(project) {
   deleteBtn.addEventListener('click', () => deleteProject(project));
 
   const dueEl = node.querySelector('.task-due');
-  const { text: dueText, cls: dueCls } = dueLabel(project.dueDate);
+  const { text: dueText, cls: dueCls } = dueLabel(project.dueDate, project);
   dueEl.textContent = dueText;
   dueEl.className = `task-due ${dueCls}`;
   dueEl.addEventListener('click', () => openProjectDatePicker(project, dueEl));
@@ -5364,7 +5443,7 @@ function renderTask(list, task) {
   deleteBtn.addEventListener('click', () => deleteTask(list, task));
 
   const dueEl = node.querySelector('.task-due');
-  const { text: dueText, cls: dueCls } = dueLabel(task.due);
+  const { text: dueText, cls: dueCls } = dueLabel(task.due, task);
   dueEl.textContent = dueText;
   dueEl.className = `task-due ${dueCls}`;
   dueEl.addEventListener('click', () => openDatePicker(list, task, dueEl));
@@ -5512,7 +5591,7 @@ function renderTableView() {
 
     const due = document.createElement('td');
     const dueBtn = document.createElement('button');
-    const { text: dueText, cls: dueCls } = dueLabel(task.due);
+    const { text: dueText, cls: dueCls } = dueLabel(task.due, task);
     dueBtn.className = `due-pill ${dueCls}`;
     dueBtn.textContent = dueText || '+ due date';
     dueBtn.addEventListener('click', () => openDatePicker(list, task, dueBtn));
@@ -5598,7 +5677,7 @@ function renderStackView() {
     });
     meta.appendChild(statusTag);
 
-    const { text: dueText, cls: dueCls } = dueLabel(task.due);
+    const { text: dueText, cls: dueCls } = dueLabel(task.due, task);
     const due = document.createElement('button');
     due.className = `due-pill ${dueCls}`;
     due.textContent = dueText || '+ due date';

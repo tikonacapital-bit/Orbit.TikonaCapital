@@ -596,6 +596,7 @@ button {
 .task-due:hover { background: rgba(17, 24, 39, 0.05); }
 .task-due.overdue { color: var(--danger); font-weight: 600; background: rgba(224, 72, 88, 0.06); }
 .task-due.due-today { color: var(--medium); font-weight: 600; background: rgba(255, 165, 0, 0.08); }
+.task-due.overdue-completed { color: var(--medium); font-weight: 600; background: rgba(255, 165, 0, 0.06); }
 .task-due:empty::before { content: "+ due date"; opacity: 0.5; }
 
 .project-subtask-list {
@@ -2067,6 +2068,7 @@ button.stat-card:hover {
 .priority-pill.high { border-color: rgba(224,69,79,0.5); color: var(--high); }
 .due-pill.overdue { border-color: rgba(224,69,79,0.5); color: var(--danger); }
 .due-pill.due-today { border-color: rgba(236,155,46,0.55); color: var(--medium); }
+.due-pill.overdue-completed { border-color: rgba(236,155,46,0.4); color: var(--medium); }
 .table-delete, .table-edit { visibility: visible; }
 .table-edit { margin-right: 4px; font-size: 12px; }
 
@@ -3155,6 +3157,14 @@ button.stat-card:hover {
 .attendance-time.out { color: #1F4690; font-weight: 600; }
 .attendance-grid td.weekend .attendance-time.in,
 .attendance-grid td.weekend .attendance-time.out { color: #fff; }
+
+.attendance-session-divider {
+  width: 60%;
+  height: 1px;
+  margin: 2px 0;
+  background: rgba(17, 24, 39, 0.12);
+}
+.attendance-grid td.weekend .attendance-session-divider { background: rgba(255, 255, 255, 0.35); }
 
 .regular-group-row td {
   position: sticky;
