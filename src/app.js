@@ -5801,9 +5801,7 @@ function renderTask(list, task) {
   dueEl.addEventListener('click', () => openDatePicker(list, task, dueEl));
 
   const createdEl = node.querySelector('.task-created');
-  createdEl.textContent = task.done && task.completedAt
-    ? formatCompletedDate(task.completedAt)
-    : `Started on ${fmtShort(task.createdAt)}`;
+  createdEl.textContent = task.done && task.completedAt ? formatCompletedDate(task.completedAt) : '';
 
   if (task.startDate) {
     const startDateEl = document.createElement('span');
