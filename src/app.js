@@ -952,9 +952,9 @@ function buildDailyUpdateShareText(list) {
   if (evening) {
     const today = todayStr();
     const completedTasks = taskItems.filter((i) => i.done && i.completedAt && dateKey(new Date(i.completedAt)) === today)
-      .map((item) => { const score = productivityRowScore(item); return `✅ *${item.text}* — ${Number.isFinite(score) ? score : 0}/100 pts`; });
+      .map((item) => { const score = productivityRowScore(item); return `✅ *${item.text}* — ${Number.isFinite(score) ? score : 0} pts`; });
     const completedProjects = projectItems.filter((i) => i.done && i.completedAt && dateKey(new Date(i.completedAt)) === today)
-      .map((item) => { const score = productivityRowScore(item); return `✅ *${item.text}* — ${Number.isFinite(score) ? score : 0}/100 pts`; });
+      .map((item) => { const score = productivityRowScore(item); return `✅ *${item.text}* — ${Number.isFinite(score) ? score : 0} pts`; });
     const completedRegular = regularOwned.filter((t) => isRegularTaskExpected(t, todayDate) && isRegularDone(t, todayDate))
       .map((t) => `✅ *${t.title}*`);
     pushReportSection(lines, '✅', 'COMPLETED TODAY', [
@@ -1003,7 +1003,7 @@ function buildSingleItemShareText(item, isProjectItem = false) {
   const dueText = formatDateStrForShare(isProjectItem ? item.dueDate : item.due);
   if (item.done) {
     const score = productivityRowScore(item);
-    return `✅ *${name}* — ${Number.isFinite(score) ? score : 0}/100 pts${dueText ? ` | Due: ${dueText}` : ''}`;
+    return `✅ *${name}* — ${Number.isFinite(score) ? score : 0} pts${dueText ? ` | Due: ${dueText}` : ''}`;
   }
   const priority = item.priority || 'none';
   const lines = [`${priorityEmoji[priority] || priorityEmoji.none} *${name}*`];
@@ -7457,19 +7457,19 @@ function productivityRowScore(row) {
   const due = row.due || row.dueDate || null;
   const today = todayStr();
 
-  // priority weight x on-time factor, scaled so a High-priority task
-  // finished on time (or early -- early isn't worth more than on time,
-  // just as good) lands at exactly 100. Late costs 10% of the multiplier
-  // per day, floored at 0 once it's 10+ days late; no due date at all is
-  // treated the same as on time, since there's nothing to be late against.
+  // Raw priority weight x on-time factor -- deliberately NOT scaled to
+  // 100. On time is the 1x baseline; every day early adds 10% (no cap --
+  // 10 days early doubles it), every day late costs 10%, floored at 0
+  // once it's 10+ days late. No due date at all is treated as on time,
+  // since there's nothing to be early or late against.
   if (row.done) {
     const weight = priorityWeight(row.priority);
     let multiplier = 1;
     if (due && row.completedAt) {
-      const diff = productivityDeliveryInfo(row).diff; // >0 late, <=0 on time/early
-      if (diff > 0) multiplier = Math.max(0, 1 - 0.1 * diff);
+      const diff = productivityDeliveryInfo(row).diff; // >0 late, <0 early, 0 on time
+      multiplier = Math.max(0, 1 - 0.1 * diff);
     }
-    return Math.round((weight * multiplier / 3) * 100);
+    return Math.round(weight * multiplier * 10) / 10;
   }
 
   if (due && due < today) {
@@ -7669,13 +7669,11 @@ function productivityBuildCell(row, key) {
       break;
     }
     case 'score': {
+      // Plain text, not the tier-colored pill -- that tier's 0-100
+      // thresholds don't mean anything against this column's raw,
+      // unscaled priority x on-time score (see productivityRowScore).
       const score = productivityRowScore(row);
-      const tier = productivityScoreTier(score);
-      const pill = document.createElement('span');
-      pill.className = `productivity-score-tier ${tier.cls}`;
-      pill.title = tier.label;
-      pill.textContent = score === null ? '—' : String(score);
-      td.appendChild(pill);
+      td.textContent = score === null ? '—' : String(score);
       break;
     }
   }
@@ -8416,14 +8414,14 @@ function openScoringAlgorithmInfoPopup() {
   const body = document.createElement('div');
   body.className = 'productivity-info-body';
   body.innerHTML = `
-    <p>Every task/project row gets a <strong>Score (0-100)</strong> using the same three ingredients everywhere: how important it was, whether it was actually finished, and whether it was finished on time.</p>
+    <p>Every task/project row gets a <strong>Score</strong> using the same three ingredients everywhere: how important it was, whether it was actually finished, and whether it was finished on time. Note the per-row Score column (below) is a raw, uncapped number -- it's not the same 0-100 scale as the four summary cards further down.</p>
 
     <h3>Priority weight</h3>
     <p>Low = 1, Medium = 2, High = 3. A finished High-priority task always counts for 3x as much as a finished Low-priority one, in every calculation below.</p>
 
     <h3>Per-row Score (the new column)</h3>
     <ul>
-      <li><strong>Done:</strong> Priority weight (Low=1/Med=2/High=3) × an on-time factor, scaled to 100. Finishing on or before the due date -- or with no due date at all -- gets full credit for that priority; each day late after that costs 10% of the multiplier, floored at 0 once it's 10+ days late. Being early isn't worth more than on time, just as good.</li>
+      <li><strong>Done:</strong> Priority weight (Low=1/Med=2/High=3) × an on-time factor -- raw, not scaled to 100. Finishing exactly on time (or with no due date at all) gives the on-time factor 1x, so the score is just the priority weight. Each day <em>early</em> adds 10% to the factor (10 days early = 2x, so it doubles); each day <em>late</em> costs 10%, floored at 0 once it's 10+ days late.</li>
       <li><strong>Not done yet, not overdue:</strong> scored on progress made so far.</li>
       <li><strong>Not done and overdue:</strong> scored low, and gets lower the longer it's been overdue.</li>
       <li><strong>Regular (recurring) tasks:</strong> scored on the completion rate across every occurrence expected in the selected date range.</li>
