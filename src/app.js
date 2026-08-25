@@ -7457,11 +7457,19 @@ function productivityRowScore(row) {
   const due = row.due || row.dueDate || null;
   const today = todayStr();
 
+  // priority weight x on-time factor, scaled so a High-priority task
+  // finished on time (or early -- early isn't worth more than on time,
+  // just as good) lands at exactly 100. Late costs 10% of the multiplier
+  // per day, floored at 0 once it's 10+ days late; no due date at all is
+  // treated the same as on time, since there's nothing to be late against.
   if (row.done) {
+    const weight = priorityWeight(row.priority);
+    let multiplier = 1;
     if (due && row.completedAt) {
-      return Math.round(timelinessScoreForDiff(productivityDeliveryInfo(row).diff));
+      const diff = productivityDeliveryInfo(row).diff; // >0 late, <=0 on time/early
+      if (diff > 0) multiplier = Math.max(0, 1 - 0.1 * diff);
     }
-    return 100; // Done, with no due date to judge lateness against.
+    return Math.round((weight * multiplier / 3) * 100);
   }
 
   if (due && due < today) {
@@ -8415,7 +8423,7 @@ function openScoringAlgorithmInfoPopup() {
 
     <h3>Per-row Score (the new column)</h3>
     <ul>
-      <li><strong>Done, with a due date:</strong> scored on how early/late it was finished -- on time is the baseline, earlier scores higher (capped, so being wildly early doesn't inflate it), later scores lower (floors out once it's a week+ late).</li>
+      <li><strong>Done:</strong> Priority weight (Low=1/Med=2/High=3) × an on-time factor, scaled to 100. Finishing on or before the due date -- or with no due date at all -- gets full credit for that priority; each day late after that costs 10% of the multiplier, floored at 0 once it's 10+ days late. Being early isn't worth more than on time, just as good.</li>
       <li><strong>Not done yet, not overdue:</strong> scored on progress made so far.</li>
       <li><strong>Not done and overdue:</strong> scored low, and gets lower the longer it's been overdue.</li>
       <li><strong>Regular (recurring) tasks:</strong> scored on the completion rate across every occurrence expected in the selected date range.</li>
