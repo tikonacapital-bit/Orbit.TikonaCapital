@@ -938,7 +938,7 @@ function buildDailyUpdateShareText(list) {
 
   const lines = [];
   lines.push(evening ? 'Good Evening !' : 'Good Morning !');
-  lines.push(evening ? 'Here is my update for today' : 'I am Achieving for today');
+  lines.push(evening ? 'My Achievements for today' : 'I am Achieving for today');
   lines.push(`${REPORT_WEEKDAYS_FULL[todayDate.getDay()]}, ${ordinal(todayDate.getDate())} ${MONTHS[todayDate.getMonth()]} ${todayDate.getFullYear()}`);
   lines.push('');
   lines.push(`${moodEmoji} My Mood: ${moodLabel}`);
