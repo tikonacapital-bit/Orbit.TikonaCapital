@@ -2752,7 +2752,11 @@ function renderAccessLock(lockInfo) {
 // binding untouched, so the original lock (if any) is exactly where it was.
 let pendingAccountSwitch = false;
 
-function renderAccountSwitchPrompt() {
+// `mandatory` drives the first-ever gate on a device that's never signed
+// in at all (see render() below) -- same sign-in flow as switching
+// accounts, just no Cancel button, since there's no prior state to fall
+// back to that wouldn't just be the open-access loophole this closes.
+function renderAccountSwitchPrompt(mandatory = false) {
   const overlay = document.getElementById('accessLockOverlay');
   if (!overlay) return;
   overlay.classList.remove('hidden');
@@ -2760,9 +2764,9 @@ function renderAccountSwitchPrompt() {
     <div class="access-lock-card">
       <div class="access-lock-icon">🔑</div>
       <h2>Sign in to continue</h2>
-      <p>Verify with Google to switch which account this device belongs to.</p>
+      <p>${mandatory ? 'Verify with Google to open Orbit on this device.' : 'Verify with Google to switch which account this device belongs to.'}</p>
       <div id="accessSwitchSignIn" class="access-switch-signin"></div>
-      <button type="button" id="accessSwitchCancel" class="access-lock-switch">Cancel</button>
+      ${mandatory ? '' : '<button type="button" id="accessSwitchCancel" class="access-lock-switch">Cancel</button>'}
     </div>
   `;
 
@@ -2790,18 +2794,31 @@ function renderAccountSwitchPrompt() {
     });
     google.accounts.id.renderButton(signInWrap, { theme: 'outline', size: 'medium', width: 220 });
   } else {
-    signInWrap.innerHTML = '<p class="access-lock-sub">Google Sign-In isn’t configured — can’t verify an account switch.</p>';
+    signInWrap.innerHTML = '<p class="access-lock-sub">Google Sign-In isn’t configured — can’t verify.</p>';
   }
 
-  overlay.querySelector('#accessSwitchCancel').addEventListener('click', () => {
-    pendingAccountSwitch = false;
-    render();
-  });
+  if (!mandatory) {
+    overlay.querySelector('#accessSwitchCancel').addEventListener('click', () => {
+      pendingAccountSwitch = false;
+      render();
+    });
+  }
 }
 
 function render() {
   if (pendingAccountSwitch) {
-    renderAccountSwitchPrompt();
+    renderAccountSwitchPrompt(false);
+    return;
+  }
+  // No identity bound to this device at all -- previously fell through to
+  // open access (matching the rest of the app's no-login-wall default),
+  // which turned out to be a real gap: any never-signed-in device (a
+  // phone that had simply never been through the Attendance popup here)
+  // bypassed the checked-out lock entirely. Now every device must verify
+  // once before seeing anything; admins pass straight through afterward,
+  // registered employees are then subject to the normal lock below.
+  if (!getSignedInEmail()) {
+    renderAccountSwitchPrompt(true);
     return;
   }
   const lockInfo = getAccessLockInfo();
