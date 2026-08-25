@@ -794,8 +794,10 @@ function progressFillBar(percent) {
 }
 
 const REPORT_PRIORITY_EMOJI = { high: '🔴', medium: '🟠', low: '🔵', none: '⚪' };
+const REPORT_MOOD_EMOJI = { happy: '🤩', neutral: '😐', sad: '🥱', busy: '😎' };
 const REPORT_MOOD_LABELS = { happy: 'Happy', neutral: 'Neutral', sad: 'Low', busy: 'Busy' };
 const REPORT_PRIORITY_WEIGHT = { high: 3, medium: 2, low: 1, none: 0 };
+const REPORT_WEEKDAYS_FULL = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
 
 // Sorts a task/project (already-open, not yet claimed by Focus) into
 // exactly one bucket instead of letting it repeat across several -- due on
@@ -820,33 +822,63 @@ function classifyReportItems(items, targetDateStr) {
   return { focus, highDelay, inProgress, yetToStart };
 }
 
-function reportItemLine(item, targetDateStr, targetLabel) {
-  const emoji = REPORT_PRIORITY_EMOJI[item.priority] || REPORT_PRIORITY_EMOJI.none;
-  const dueOut = item.due ? (item.due === targetDateStr ? targetLabel : formatDateStrForShare(item.due)) : '';
-  return `${emoji} *${item.text}* — ${Math.round(item.progress)}%${dueOut ? ` | Due: ${dueOut}` : ''}`;
+// Pads `text` with `char` on both sides to visually center it -- WhatsApp
+// has no real text-align, this is the usual plain-text trick.
+function centerPad(text, char, width) {
+  const padLen = Math.max(0, width - text.length);
+  const left = Math.floor(padLen / 2);
+  const right = padLen - left;
+  return `${char.repeat(left)}${text}${char.repeat(right)}`;
 }
 
-function reportDelayLine(item) {
+function reportSectionHeader(emoji, text, count) {
+  const decorated = centerPad(`${text} (${String(count).padStart(2, '0')})`, '-', 28);
+  return emoji ? `${emoji} *${decorated}*` : `*${decorated}*`;
+}
+
+function reportSubLabel(label) {
+  return `_${centerPad(label, '-', 24)}_`;
+}
+
+// WhatsApp text has no font color, only bold/italic/strikethrough -- an
+// overdue date is bolded (as close to "flagged" as plain text gets, true
+// red isn't possible). TDY/TMW for today/tomorrow, "ND (Wkd DDMON)" inside
+// a week, otherwise just "DDth MON".
+function reportDueBits(dueStr) {
+  if (!dueStr) return null;
+  const diffDays = productivityDateStrDiffDays(dueStr, todayStr());
+  if (diffDays < 0) return { text: `${Math.abs(diffDays)}D OVERDUE`, bold: true };
+  if (diffDays === 0) return { text: 'TDY', bold: false };
+  if (diffDays === 1) return { text: 'TMW', bold: false };
+  const d = new Date(`${dueStr}T00:00:00`);
+  if (diffDays <= 7) {
+    return { text: `${diffDays}D (${WEEKDAYS[d.getDay()]} ${d.getDate()}${MONTHS[d.getMonth()].toUpperCase()})`, bold: false };
+  }
+  return { text: `${ordinal(d.getDate())} ${MONTHS[d.getMonth()].toUpperCase()}`, bold: false };
+}
+
+function reportItemLine(item) {
   const emoji = REPORT_PRIORITY_EMOJI[item.priority] || REPORT_PRIORITY_EMOJI.none;
-  const dueOut = item.due ? formatDateStrForShare(item.due) : '';
-  return `${emoji} *${item.text}*${dueOut ? ` | Due: ${dueOut}` : ''} (+${item.lateDays}d)`;
+  const due = reportDueBits(item.due);
+  const dueText = due ? (due.bold ? `*Due: ${due.text}*` : `Due: ${due.text}`) : '';
+  return `${emoji} *${item.text}*\n${Math.round(item.progress)}%${dueText ? `| ${dueText}` : ''}`;
 }
 
 // Appends a section only if it actually has something in it -- an empty
 // "(0)" section with nothing under it is just noise in a report this dense.
-// `groups` is [{ label, items }, ...] -- e.g. Task/Project/Regular Task --
+// `groups` is [{ label, items }, ...] -- e.g. Regular Task/Task/Project --
 // so items from different sources are told apart instead of sitting in one
 // unlabeled flat list; a group with nothing in it is skipped too.
-function pushReportSection(lines, title, groups) {
+function pushReportSection(lines, emoji, headerText, groups) {
   const total = groups.reduce((n, g) => n + g.items.length, 0);
   if (!total) return;
-  lines.push(`${title} (${total})`);
+  lines.push(reportSectionHeader(emoji, headerText, total));
   let firstGroup = true;
   groups.forEach((g) => {
     if (!g.items.length) return;
     if (!firstGroup) lines.push('');
     firstGroup = false;
-    lines.push(`_${g.label}_`);
+    lines.push(reportSubLabel(g.label));
     g.items.forEach((l) => lines.push(l));
   });
   lines.push('');
@@ -861,17 +893,15 @@ function buildDailyUpdateShareText(list) {
   const todayDate = new Date();
   const targetDate = evening ? addDays(todayDate, 1) : todayDate;
   const targetDateStr = dateKey(targetDate);
-  const targetLabel = evening ? 'Tomorrow' : 'Today';
-  const targetHeaderDate = `${targetDate.getDate()} ${MONTHS[targetDate.getMonth()]}`;
 
   const emp = getRegisteredEmployees().find((e) => sameEmployee(e.name, list.name));
   const checkin = emp ? getLatestTodayActivity(emp.email, 'checkin') : null;
   const checkout = emp ? getLatestTodayActivity(emp.email, 'checkout') : null;
+  const moodEmoji = REPORT_MOOD_EMOJI[list.mood] || REPORT_MOOD_EMOJI.neutral;
   const moodLabel = REPORT_MOOD_LABELS[list.mood] || REPORT_MOOD_LABELS.neutral;
   const inTime = checkin ? fmtTimeOnly(checkin.timestamp) : '—';
   const outTime = checkout ? fmtTimeOnly(checkout.timestamp) : '—';
-  const workMode = (checkin && checkin.workMode) || '';
-  const workModeIcon = workMode === 'WFH' ? '🏠' : workMode === 'WFO' ? '🏢' : '❔';
+  const workMode = (checkin && checkin.workMode) || '—';
 
   // Task + Project share one normalized shape (progress/due/done/priority)
   // so they can be classified and rendered identically, tagged with `kind`
@@ -904,16 +934,21 @@ function buildDailyUpdateShareText(list) {
   const regularExpectedTarget = regularOwned.filter((t) => isRegularTaskExpected(t, targetDate));
   // Tomorrow's Focus can't filter by "done" -- tomorrow hasn't happened yet.
   const regularFocus = evening ? regularExpectedTarget : regularExpectedTarget.filter((t) => !isRegularDone(t, todayDate));
-  const regularFocusLines = regularFocus.map((t) => `${REPORT_PRIORITY_EMOJI[t.priority] || REPORT_PRIORITY_EMOJI.none} *${t.title}* — Due: ${targetLabel}`);
+  const regularFocusLines = regularFocus.map((t) => reportItemLine({ text: t.title, priority: t.priority, due: targetDateStr, progress: 0 }));
 
   const lines = [];
-  lines.push(`🎭 Mood: ${moodLabel}`);
-  lines.push(`👤 ${list.name} | ${workModeIcon} ${workMode || '—'} | ${inTime} | ${outTime}`);
+  lines.push(evening ? 'Good Evening !' : 'Good Morning !');
+  lines.push(evening ? 'Here is my update for today' : 'I am Achieving for today');
+  lines.push(`${REPORT_WEEKDAYS_FULL[todayDate.getDay()]}, ${ordinal(todayDate.getDate())} ${MONTHS[todayDate.getMonth()]} ${todayDate.getFullYear()}`);
+  lines.push('');
+  lines.push(`${moodEmoji} My Mood: ${moodLabel}`);
+  lines.push(`${list.name} | ${workMode} | ${inTime}${evening ? ` | ${outTime}` : ''}`);
   lines.push('');
 
   // Evening leads with what got finished today, then looks ahead to
   // tomorrow's focus -- morning has nothing finished yet to lead with, so
-  // it goes straight into today's focus.
+  // it goes straight into today's focus. Regular Task listed first within
+  // a section (ahead of Task/Project), per request.
   if (evening) {
     const today = todayStr();
     const completedTasks = taskItems.filter((i) => i.done && i.completedAt && dateKey(new Date(i.completedAt)) === today)
@@ -922,36 +957,36 @@ function buildDailyUpdateShareText(list) {
       .map((item) => { const score = productivityRowScore(item); return `✅ *${item.text}* — ${Number.isFinite(score) ? score : 0}/100 pts`; });
     const completedRegular = regularOwned.filter((t) => isRegularTaskExpected(t, todayDate) && isRegularDone(t, todayDate))
       .map((t) => `✅ *${t.title}*`);
-    pushReportSection(lines, `✅ *COMPLETED TODAY*`, [
+    pushReportSection(lines, '✅', 'COMPLETED TODAY', [
+      { label: 'Regular Task', items: completedRegular },
       { label: 'Task', items: completedTasks },
       { label: 'Project', items: completedProjects },
-      { label: 'Regular Task', items: completedRegular },
     ]);
   }
 
   const focusByKind = bucketByKind(focus);
-  pushReportSection(lines, `🎯 *${targetLabel.toUpperCase()}'S FOCUS (${targetHeaderDate})*`, [
-    { label: 'Task', items: focusByKind.task.map((item) => reportItemLine(item, targetDateStr, targetLabel)) },
-    { label: 'Project', items: focusByKind.project.map((item) => reportItemLine(item, targetDateStr, targetLabel)) },
+  pushReportSection(lines, '🎯', evening ? "TOMORROW'S FOCUS" : "TODAY'S FOCUS", [
     { label: 'Regular Task', items: regularFocusLines },
+    { label: 'Task', items: focusByKind.task.map((item) => reportItemLine(item)) },
+    { label: 'Project', items: focusByKind.project.map((item) => reportItemLine(item)) },
   ]);
 
   const inProgressByKind = bucketByKind(inProgress);
-  pushReportSection(lines, `⚡ *IN PROGRESS & QUICK WINS*`, [
-    { label: 'Task', items: inProgressByKind.task.map((item) => reportItemLine(item, targetDateStr, targetLabel)) },
-    { label: 'Project', items: inProgressByKind.project.map((item) => reportItemLine(item, targetDateStr, targetLabel)) },
+  pushReportSection(lines, '⚡', 'WIP & QUICK WINS', [
+    { label: 'Task', items: inProgressByKind.task.map((item) => reportItemLine(item)) },
+    { label: 'Project', items: inProgressByKind.project.map((item) => reportItemLine(item)) },
   ]);
 
   const highDelayByKind = bucketByKind(highDelay);
-  pushReportSection(lines, `*High Delay Tasks*`, [
-    { label: 'Task', items: highDelayByKind.task.map((item) => reportDelayLine(item)) },
-    { label: 'Project', items: highDelayByKind.project.map((item) => reportDelayLine(item)) },
+  pushReportSection(lines, '', 'HIGH DELAY TASKS', [
+    { label: 'Task', items: highDelayByKind.task.map((item) => reportItemLine(item)) },
+    { label: 'Project', items: highDelayByKind.project.map((item) => reportItemLine(item)) },
   ]);
 
   const yetToStartByKind = bucketByKind(yetToStart);
-  pushReportSection(lines, `🚧 *YET TO START*`, [
-    { label: 'Task', items: yetToStartByKind.task.map((item) => reportItemLine(item, targetDateStr, targetLabel)) },
-    { label: 'Project', items: yetToStartByKind.project.map((item) => reportItemLine(item, targetDateStr, targetLabel)) },
+  pushReportSection(lines, '🚧', 'YET TO START', [
+    { label: 'Task', items: yetToStartByKind.task.map((item) => reportItemLine(item)) },
+    { label: 'Project', items: yetToStartByKind.project.map((item) => reportItemLine(item)) },
   ]);
 
   if (lines[lines.length - 1] === '') lines.pop();
