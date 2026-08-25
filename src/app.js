@@ -989,7 +989,8 @@ function buildDailyUpdateShareText(list) {
     { label: 'Project', items: yetToStartByKind.project.map((item) => reportItemLine(item)) },
   ]);
 
-  if (lines[lines.length - 1] === '') lines.pop();
+  lines.push('_Change your orbit. If you don’t change your orbit, you’ll end up in the same place._');
+  lines.push('https://orbit-tikona-capital.vercel.app/');
   return lines.join('\n');
 }
 
