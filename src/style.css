@@ -1452,6 +1452,19 @@ html, body {
 .access-lock-btn.wfh { background: #3A5BA0; }
 .access-lock-btn.wfo { background: #FFA500; }
 .access-lock-loading { font-size: 13px; color: #8a94a6; }
+.access-lock-copy {
+  display: block;
+  width: 100%;
+  padding: 11px 14px;
+  margin: 0 0 12px;
+  border: none;
+  border-radius: 10px;
+  background: #1E9E6B;
+  color: #fff;
+  font-size: 13.5px;
+  font-weight: 700;
+  cursor: pointer;
+}
 .access-lock-switch {
   border: none;
   background: transparent;

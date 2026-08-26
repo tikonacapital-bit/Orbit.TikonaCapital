@@ -1032,6 +1032,58 @@ function buildDailyUpdateShareText(list) {
   return lines.join('\n');
 }
 
+// Same header + just the Completed Today section, nothing else -- for the
+// "Copy Today's Achievements" button on the checked-out access lock. That
+// screen only exists after this employee's own checkout, so unlike the
+// full report there's no morning/evening branch to pick: always show both
+// times (checkout just happened) and only what THIS employee finished
+// today, same scoping as the full report already has.
+function buildTodayAchievementsText(list) {
+  const todayDate = new Date();
+  const today = todayStr();
+  const emp = getRegisteredEmployees().find((e) => sameEmployee(e.name, list.name));
+  const checkin = emp ? getLatestTodayActivity(emp.email, 'checkin') : null;
+  const checkout = emp ? getLatestTodayActivity(emp.email, 'checkout') : null;
+  const moodEmoji = REPORT_MOOD_EMOJI[list.mood] || REPORT_MOOD_EMOJI.neutral;
+  const moodLabel = REPORT_MOOD_LABELS[list.mood] || REPORT_MOOD_LABELS.neutral;
+  const inTime = checkin ? fmtTimeOnly(checkin.timestamp) : '—';
+  const outTime = checkout ? fmtTimeOnly(checkout.timestamp) : '—';
+  const workMode = (checkin && checkin.workMode) || '—';
+
+  const completedTasks = (list.tasks || [])
+    .filter((t) => t.done && t.completedAt && dateKey(new Date(t.completedAt)) === today)
+    .map((t) => { const score = productivityRowScore(t); return `✅ *${t.text}* — ${Number.isFinite(score) ? score : 0} pts`; });
+  const ownedProjects = (state.projects || []).filter((p) => !p.deleted && !p.archived && (p.owners || []).some((o) => sameEmployee(o, list.name)));
+  const completedProjects = ownedProjects
+    .filter((p) => p.done && p.completedAt && dateKey(new Date(p.completedAt)) === today)
+    .map((p) => { const score = productivityRowScore(p); return `✅ *${p.name}* — ${Number.isFinite(score) ? score : 0} pts`; });
+  const regularOwned = (state.regular?.tasks || []).filter((t) => sameEmployee(t.owner, list.name));
+  const completedRegular = regularOwned
+    .filter((t) => isRegularTaskExpected(t, todayDate) && isRegularDone(t, todayDate))
+    .map((t) => `✅ *${t.title}*`);
+
+  const groups = [
+    { label: 'Regular Task', items: completedRegular },
+    { label: 'Task', items: completedTasks },
+    { label: 'Project', items: completedProjects },
+  ];
+  const width = Math.max(24, maxReportContentWidth(...groups.map((g) => g.items)));
+
+  const lines = [];
+  lines.push('Good Evening !');
+  lines.push('My Achievements for today');
+  lines.push(`${REPORT_WEEKDAYS_FULL[todayDate.getDay()]}, ${ordinal(todayDate.getDate())} ${MONTHS[todayDate.getMonth()]} ${todayDate.getFullYear()}`);
+  lines.push('');
+  lines.push(`${moodEmoji} My Mood: ${moodLabel}`);
+  lines.push(`${list.name} | ${workMode} | ${inTime} | ${outTime}`);
+  lines.push('');
+
+  pushReportSection(lines, '✅', 'COMPLETED TODAY', groups, width);
+
+  if (lines[lines.length - 1] === '') lines.pop();
+  return lines.join('\n');
+}
+
 // Same compact style as one line of buildDailyUpdateShareText, but for
 // copying a single task/project on its own (the per-row copy icon) rather
 // than a whole card's worth of updates.
@@ -2749,9 +2801,25 @@ function renderAccessLock(lockInfo) {
       <p>Hi ${escapeHtml(emp.name || emp.email)} — Orbit is locked until you check back in.</p>
       ${checkout ? `<p class="access-lock-sub">Last checked out at ${fmtTimeOnly(checkout.timestamp)}</p>` : ''}
       <div id="accessLockActions" class="access-lock-actions"></div>
+      ${checkout ? '<button type="button" id="accessLockCopy" class="access-lock-copy">📋 Copy Today’s Achievements</button>' : ''}
       <button type="button" id="accessLockSwitch" class="access-lock-switch">Not ${escapeHtml(emp.name || 'you')}? Switch account</button>
     </div>
   `;
+
+  // Only shown once they've actually checked out (there's nothing to copy
+  // before a first check-in) -- copies just THIS employee's own Completed
+  // Today, nothing else, so they can grab the message with today's real
+  // checkout time in it without needing to get past the lock at all.
+  if (checkout) {
+    overlay.querySelector('#accessLockCopy').addEventListener('click', (e) => {
+      const btn = e.currentTarget;
+      const list = state.lists.find((l) => sameEmployee(l.name, emp.name));
+      if (!list) return;
+      copyTextToClipboard(buildTodayAchievementsText(list))
+        .then(() => { btn.textContent = '✅ Copied!'; setTimeout(() => { btn.textContent = '📋 Copy Today’s Achievements'; }, 1500); })
+        .catch(() => { btn.textContent = 'Could not copy'; setTimeout(() => { btn.textContent = '📋 Copy Today’s Achievements'; }, 1500); });
+    });
+  }
 
   const actions = overlay.querySelector('#accessLockActions');
   const doCheckin = async (workMode) => {
