@@ -822,17 +822,8 @@ function classifyReportItems(items, targetDateStr) {
   return { focus, highDelay, inProgress, yetToStart };
 }
 
-// Pads `text` with `char` on both sides to visually center it -- WhatsApp
-// has no real text-align, this is the usual plain-text trick.
-function centerPad(text, char, width) {
-  const padLen = Math.max(0, width - text.length);
-  const left = Math.floor(padLen / 2);
-  const right = padLen - left;
-  return `${char.repeat(left)}${text}${char.repeat(right)}`;
-}
-
-// Same idea as centerPad, but forces an EQUAL star count on both sides
-// (centerPad can be off by one when the padding needed is odd) and takes
+// Pads `text` with `char` equally on both sides to visually center it --
+// WhatsApp has no real text-align, this is the usual plain-text trick. Takes
 // the length in codepoints, not UTF-16 units, so a 4-byte emoji counts as
 // one "glyph" the way it visually reads instead of two.
 function centerPadSymmetric(text, char, width) {
@@ -848,7 +839,7 @@ function reportSectionHeader(emoji, text, count) {
 }
 
 function reportSubLabel(label) {
-  return `_${centerPad(label, '-', 24)}_`;
+  return `_${centerPadSymmetric(label, '*', 24)}_`;
 }
 
 // WhatsApp text has no font color, only bold/italic/strikethrough -- an
