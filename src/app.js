@@ -831,9 +831,20 @@ function centerPad(text, char, width) {
   return `${char.repeat(left)}${text}${char.repeat(right)}`;
 }
 
+// Same idea as centerPad, but forces an EQUAL star count on both sides
+// (centerPad can be off by one when the padding needed is odd) and takes
+// the length in codepoints, not UTF-16 units, so a 4-byte emoji counts as
+// one "glyph" the way it visually reads instead of two.
+function centerPadSymmetric(text, char, width) {
+  const len = [...text].length;
+  const side = Math.max(0, Math.ceil((width - len) / 2));
+  return `${char.repeat(side)}${text}${char.repeat(side)}`;
+}
+
 function reportSectionHeader(emoji, text, count) {
-  const decorated = centerPad(`${text} (${String(count).padStart(2, '0')})`, '-', 28);
-  return emoji ? `${emoji} *${decorated}*` : `*${decorated}*`;
+  const label = `${text} (${String(count).padStart(2, '0')})`;
+  const decorated = emoji ? `${emoji} ${label}${emoji}` : label;
+  return centerPadSymmetric(decorated, '*', 32);
 }
 
 function reportSubLabel(label) {
