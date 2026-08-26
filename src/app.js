@@ -822,24 +822,28 @@ function classifyReportItems(items, targetDateStr) {
   return { focus, highDelay, inProgress, yetToStart };
 }
 
-// Pads `text` with `char` equally on both sides to visually center it --
-// WhatsApp has no real text-align, this is the usual plain-text trick. Takes
-// the length in codepoints, not UTF-16 units, so a 4-byte emoji counts as
-// one "glyph" the way it visually reads instead of two.
-function centerPadSymmetric(text, char, width) {
-  const len = [...text].length;
-  const side = Math.max(0, Math.ceil((width - len) / 2));
-  return `${char.repeat(side)}${text}${char.repeat(side)}`;
-}
-
+// WhatsApp only treats a SINGLE `*...*` pair touching real text as bold --
+// asterisks used as decoration (spaced out, or run together with no real
+// bold pair) render inconsistently across clients. A plain Unicode divider
+// line has no markdown meaning at all, so it's the safe way to make a
+// header look boxed/centered: a full-width rule above and below, with the
+// header itself as one clean bold line in between. `width` is codepoints,
+// not UTF-16 units, so a 4-byte emoji counts as one "glyph" the way it
+// visually reads instead of two.
 function reportSectionHeader(emoji, text, count, width) {
   const label = `${text} (${String(count).padStart(2, '0')})`;
-  const decorated = emoji ? `${emoji} ${label}${emoji}` : label;
-  return centerPadSymmetric(decorated, '*', width);
+  const content = emoji ? `${emoji} ${label} ${emoji}` : label;
+  const divider = '━'.repeat(Math.max(10, width));
+  return `${divider}\n*${content}*\n${divider}`;
 }
 
+// Sub-labels get the lighter-weight rule character and sit on one line,
+// dashes separated from the text by a space (not run together) so nothing
+// reads as adjacent to a markdown character.
 function reportSubLabel(label, width) {
-  return `_${centerPadSymmetric(label, '*', width)}_`;
+  const side = Math.max(2, Math.ceil((width - [...label].length - 2) / 2));
+  const dashes = '─'.repeat(side);
+  return `${dashes} ${label} ${dashes}`;
 }
 
 // WhatsApp text has no font color, only bold/italic/strikethrough -- an
