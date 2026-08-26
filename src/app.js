@@ -832,14 +832,14 @@ function centerPadSymmetric(text, char, width) {
   return `${char.repeat(side)}${text}${char.repeat(side)}`;
 }
 
-function reportSectionHeader(emoji, text, count) {
+function reportSectionHeader(emoji, text, count, width) {
   const label = `${text} (${String(count).padStart(2, '0')})`;
   const decorated = emoji ? `${emoji} ${label}${emoji}` : label;
-  return centerPadSymmetric(decorated, '*', 32);
+  return centerPadSymmetric(decorated, '*', width);
 }
 
-function reportSubLabel(label) {
-  return `_${centerPadSymmetric(label, '*', 24)}_`;
+function reportSubLabel(label, width) {
+  return `_${centerPadSymmetric(label, '*', width)}_`;
 }
 
 // WhatsApp text has no font color, only bold/italic/strikethrough -- an
@@ -866,21 +866,38 @@ function reportItemLine(item) {
   return `${emoji} *${item.text}*\n${Math.round(item.progress)}%${dueText ? `| ${dueText}` : ''}`;
 }
 
+// Widest single visual line among any of the given item-line arrays --
+// each item is itself a 2-line "name\npercent/due" string, so this splits
+// on \n first. Used as the header/sub-label padding target so the
+// decorated lines actually span close to the width of the real content
+// around them, instead of a guessed fixed number that's wrong the moment
+// a task name is longer (or shorter) than expected.
+function maxReportContentWidth(...lineArrays) {
+  let max = 0;
+  lineArrays.flat().forEach((entry) => {
+    entry.split('\n').forEach((sub) => {
+      const len = [...sub].length;
+      if (len > max) max = len;
+    });
+  });
+  return max;
+}
+
 // Appends a section only if it actually has something in it -- an empty
 // "(0)" section with nothing under it is just noise in a report this dense.
 // `groups` is [{ label, items }, ...] -- e.g. Regular Task/Task/Project --
 // so items from different sources are told apart instead of sitting in one
 // unlabeled flat list; a group with nothing in it is skipped too.
-function pushReportSection(lines, emoji, headerText, groups) {
+function pushReportSection(lines, emoji, headerText, groups, width) {
   const total = groups.reduce((n, g) => n + g.items.length, 0);
   if (!total) return;
-  lines.push(reportSectionHeader(emoji, headerText, total));
+  lines.push(reportSectionHeader(emoji, headerText, total, width));
   let firstGroup = true;
   groups.forEach((g) => {
     if (!g.items.length) return;
     if (!firstGroup) lines.push('');
     firstGroup = false;
-    lines.push(reportSubLabel(g.label));
+    lines.push(reportSubLabel(g.label, width));
     g.items.forEach((l) => lines.push(l));
   });
   lines.push('');
@@ -938,19 +955,13 @@ function buildDailyUpdateShareText(list) {
   const regularFocus = evening ? regularExpectedTarget : regularExpectedTarget.filter((t) => !isRegularDone(t, todayDate));
   const regularFocusLines = regularFocus.map((t) => reportItemLine({ text: t.title, priority: t.priority, due: targetDateStr, progress: 0 }));
 
-  const lines = [];
-  lines.push(evening ? 'Good Evening !' : 'Good Morning !');
-  lines.push(evening ? 'My Achievements for today' : 'I am Achieving for today');
-  lines.push(`${REPORT_WEEKDAYS_FULL[todayDate.getDay()]}, ${ordinal(todayDate.getDate())} ${MONTHS[todayDate.getMonth()]} ${todayDate.getFullYear()}`);
-  lines.push('');
-  lines.push(`${moodEmoji} My Mood: ${moodLabel}`);
-  lines.push(`${list.name} | ${workMode} | ${inTime}${evening ? ` | ${outTime}` : ''}`);
-  lines.push('');
-
   // Evening leads with what got finished today, then looks ahead to
   // tomorrow's focus -- morning has nothing finished yet to lead with, so
   // it goes straight into today's focus. Regular Task listed first within
-  // a section (ahead of Task/Project), per request.
+  // a section (ahead of Task/Project), per request. Built as data first
+  // (not appended straight to `lines`) so the header/sub-label padding
+  // below can be sized off the actual content instead of a guess.
+  let completedGroups = [];
   if (evening) {
     const today = todayStr();
     const completedTasks = taskItems.filter((i) => i.done && i.completedAt && dateKey(new Date(i.completedAt)) === today)
@@ -959,40 +970,70 @@ function buildDailyUpdateShareText(list) {
       .map((item) => { const score = productivityRowScore(item); return `✅ *${item.text}* — ${Number.isFinite(score) ? score : 0} pts`; });
     const completedRegular = regularOwned.filter((t) => isRegularTaskExpected(t, todayDate) && isRegularDone(t, todayDate))
       .map((t) => `✅ *${t.title}*`);
-    pushReportSection(lines, '✅', 'COMPLETED TODAY', [
+    completedGroups = [
       { label: 'Regular Task', items: completedRegular },
       { label: 'Task', items: completedTasks },
       { label: 'Project', items: completedProjects },
-    ]);
+    ];
   }
 
   const focusByKind = bucketByKind(focus);
-  pushReportSection(lines, '🎯', evening ? "TOMORROW'S FOCUS" : "TODAY'S FOCUS", [
+  const focusGroups = [
     { label: 'Regular Task', items: regularFocusLines },
     { label: 'Task', items: focusByKind.task.map((item) => reportItemLine(item)) },
     { label: 'Project', items: focusByKind.project.map((item) => reportItemLine(item)) },
-  ]);
+  ];
 
   const inProgressByKind = bucketByKind(inProgress);
-  pushReportSection(lines, '⚡', 'WIP & QUICK WINS', [
+  const inProgressGroups = [
     { label: 'Task', items: inProgressByKind.task.map((item) => reportItemLine(item)) },
     { label: 'Project', items: inProgressByKind.project.map((item) => reportItemLine(item)) },
-  ]);
+  ];
 
   const highDelayByKind = bucketByKind(highDelay);
-  pushReportSection(lines, '', 'HIGH DELAY TASKS', [
+  const highDelayGroups = [
     { label: 'Task', items: highDelayByKind.task.map((item) => reportItemLine(item)) },
     { label: 'Project', items: highDelayByKind.project.map((item) => reportItemLine(item)) },
-  ]);
+  ];
 
   const yetToStartByKind = bucketByKind(yetToStart);
-  pushReportSection(lines, '🚧', 'YET TO START', [
+  const yetToStartGroups = [
     { label: 'Task', items: yetToStartByKind.task.map((item) => reportItemLine(item)) },
     { label: 'Project', items: yetToStartByKind.project.map((item) => reportItemLine(item)) },
-  ]);
+  ];
 
+  // Headers/sub-labels are padded to match the widest real content line in
+  // THIS message, not a fixed guess -- a fixed number looks off-center the
+  // moment a task name is longer or shorter than whatever was guessed.
+  const width = Math.max(24, maxReportContentWidth(
+    ...completedGroups.map((g) => g.items), ...focusGroups.map((g) => g.items),
+    ...inProgressGroups.map((g) => g.items), ...highDelayGroups.map((g) => g.items),
+    ...yetToStartGroups.map((g) => g.items),
+  ));
+
+  const lines = [];
+  lines.push(evening ? 'Good Evening !' : 'Good Morning !');
+  lines.push(evening ? 'My Achievements for today' : 'I am Achieving for today');
+  lines.push(`${REPORT_WEEKDAYS_FULL[todayDate.getDay()]}, ${ordinal(todayDate.getDate())} ${MONTHS[todayDate.getMonth()]} ${todayDate.getFullYear()}`);
+  lines.push('');
+  lines.push(`${moodEmoji} My Mood: ${moodLabel}`);
+  lines.push(`${list.name} | ${workMode} | ${inTime}${evening ? ` | ${outTime}` : ''}`);
+  lines.push('');
+  // Placed here, not at the very bottom -- WhatsApp always renders a
+  // link's preview card at the TOP of the message bubble regardless of
+  // where the URL sits in the text, so keeping the quote+link down at the
+  // end just meant the text and its own preview card no longer lined up.
   lines.push('_Change your orbit. If you don’t change your orbit, you’ll end up in the same place._');
   lines.push('https://orbit-tikona-capital.vercel.app/');
+  lines.push('');
+
+  if (evening) pushReportSection(lines, '✅', 'COMPLETED TODAY', completedGroups, width);
+  pushReportSection(lines, '🎯', evening ? "TOMORROW'S FOCUS" : "TODAY'S FOCUS", focusGroups, width);
+  pushReportSection(lines, '⚡', 'WIP & QUICK WINS', inProgressGroups, width);
+  pushReportSection(lines, '', 'HIGH DELAY TASKS', highDelayGroups, width);
+  pushReportSection(lines, '🚧', 'YET TO START', yetToStartGroups, width);
+
+  if (lines[lines.length - 1] === '') lines.pop();
   return lines.join('\n');
 }
 
