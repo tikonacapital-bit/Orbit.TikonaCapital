@@ -1026,6 +1026,8 @@ function buildDailyUpdateShareText(list) {
   pushReportSection(lines, '', 'HIGH DELAY TASKS', highDelayGroups, width);
   pushReportSection(lines, '🚧', 'YET TO START', yetToStartGroups, width);
 
+  lines.push('https://orbit-tikona-capital.vercel.app/');
+
   if (lines[lines.length - 1] === '') lines.pop();
   return lines.join('\n');
 }
