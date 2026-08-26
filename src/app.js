@@ -907,8 +907,13 @@ function bucketByKind(items) {
   return { task: items.filter((i) => i.kind === 'task'), project: items.filter((i) => i.kind === 'project') };
 }
 
-function buildDailyUpdateShareText(list) {
-  const evening = isEveningUpdateWindow();
+// `forceEvening` overrides the clock-based window check -- used by the
+// checked-out lock screen's copy button, which by definition only shows
+// up after a real checkout, so the evening format (checkout time in the
+// header, Completed Today included) is always the right one there even
+// if that checkout happened to land before the normal 4pm cutoff.
+function buildDailyUpdateShareText(list, forceEvening = false) {
+  const evening = forceEvening || isEveningUpdateWindow();
   const todayDate = new Date();
   const targetDate = evening ? addDays(todayDate, 1) : todayDate;
   const targetDateStr = dateKey(targetDate);
@@ -1027,58 +1032,6 @@ function buildDailyUpdateShareText(list) {
   pushReportSection(lines, '🚧', 'YET TO START', yetToStartGroups, width);
 
   lines.push('https://orbit-tikona-capital.vercel.app/');
-
-  if (lines[lines.length - 1] === '') lines.pop();
-  return lines.join('\n');
-}
-
-// Same header + just the Completed Today section, nothing else -- for the
-// "Copy Today's Achievements" button on the checked-out access lock. That
-// screen only exists after this employee's own checkout, so unlike the
-// full report there's no morning/evening branch to pick: always show both
-// times (checkout just happened) and only what THIS employee finished
-// today, same scoping as the full report already has.
-function buildTodayAchievementsText(list) {
-  const todayDate = new Date();
-  const today = todayStr();
-  const emp = getRegisteredEmployees().find((e) => sameEmployee(e.name, list.name));
-  const checkin = emp ? getLatestTodayActivity(emp.email, 'checkin') : null;
-  const checkout = emp ? getLatestTodayActivity(emp.email, 'checkout') : null;
-  const moodEmoji = REPORT_MOOD_EMOJI[list.mood] || REPORT_MOOD_EMOJI.neutral;
-  const moodLabel = REPORT_MOOD_LABELS[list.mood] || REPORT_MOOD_LABELS.neutral;
-  const inTime = checkin ? fmtTimeOnly(checkin.timestamp) : '—';
-  const outTime = checkout ? fmtTimeOnly(checkout.timestamp) : '—';
-  const workMode = (checkin && checkin.workMode) || '—';
-
-  const completedTasks = (list.tasks || [])
-    .filter((t) => t.done && t.completedAt && dateKey(new Date(t.completedAt)) === today)
-    .map((t) => { const score = productivityRowScore(t); return `✅ *${t.text}* — ${Number.isFinite(score) ? score : 0} pts`; });
-  const ownedProjects = (state.projects || []).filter((p) => !p.deleted && !p.archived && (p.owners || []).some((o) => sameEmployee(o, list.name)));
-  const completedProjects = ownedProjects
-    .filter((p) => p.done && p.completedAt && dateKey(new Date(p.completedAt)) === today)
-    .map((p) => { const score = productivityRowScore(p); return `✅ *${p.name}* — ${Number.isFinite(score) ? score : 0} pts`; });
-  const regularOwned = (state.regular?.tasks || []).filter((t) => sameEmployee(t.owner, list.name));
-  const completedRegular = regularOwned
-    .filter((t) => isRegularTaskExpected(t, todayDate) && isRegularDone(t, todayDate))
-    .map((t) => `✅ *${t.title}*`);
-
-  const groups = [
-    { label: 'Regular Task', items: completedRegular },
-    { label: 'Task', items: completedTasks },
-    { label: 'Project', items: completedProjects },
-  ];
-  const width = Math.max(24, maxReportContentWidth(...groups.map((g) => g.items)));
-
-  const lines = [];
-  lines.push('Good Evening !');
-  lines.push('My Achievements for today');
-  lines.push(`${REPORT_WEEKDAYS_FULL[todayDate.getDay()]}, ${ordinal(todayDate.getDate())} ${MONTHS[todayDate.getMonth()]} ${todayDate.getFullYear()}`);
-  lines.push('');
-  lines.push(`${moodEmoji} My Mood: ${moodLabel}`);
-  lines.push(`${list.name} | ${workMode} | ${inTime} | ${outTime}`);
-  lines.push('');
-
-  pushReportSection(lines, '✅', 'COMPLETED TODAY', groups, width);
 
   if (lines[lines.length - 1] === '') lines.pop();
   return lines.join('\n');
@@ -2801,23 +2754,24 @@ function renderAccessLock(lockInfo) {
       <p>Hi ${escapeHtml(emp.name || emp.email)} — Orbit is locked until you check back in.</p>
       ${checkout ? `<p class="access-lock-sub">Last checked out at ${fmtTimeOnly(checkout.timestamp)}</p>` : ''}
       <div id="accessLockActions" class="access-lock-actions"></div>
-      ${checkout ? '<button type="button" id="accessLockCopy" class="access-lock-copy">📋 Copy Today’s Achievements</button>' : ''}
+      ${checkout ? '<button type="button" id="accessLockCopy" class="access-lock-copy">📋 Copy Today’s Update</button>' : ''}
       <button type="button" id="accessLockSwitch" class="access-lock-switch">Not ${escapeHtml(emp.name || 'you')}? Switch account</button>
     </div>
   `;
 
   // Only shown once they've actually checked out (there's nothing to copy
-  // before a first check-in) -- copies just THIS employee's own Completed
-  // Today, nothing else, so they can grab the message with today's real
-  // checkout time in it without needing to get past the lock at all.
+  // before a first check-in) -- the SAME full WhatsApp report as the card's
+  // own copy icon (Completed Today + Focus + WIP + Yet to Start + High
+  // Delay), forced into evening format so today's real checkout time shows
+  // in the header even if it happened before the normal 4pm cutoff.
   if (checkout) {
     overlay.querySelector('#accessLockCopy').addEventListener('click', (e) => {
       const btn = e.currentTarget;
       const list = state.lists.find((l) => sameEmployee(l.name, emp.name));
       if (!list) return;
-      copyTextToClipboard(buildTodayAchievementsText(list))
-        .then(() => { btn.textContent = '✅ Copied!'; setTimeout(() => { btn.textContent = '📋 Copy Today’s Achievements'; }, 1500); })
-        .catch(() => { btn.textContent = 'Could not copy'; setTimeout(() => { btn.textContent = '📋 Copy Today’s Achievements'; }, 1500); });
+      copyTextToClipboard(buildDailyUpdateShareText(list, true))
+        .then(() => { btn.textContent = '✅ Copied!'; setTimeout(() => { btn.textContent = '📋 Copy Today’s Update'; }, 1500); })
+        .catch(() => { btn.textContent = 'Could not copy'; setTimeout(() => { btn.textContent = '📋 Copy Today’s Update'; }, 1500); });
     });
   }
 
