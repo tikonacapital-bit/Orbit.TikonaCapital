@@ -822,28 +822,24 @@ function classifyReportItems(items, targetDateStr) {
   return { focus, highDelay, inProgress, yetToStart };
 }
 
-// WhatsApp only treats a SINGLE `*...*` pair touching real text as bold --
-// asterisks used as decoration (spaced out, or run together with no real
-// bold pair) render inconsistently across clients. A plain Unicode divider
-// line has no markdown meaning at all, so it's the safe way to make a
-// header look boxed/centered: a full-width rule above and below, with the
-// header itself as one clean bold line in between. `width` is codepoints,
-// not UTF-16 units, so a 4-byte emoji counts as one "glyph" the way it
-// visually reads instead of two.
-function reportSectionHeader(emoji, text, count, width) {
-  const label = `${text} (${String(count).padStart(2, '0')})`;
-  const content = emoji ? `${emoji} ${label} ${emoji}` : label;
-  const divider = '━'.repeat(Math.max(10, width));
-  return `${divider}\n*${content}*\n${divider}`;
+// Pads `text` with `char` equally on both sides to visually center it --
+// WhatsApp has no real text-align, this is the usual plain-text trick. Takes
+// the length in codepoints, not UTF-16 units, so a 4-byte emoji counts as
+// one "glyph" the way it visually reads instead of two.
+function centerPadSymmetric(text, char, width) {
+  const len = [...text].length;
+  const side = Math.max(0, Math.ceil((width - len) / 2));
+  return `${char.repeat(side)}${text}${char.repeat(side)}`;
 }
 
-// Sub-labels get the lighter-weight rule character and sit on one line,
-// dashes separated from the text by a space (not run together) so nothing
-// reads as adjacent to a markdown character.
+function reportSectionHeader(emoji, text, count, width) {
+  const label = `${text} (${String(count).padStart(2, '0')})`;
+  const decorated = emoji ? `${emoji} ${label}${emoji}` : label;
+  return centerPadSymmetric(decorated, '*', width);
+}
+
 function reportSubLabel(label, width) {
-  const side = Math.max(2, Math.ceil((width - [...label].length - 2) / 2));
-  const dashes = '─'.repeat(side);
-  return `${dashes} ${label} ${dashes}`;
+  return `_${centerPadSymmetric(label, '*', width)}_`;
 }
 
 // WhatsApp text has no font color, only bold/italic/strikethrough -- an
@@ -1585,6 +1581,7 @@ function openAttendancePopup(focusEmployeeName) {
         btn.style.cssText = `padding:6px 12px;border:none;border-radius:999px;background:${canAct ? '#3A5BA0' : '#c7ccd6'};color:#fff;font-size:12px;font-weight:600;cursor:${canAct ? 'pointer' : 'not-allowed'};`;
         btn.addEventListener('click', async () => {
           if (!canAct) return;
+          if (!confirm('Have you updated your tasks for today? Check out only once everything is up to date.')) return;
           btn.disabled = true;
           btn.textContent = '…';
           const ip = await fetchClientIp();
@@ -3322,6 +3319,22 @@ function renderListCopyStatusIcon(list) {
 
   btn.addEventListener('click', (e) => {
     e.stopPropagation();
+    // The evening update is supposed to be the end-of-day report --
+    // block sending it out with a blank/mid-shift checkout time instead
+    // of silently copying an incomplete one.
+    if (emp && evening) {
+      const lastCheckin = getLatestTodayActivity(emp.email, 'checkin');
+      const lastCheckout = getLatestTodayActivity(emp.email, 'checkout');
+      const isCheckedIn = Boolean(lastCheckin) && (!lastCheckout || lastCheckin.timestamp > lastCheckout.timestamp);
+      if (!lastCheckin) {
+        alert(`${emp.name || emp.email} hasn’t checked in today yet.`);
+        return;
+      }
+      if (isCheckedIn) {
+        alert(`${emp.name || emp.email} needs to check out first before copying the end-of-day update.`);
+        return;
+      }
+    }
     copyTextToClipboard(buildDailyUpdateShareText(list))
       .then(() => {
         if (emp) {
