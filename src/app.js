@@ -1019,19 +1019,15 @@ function buildDailyUpdateShareText(list) {
   lines.push(`${moodEmoji} My Mood: ${moodLabel}`);
   lines.push(`${list.name} | ${workMode} | ${inTime}${evening ? ` | ${outTime}` : ''}`);
   lines.push('');
-  // Placed here, not at the very bottom -- WhatsApp always renders a
-  // link's preview card at the TOP of the message bubble regardless of
-  // where the URL sits in the text, so keeping the quote+link down at the
-  // end just meant the text and its own preview card no longer lined up.
-  lines.push('_Change your orbit. If you don’t change your orbit, you’ll end up in the same place._');
-  lines.push('https://orbit-tikona-capital.vercel.app/');
-  lines.push('');
 
   if (evening) pushReportSection(lines, '✅', 'COMPLETED TODAY', completedGroups, width);
   pushReportSection(lines, '🎯', evening ? "TOMORROW'S FOCUS" : "TODAY'S FOCUS", focusGroups, width);
   pushReportSection(lines, '⚡', 'WIP & QUICK WINS', inProgressGroups, width);
   pushReportSection(lines, '', 'HIGH DELAY TASKS', highDelayGroups, width);
   pushReportSection(lines, '🚧', 'YET TO START', yetToStartGroups, width);
+
+  lines.push('_Change your orbit. If you don’t change your orbit, you’ll end up in the same place._');
+  lines.push('https://orbit-tikona-capital.vercel.app/');
 
   if (lines[lines.length - 1] === '') lines.pop();
   return lines.join('\n');
