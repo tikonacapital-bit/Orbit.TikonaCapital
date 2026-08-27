@@ -1308,9 +1308,17 @@ function logActivity(type, email, ip, device, name = '', extra = {}) {
   render();
 }
 
-function openRegisterPopup() {
+// `presetEmail`, when given, is an email that's ALREADY been Google-
+// verified moments earlier -- specifically, the unrecognized-device gate
+// on the access lock (see renderAccessLock) verifies whoever's signing in
+// before it can even tell they're unregistered, so re-verifying the same
+// email again here would be redundant. Skips the embedded sign-in button
+// and treats it as verified immediately in that case; the sidebar's
+// "Register employee" button (no presetEmail) keeps the normal flow.
+function openRegisterPopup(presetEmail = null) {
   const today = todayStr();
   const configured = isGoogleSignInConfigured();
+  const needsOwnVerification = configured && !presetEmail;
   const { overlay, popup, confirmBtn } = openRegularPopup('Register Employee', `
     <div class="popup-2col" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:10px;">
       <div>
@@ -1319,13 +1327,13 @@ function openRegisterPopup() {
       </div>
       <div>
         <label style="${FIELD_LABEL_STYLE}">Email address *</label>
-        <input type="email" id="registerEmail" placeholder="you@company.com" style="${FIELD_STYLE}" ${configured ? 'readonly' : ''}>
+        <input type="email" id="registerEmail" placeholder="you@company.com" style="${FIELD_STYLE}" ${(needsOwnVerification || presetEmail) ? 'readonly' : ''}>
       </div>
     </div>
     <div style="margin-bottom:10px;">
-      <div id="registerEmailSignIn" style="${configured ? '' : 'display:none;'}"></div>
+      <div id="registerEmailSignIn" style="${needsOwnVerification ? '' : 'display:none;'}"></div>
       <div id="registerEmailStatus" style="display:none;padding:8px 10px;border-radius:8px;font-size:12.5px;font-weight:600;"></div>
-      ${configured ? '' : '<p style="margin:0;font-size:12px;color:#8a94a6;">Google Sign-In isn’t configured yet (see GOOGLE_CLIENT_ID in app.js) — the typed email won’t be verified.</p>'}
+      ${(configured || presetEmail) ? '' : '<p style="margin:0;font-size:12px;color:#8a94a6;">Google Sign-In isn’t configured yet (see GOOGLE_CLIENT_ID in app.js) — the typed email won’t be verified.</p>'}
     </div>
     <div class="popup-2col" style="display:grid;grid-template-columns:1fr 1fr;gap:10px;">
       <div>
@@ -1353,7 +1361,11 @@ function openRegisterPopup() {
     statusEl.style.color = tone === 'ok' ? '#146B48' : '#E68A00';
   }
 
-  if (configured) {
+  if (presetEmail) {
+    verifiedEmail = presetEmail;
+    emailInput.value = presetEmail;
+    showStatus(`Verified ${presetEmail} ✓`, 'ok');
+  } else if (configured) {
     google.accounts.id.initialize({
       client_id: GOOGLE_CLIENT_ID,
       callback: async (response) => {
@@ -2734,12 +2746,21 @@ function renderAccessLock(lockInfo) {
   if (lockInfo.unrecognized) {
     overlay.innerHTML = `
       <div class="access-lock-card">
-        <div class="access-lock-icon">⛔</div>
-        <h2>Access denied</h2>
-        <p>${escapeHtml(lockInfo.email)} isn’t a registered employee, so there's nothing to check in to.</p>
-        <button type="button" id="accessLockSwitch" class="access-lock-switch">Try a different account</button>
+        <div class="access-lock-icon">📝</div>
+        <h2>You’re not registered yet</h2>
+        <p>${escapeHtml(lockInfo.email)} isn’t a registered employee. Register below to get started.</p>
+        <button type="button" id="accessLockRegister" class="access-lock-copy">📝 Register as a new employee</button>
+        <button type="button" id="accessLockSwitch" class="access-lock-switch">Not you? Try a different account</button>
       </div>
     `;
+    // Reuses the SAME email already Google-verified to reach this screen
+    // (see openRegisterPopup's presetEmail) -- no need to verify it twice.
+    // Once registered, logActivity('register', ...) inside that popup
+    // triggers its own render(), which re-classifies this now-real
+    // employee and lands them on the normal checked-out lock screen.
+    overlay.querySelector('#accessLockRegister').addEventListener('click', () => {
+      openRegisterPopup(lockInfo.email);
+    });
     overlay.querySelector('#accessLockSwitch').addEventListener('click', () => {
       pendingAccountSwitch = true;
       render();

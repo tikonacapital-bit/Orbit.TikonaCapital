@@ -100,7 +100,10 @@ textarea:disabled {
   display: flex;
   align-items: center;
   justify-content: center;
-  z-index: 1000;
+  /* Above .access-lock-overlay's 20000 -- a popup deliberately opened
+     (e.g. Register, from the unrecognized-device lock screen) must be
+     reachable, not hidden behind the lock that opened it. */
+  z-index: 21000;
   animation: modalOverlayIn 160ms ease both;
 }
 
