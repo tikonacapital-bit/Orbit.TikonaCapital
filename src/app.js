@@ -839,7 +839,7 @@ function reportSectionHeader(emoji, text, count, width) {
 }
 
 function reportSubLabel(label, width) {
-  return `_${centerPadSymmetric(label, '*', width)}_`;
+  return `_${centerPadSymmetric(label, '-', width)}_`;
 }
 
 // WhatsApp text has no font color, only bold/italic/strikethrough -- an
