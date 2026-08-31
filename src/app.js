@@ -2276,7 +2276,7 @@ function openAddRegularRowPopup() {
   const categoryInput = popup.querySelector('#regRowCategory');
   const categorySuggestions = document.createElement('div');
   categorySuggestions.className = 'combo-suggestions';
-  categorySuggestions.style.cssText = 'position:fixed;max-height:140px;z-index:1100;display:none;';
+  categorySuggestions.style.cssText = 'position:fixed;max-height:140px;z-index:21100;display:none;';
   document.body.appendChild(categorySuggestions);
 
   function positionCategorySuggestions() {
@@ -4712,7 +4712,7 @@ function openItemPopup(existingItem = null, existingIsProject = false, presetAss
 
   const assignedToSuggestions = document.createElement('div');
   assignedToSuggestions.className = 'combo-suggestions';
-  assignedToSuggestions.style.cssText = 'position:fixed;max-height:140px;z-index:1100;display:none;';
+  assignedToSuggestions.style.cssText = 'position:fixed;max-height:140px;z-index:21100;display:none;';
   document.body.appendChild(assignedToSuggestions);
 
   function positionSuggestions(box, dropdown) {
@@ -4784,7 +4784,7 @@ function openItemPopup(existingItem = null, existingIsProject = false, presetAss
 
   const categorySuggestions = document.createElement('div');
   categorySuggestions.className = 'combo-suggestions';
-  categorySuggestions.style.cssText = 'position:fixed;max-height:140px;z-index:1100;display:none;';
+  categorySuggestions.style.cssText = 'position:fixed;max-height:140px;z-index:21100;display:none;';
   document.body.appendChild(categorySuggestions);
 
   function showCategorySuggestions() {
