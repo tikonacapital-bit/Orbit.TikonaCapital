@@ -1,6 +1,6 @@
 
 // Choose storage backend: './storage.js' for chrome.storage, './storage-supabase.js' for Supabase
-import { loadState, loadCachedState, saveStateDebounced, startPolling, fetchLatestState } from './storage-supabase.js';
+import { loadState, loadCachedState, saveStateDebounced, saveStateNow, startPolling, fetchLatestState } from './storage-supabase.js';
 
 const boardEl = document.getElementById('board');
 const statsEl = document.getElementById('stats');
@@ -1301,10 +1301,21 @@ async function fetchClientIp() {
   }
 }
 
+// Check-in/out (and register/leave/exit) save IMMEDIATELY, not through the
+// normal 500ms-debounced persist() -- that debounce is exactly what was
+// causing "it forgets I checked in" the next morning: someone checks in
+// then immediately backgrounds/closes the tab (extremely common right
+// after tapping a check-in button), the debounce timer never fires, the
+// write never reaches Supabase, and the NEXT load's reconciliation fetch
+// pulls back the old pre-checkin state and silently reverts it -- right
+// before the checked-out lock reads that same stale state and locks them
+// out again, forcing a second check-in with a later timestamp. Saving the
+// instant it happens closes that window; a real fetch (unlike a timer)
+// also isn't paused just because the tab goes to the background.
 function logActivity(type, email, ip, device, name = '', extra = {}) {
   state.activity = state.activity || [];
   state.activity.push({ id: uid('act'), type, name, email, timestamp: Date.now(), ip, device, ...extra });
-  persist();
+  saveStateNow(state).catch((err) => console.error('Tikona Tasklist: activity save failed', err));
   render();
 }
 
